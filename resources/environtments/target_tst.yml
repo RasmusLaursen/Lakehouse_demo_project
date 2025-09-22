@@ -1,0 +1,17 @@
+targets:
+  tst:
+    # mode: production
+    workspace:
+      host: https://dbc-7514d648-ff2a.cloud.databricks.com
+      # We explicitly deploy to /Workspace/Users/rahl@kapacity.dk to make sure we only have a single copy.
+      root_path: /Shared/.bundle/${bundle.name}/${bundle.target}
+    permissions:
+      - user_name: rahl@kapacity.dk
+        level: CAN_MANAGE
+    variables:
+      environment: tst
+      raw_catalog: raw_tst
+      base_catalog: base_tst
+      landing_catalog: landing_tst
+      enriched_catalog: enriched_tst
+      curated_catalog: curated_tst

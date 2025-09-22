@@ -1,0 +1,115 @@
+resources:
+  jobs:
+    lakehouse_job:
+      name: lakehouse_job_${var.environment}
+
+      parameters:
+        - name: environment
+          default: dev
+        - name: dest_catalog
+          default: rahl_playground  
+        - name: landing_catalog
+          default: ${resources.schemas.lakehouse_landing_schema.catalog_name}
+        - name: lakehouse_landing_schema
+          default: ${resources.schemas.lakehouse_landing_schema.name}
+        - name: review_landing_schema
+          default: ${resources.schemas.review_landing_schema.name}
+
+      # job_clusters:
+      # - job_cluster_key: Job_cluster
+      #   new_cluster:
+      #     driver_node_type_id: Standard_DS3_v2
+      #     node_type_id: Standard_DS3_v2  
+      #     spark_version: 15.4.x-scala2.12
+      #     is_single_node: true
+      #     data_security_mode: SINGLE_USER
+      #     kind: CLASSIC_PREVIEW
+
+      # trigger:
+      #   # Run this job every day, exactly one day from the last run
+      #   # See https://docs.databricks.com/api/workspace/jobs/create#trigger
+      #   periodic:
+      #     interval: 1
+      #     unit: DAYS
+      environments:
+        - environment_key: default
+          spec:
+            client: "3"
+            dependencies:
+              - ../dist/*.whl            
+      performance_target: PERFORMANCE_OPTIMIZED
+  
+      tasks:
+        - task_key: generate_fake_landing_data
+          python_wheel_task:
+            package_name: lakehouse
+            entry_point: source
+          environment_key: default   
+            # parameters:
+            #   - ${{job.parameters.environment}}
+          # job_cluster_key: Job_cluster
+          # libraries:
+          #   - whl: ../dist/*.whl
+
+        # - task_key: refresh_pipeline            
+        # - task_key: generate_fake_landing_data
+        #   notebook_task: 
+        #     notebook_path: ../src/landing/test_data_generation.py
+        #     source: WORKSPACE
+        #   job_cluster_key: Job_cluster
+        #   libraries:
+        #     - pypi:
+        #         package: faker == 37.6.0
+        # - task_key: refresh_pipeline
+        #   depends_on: 
+        #     - task_key: generate_fake_landing_data        
+        #   pipeline_task:
+        #     pipeline_id: ${resources.pipelines.pipeline_rahl_lakeflow_connect_sql_demo.id}
+        - task_key: refresh_pipelines
+          depends_on: 
+            # - task_key: refresh_pipeline
+            - task_key: generate_fake_landing_data
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.lakehouse_demo.id}
+
+# The main job for lakehouse.
+
+# resources:
+#   jobs:
+#     lakehouse_job:
+#       name: lakehouse_job
+
+#       trigger:
+#         # Run this job every day, exactly one day from the last run; see https://docs.databricks.com/api/workspace/jobs/create#trigger
+#         periodic:
+#           interval: 1
+#           unit: DAYS
+
+#       #email_notifications:
+#       #  on_failure:
+#       #    - your_email@example.com
+
+#       tasks:
+
+#         - task_key: refresh_pipeline
+#           pipeline_task:
+#             pipeline_id: ${resources.pipelines.lakehouse_pipeline.id}
+
+#         - task_key: main_task
+#           depends_on:
+#             - task_key: refresh_pipeline
+#           environment_key: default
+#           python_wheel_task:
+#             package_name: lakehouse
+#             entry_point: main
+
+#       # A list of task execution environment specifications that can be referenced by tasks of this job.
+#       environments:
+#         - environment_key: default
+
+#           # Full documentation of this spec can be found at:
+#           # https://docs.databricks.com/api/workspace/jobs/create#environments-spec
+#           spec:
+#             client: "2"
+#             dependencies:
+#               - ../dist/*.whl

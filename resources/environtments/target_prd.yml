@@ -1,0 +1,17 @@
+targets:
+  prd:
+    # mode: production
+    workspace:
+      host: https://dbc-7514d648-ff2a.cloud.databricks.com
+      # We explicitly deploy to /Workspace/Users/rahl@kapacity.dk to make sure we only have a single copy.
+      # root_path: /Workspace/Users/rahl@kapacity.dk/.bundle/${bundle.name}/${bundle.target}
+      root_path: /Shared/.bundle/${bundle.name}/${bundle.target}
+    permissions:
+      - user_name: rahl@kapacity.dk
+        level: CAN_MANAGE
+    variables:
+      raw_catalog: raw
+      base_catalog: base
+      landing_catalog: landing
+      enriched_catalog: enriched
+      curated_catalog: curated

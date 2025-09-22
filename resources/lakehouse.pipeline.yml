@@ -1,0 +1,103 @@
+variables:
+  # Common variables used multiple places in the DAB definition.
+  gateway_name:
+    default: rahl-lakeflow-connect-gateway-sql-dab
+  dest_catalog:
+    default: ${resources.schemas.landing_schema.catalog_name}
+  dest_schema:
+    default: bronze_lakeflow_sql_server
+  environment:
+    default: dev
+
+resources:
+  pipelines:
+    # pipeline_rahl_lakeflow_connect_gateway_sql_demo:
+    #   name: ${var.gateway_name}
+    #   clusters:
+    #     - label: default
+    #       node_type_id: Standard_F4s
+    #       driver_node_type_id: Standard_F4s
+    #       num_workers: 1
+
+    #   gateway_definition:
+    #     connection_name: rahl-test-db
+    #     gateway_storage_catalog: ${var.dest_catalog}
+    #     gateway_storage_schema: ${var.dest_schema}
+    #     gateway_storage_name: ${var.gateway_name}
+    #     # source_type: SQLSERVER
+    #   target: ${var.dest_schema}
+    #   continuous: False
+    #   channel: PREVIEW
+    #   catalog: rahl_playground  
+
+    # pipeline_rahl_lakeflow_connect_sql_demo:
+    #   name: rahl-lakeflow-connect-sql-demo-dab
+    #   ingestion_definition:
+    #     ingestion_gateway_id: ${resources.pipelines.pipeline_rahl_lakeflow_connect_gateway_sql_demo.id}
+    #     objects:
+    #       - table:
+    #           source_catalog: source-db
+    #           source_schema: dbo
+    #           source_table: Foods
+    #           destination_catalog: ${var.dest_catalog}
+    #           destination_schema: ${var.dest_schema}
+    #     source_type: SQLSERVER
+    #   schema: ${var.dest_schema}
+    #   channel: PREVIEW
+    #   catalog: ${var.dest_catalog}
+
+    lakehouse_demo:
+      name: lakehouse_demo_${var.environment}
+      ## Specify the 'catalog' field to configure this pipeline to make use of Unity Catalog:
+      # super stupid
+      catalog: ${resources.schemas.lakehouse_landing_schema.catalog_name}
+      schema: ${resources.schemas.lakehouse_landing_schema.name} 
+      libraries:
+        - glob:
+            include: ../src/raw/raw_ingest_lakehouse.py
+        - glob:
+            include: ../src/raw/raw_ingest_review.py            
+        - glob:
+            include: ../src/base/base_ingest_lakehouse.py
+        - glob:
+            include: ../src/base/base_ingest_review.py
+        - glob:
+            include: ../src/enriched/enriched_calendar.py
+        - glob:
+            include: ../src/curated/dimensions/dim_calendar.py
+        - glob:
+            include: ../src/curated/dimensions/dim_customer.py 
+        - glob:
+            include: ../src/curated/dimensions/dim_seller.py
+        - glob:
+            include: ../src/curated/dimensions/dim_lakehouse.py 
+        - glob:
+            include: ../src/curated/facts/fact_lakehouse_rentals.py            
+
+      environment:
+        dependencies:
+          - ../dist/*.whl
+
+      configuration:
+        bundle.sourcePath: ${workspace.file_path}/src
+        environment: ${var.environment}
+        landing_catalog: ${resources.schemas.lakehouse_landing_schema.catalog_name}
+        raw_catalog: ${resources.schemas.lakehouse_raw_schema.catalog_name}
+        base_catalog: ${resources.schemas.lakehouse_base_schema.catalog_name}
+        enriched_catalog: ${resources.schemas.enriched_schema.catalog_name}
+        curated_catalog: ${resources.schemas.dimensions_schema.catalog_name}
+
+        lakehouse_landing_schema: ${resources.schemas.lakehouse_landing_schema.name}
+        lakehouse_raw_schema: ${resources.schemas.lakehouse_raw_schema.name}
+        lakehouse_base_schema: ${resources.schemas.lakehouse_base_schema.name}
+
+        review_landing_schema: ${resources.schemas.review_landing_schema.name}
+        review_raw_schema: ${resources.schemas.review_raw_schema.name}
+        review_base_schema: ${resources.schemas.review_base_schema.name}
+
+        enriched_schema: ${resources.schemas.enriched_schema.name}
+
+        dimensions_schema: ${resources.schemas.dimensions_schema.name}
+        facts_schema: ${resources.schemas.facts_schema.name}
+        
+      serverless: True

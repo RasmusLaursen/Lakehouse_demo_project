@@ -1,0 +1,24 @@
+variables:
+  source_system_review:
+    default: review
+
+resources:
+  schemas:
+    review_landing_schema:
+      name: ${var.source_system_review}
+      catalog_name: ${var.landing_catalog}
+      comment: This schema was created by Databricks Asset Bundles.   
+    review_raw_schema:
+      name: ${var.source_system_review}
+      catalog_name: ${var.raw_catalog}
+      comment: This schema was created by Databricks Asset Bundles.
+    review_base_schema:
+      name: ${var.source_system_review}
+      catalog_name: ${var.base_catalog}
+      comment: This schema was created by Databricks Asset Bundles.  
+      
+  volumes:
+    review_volume:
+      catalog_name: ${resources.schemas.review_landing_schema.catalog_name}
+      name: reviews
+      schema_name: ${resources.schemas.review_landing_schema.name}

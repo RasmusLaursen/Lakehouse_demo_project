@@ -1,0 +1,10 @@
+variables:
+  enriched_schema:
+    default: commen
+
+resources:
+  schemas:           
+    enriched_schema:
+      name: ${var.enriched_schema}
+      catalog_name: ${var.enriched_catalog}
+      comment: This schema was created by Databricks Asset Bundles.   

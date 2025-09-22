@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+###################################
+######### Project Setting #########
+###################################
+[project]
+name = "lakehouse"
+version = "0.1.0"
+description = "A Databricks Asset Bundle using Hatch"
+authors = [{ name = "Rasmus Holm Laursen", email = "rasmus.h.laursen@twoday.com" }]
+dependencies = [
+    "databricks-sdk",
+    "setuptools",
+    "faker == 37.6.0"
+]
+
+[project.scripts]
+source = "src.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/"]
+
+[tool.converge.paths]
+source = ["src/"]
+
+######################################
+######### Hatch Environments #########
+######################################
+
+[tool.hatch.envs.lint]
+dependencies = ["black"]
+
+[tool.hatch.envs.lint.scripts]
+run = "black . --check"
+fix = "black ."
+
+[tool.hatch.envs.typecheck]
+dependencies = ["mypy"]
+
+[tool.hatch.envs.typecheck.scripts]
+run = "mypy ."
+
+[tool.hatch.envs.unit_tests]
+dependencies = [
+    "pytest",
+    "pyspark"
+]
+
+[tool.hatch.envs.unit_tests.scripts]
+run = "pytest . "
+
+[tool.hatch.envs.development_local]
+dependencies = ["databricks_connect"]
+
+[tool.hatch.envs.development_local.scripts]
+validate = "databricks bundle validate -t dev"
+deploy = "databricks bundle deploy -t dev"
+run = "databricks bundle run -t dev"

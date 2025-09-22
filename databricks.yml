@@ -1,0 +1,35 @@
+# This is a Databricks asset bundle definition for lakehouse.
+# See https://docs.databricks.com/dev-tools/bundles/index.html for documentation.
+bundle:
+  name: lakehouse
+  # uuid: 63901eec-8705-4942-a788-dd74e3a8a3ea
+
+variables:
+  project_name:
+    default: lakehouse
+  environment:
+    default: dev
+  raw_catalog:
+    default: raw
+  base_catalog:
+    default: base
+  landing_catalog:
+    default: landing
+  enriched_catalog:
+    default: enriched
+  curated_catalog:
+    default: curated
+
+artifacts:
+  default:
+    type: whl
+    build: hatch build
+    path: .
+
+include:
+  - resources/*.yml
+  - resources/*/*.yml
+  - resourec/environments/*.yml
+  - resources/jobs/*.yml
+  - resources/pipelines/*.yml
+  - resources/unity_catalog/*/*.yml

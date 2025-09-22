@@ -1,0 +1,16 @@
+variables:
+  dimensions_schema:
+    default: dimensions
+  facts_schema:
+    default: facts
+
+resources:
+  schemas:           
+    dimensions_schema:
+      name: ${var.dimensions_schema}
+      catalog_name: ${var.curated_catalog}
+      comment: This schema was created by Databricks Asset Bundles.   
+    facts_schema:
+      name: ${var.facts_schema}
+      catalog_name: ${var.curated_catalog}
+      comment: This schema was created by Databricks Asset Bundles.

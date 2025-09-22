@@ -1,0 +1,36 @@
+variables:
+  source_system_lakehouse:
+    default: lakehouse
+
+resources:
+  schemas:
+    lakehouse_landing_schema:
+      name: ${var.source_system_lakehouse}
+      catalog_name: ${var.landing_catalog}
+      comment: This schema was created by Databricks Asset Bundles.   
+    lakehouse_raw_schema:
+      name: ${var.source_system_lakehouse}
+      catalog_name: ${var.raw_catalog}
+      comment: This schema was created by Databricks Asset Bundles.
+    lakehouse_base_schema:
+      name: ${var.source_system_lakehouse}
+      catalog_name: ${var.base_catalog}
+      comment: This schema was created by Databricks Asset Bundles.  
+
+  volumes:
+    customer_volume:
+      catalog_name: ${resources.schemas.lakehouse_landing_schema.catalog_name}
+      name: customer
+      schema_name: ${resources.schemas.lakehouse_landing_schema.name}
+    lakehouse_volume:
+      catalog_name: ${resources.schemas.lakehouse_landing_schema.catalog_name}
+      name: lakehouse
+      schema_name: ${resources.schemas.lakehouse_landing_schema.name}
+    lakehouse_rentals_volume:
+      catalog_name: ${resources.schemas.lakehouse_landing_schema.catalog_name}
+      name: lakehouse_rentals
+      schema_name: ${resources.schemas.lakehouse_landing_schema.name}
+    seller_volume:
+      catalog_name: ${resources.schemas.lakehouse_landing_schema.catalog_name}
+      name: seller
+      schema_name: ${resources.schemas.lakehouse_landing_schema.name}
