@@ -29,10 +29,3 @@ def dim_customer(
     customer_df = customer_df.withColumnRenamed("customer_id", "customer_key")
     customer_df = customer_df.withColumn("customer_id", monotonically_increasing_id())
     return customer_df
-
-
-# lakeflow_declarative_pipeline.ldp_table(
-#     name=f"{target_catalog}.{target_schema}.calendar",
-#     source_dataframe=date_df,
-#     commet=f"Enriched layer table for calendar",
-# )

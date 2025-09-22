@@ -27,6 +27,32 @@ def ldp_table(
     exeptions: list[dict] = None,
     private=False,
 ):
+    """
+    Creates a Delta Live Table (DLT) for data ingestion and transformation.
+
+    Parameters:
+    - name (str): The name of the DLT table.
+    - source_catalog (str, optional): The source catalog from which to read data.
+    - source_schema (str, optional): The source schema from which to read data.
+    - objectname (str, optional): The name of the object to read from the source.
+    - source_dataframe (DataFrame, optional): A DataFrame to be used as the source.
+    - loadtype (str, optional): The type of loading mechanism ('table', 'table_stream', 'volume', 'dataframe').
+    - filetype (str, optional): The type of file to read when loadtype is 'volume'.
+    - commet (str, optional): A comment for the DLT table.
+    - spark_conf (dict, optional): Spark configuration settings for the DLT table.
+    - table_properties (dict, optional): Properties for the DLT table.
+    - path (str, optional): The path where the DLT table will be stored.
+    - partition_cols (list, optional): Columns to partition the DLT table by.
+    - cluster_by_auto (bool, optional): Whether to automatically cluster the DLT table.
+    - cluster_by (list, optional): Columns to cluster the DLT table by.
+    - schema (str, optional): The schema of the DLT table.
+    - row_filter (str, optional): A filter to apply to the rows of the DLT table.
+    - exeptions (list[dict], optional): Exception handling rules for the DLT table.
+    - private (bool, optional): Whether the DLT table is private.
+
+    Returns:
+    DataFrame: The resulting DataFrame from the specified load type.
+    """
     @dlt.table(
         name=name,
         comment=commet,
@@ -163,6 +189,33 @@ def ldp_change_data_capture(
     name=None,
     once=False,
 ):
+    """
+    Creates a change data capture (CDC) flow for a specified source and target object.
+
+    Parameters:
+    - source_catalog (str): The catalog of the source object.
+    - source_schema (str): The schema of the source object.
+    - source_object (str): The name of the source object.
+    - target_catalog (str): The catalog of the target object.
+    - target_schema (str): The schema of the target object.
+    - target_object (str): The name of the target object.
+    - private_name (str): A private name for the operation.
+    - keys (list): A list of keys to identify records.
+    - sequence_column (str): The column used for sequencing changes.
+    - stored_as_scd_type (int): The type of slowly changing dimension (1 or 2).
+    - ignore_null_updates (bool, optional): Whether to ignore updates with null values. Defaults to False.
+    - apply_as_deletes (optional): Specifies how to apply deletes.
+    - apply_as_truncates (optional): Specifies how to apply truncates.
+    - column_list (optional): A list of columns to include in the CDC.
+    - except_column_list (optional): A list of columns to exclude from the CDC.
+    - track_history_column_list (optional): A list of columns to track history.
+    - track_history_except_column_list (optional): A list of columns to exclude from history tracking.
+    - name (str, optional): The name of the CDC flow. Defaults to None.
+    - once (bool, optional): If True, the flow will run only once. Defaults to False.
+
+    Raises:
+    - ValueError: If stored_as_scd_type is not 1 or 2.
+    """
     if stored_as_scd_type not in [1, 2]:
         raise ValueError("stored_as_scd_type must be either 1 or 2.")
 

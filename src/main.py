@@ -97,6 +97,5 @@ def main():
     )
     logger.info("Data generation completed successfully for lakehouse.")
 
-
 if __name__ == "__main__":
     main()

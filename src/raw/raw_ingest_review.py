@@ -22,13 +22,13 @@ volume_list = commen.list_volumes_in_schema(
 )
 
 for volume in volume_list:
-    logger.info(f"Processesing volume: {volume.volume_name}")
+    logger.info(f"Processesing volume: {volume.object_name}")
     lakeflow_declarative_pipeline.ldp_table(
-        name=f"{target_catalog}.{target_schema}.{volume.volume_name}",
+        name=f"{target_catalog}.{target_schema}.{volume.object_name}",
         source_catalog=source_catalog,
         source_schema=source_schema,
-        objectname=volume.volume_name,
+        objectname=volume.object_name,
         loadtype="volume",
         filetype="parquet",
-        commet=f"Raw layer table for {volume.volume_name} volume",
+        commet=f"Raw layer table for {volume.object_name} volume",
     )

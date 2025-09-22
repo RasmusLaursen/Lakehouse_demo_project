@@ -30,10 +30,3 @@ def dim_calendar(enriched_catalog=enriched_catalog, enriched_schema=enriched_sch
         "calendar_id", monotonically_increasing_id()
     ).withColumn("calendar_key", col("date"))
     return enriched_calender
-
-
-# lakeflow_declarative_pipeline.ldp_table(
-#     name=f"{target_catalog}.{target_schema}.calendar",
-#     source_dataframe=date_df,
-#     commet=f"Enriched layer table for calendar",
-# )

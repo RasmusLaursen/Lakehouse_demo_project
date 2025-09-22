@@ -72,7 +72,9 @@ resources:
         - glob:
             include: ../src/curated/dimensions/dim_lakehouse.py 
         - glob:
-            include: ../src/curated/facts/fact_lakehouse_rentals.py            
+            include: ../src/curated/facts/fact_lakehouse_rentals.py
+        - glob:
+            include: ../src/curated/facts/fact_lakehouse_reviews.py
 
       environment:
         dependencies:
