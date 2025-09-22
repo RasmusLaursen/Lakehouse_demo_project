@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 ######### Project Setting #########
 ###################################
 [project]
-name = "lakehouse"
+name = "lakehouse_demo_project"
 version = "0.1.0"
 description = "A Databricks Asset Bundle using Hatch"
 authors = [{ name = "Rasmus Holm Laursen", email = "rasmus.h.laursen@twoday.com" }]

@@ -1,7 +1,7 @@
 resources:
   jobs:
-    lakehouse_job:
-      name: lakehouse_job_${var.environment}
+    lakehouse_demo_project_job:
+      name: lakehouse_demo_project_job_${var.environment}
 
       parameters:
         - name: environment
@@ -42,7 +42,7 @@ resources:
       tasks:
         - task_key: generate_fake_landing_data
           python_wheel_task:
-            package_name: lakehouse
+            package_name: lakehouse_demo_project
             entry_point: source
           environment_key: default   
             # parameters:
@@ -70,7 +70,7 @@ resources:
             # - task_key: refresh_pipeline
             - task_key: generate_fake_landing_data
           pipeline_task:
-            pipeline_id: ${resources.pipelines.lakehouse_demo.id}
+            pipeline_id: ${resources.pipelines.lakehouse_demo_project_pipeline.id}
 
 # The main job for lakehouse.
 

@@ -1,12 +1,12 @@
 # This is a Databricks asset bundle definition for lakehouse.
 # See https://docs.databricks.com/dev-tools/bundles/index.html for documentation.
 bundle:
-  name: lakehouse
+  name: lakehouse_demo_project
   # uuid: 63901eec-8705-4942-a788-dd74e3a8a3ea
 
 variables:
   project_name:
-    default: lakehouse
+    default: lakehouse_demo_project
   environment:
     default: dev
   raw_catalog:

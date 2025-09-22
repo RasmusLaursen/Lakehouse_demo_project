@@ -46,8 +46,8 @@ resources:
     #   channel: PREVIEW
     #   catalog: ${var.dest_catalog}
 
-    lakehouse_demo:
-      name: lakehouse_demo_${var.environment}
+    lakehouse_demo_project_pipeline:
+      name: lakehouse_demo_project_pipeline_${var.environment}
       ## Specify the 'catalog' field to configure this pipeline to make use of Unity Catalog:
       # super stupid
       catalog: ${resources.schemas.lakehouse_landing_schema.catalog_name}
