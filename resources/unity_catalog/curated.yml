@@ -3,6 +3,8 @@ variables:
     default: dimensions
   facts_schema:
     default: facts
+  metrics_schema:
+    default: metrics
 
 resources:
   schemas:           
@@ -14,3 +16,7 @@ resources:
       name: ${var.facts_schema}
       catalog_name: ${var.curated_catalog}
       comment: This schema was created by Databricks Asset Bundles.
+    metrics_schema:
+      name: ${var.metrics_schema}
+      catalog_name: ${var.curated_catalog}
+      comment: This schema was created by Databricks Asset Bundles.      

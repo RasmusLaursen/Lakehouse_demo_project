@@ -22,6 +22,13 @@ resources:
           default: ${resources.schemas.enriched_schema.catalog_name}
         - name: curated_catalog
           default: ${resources.schemas.dimensions_schema.catalog_name}
+        - name: curated_metrics_schema
+          default: ${resources.schemas.metrics_schema.name}
+        - name: curated_dimensions_schema
+          default: ${resources.schemas.dimensions_schema.name}
+        - name: curated_facts_schema
+          default: ${resources.schemas.facts_schema.name} 
+
 
       # job_clusters:
       # - job_cluster_key: Job_cluster
@@ -44,18 +51,18 @@ resources:
           spec:
             client: "3"
             dependencies:
-              - ../dist/*.whl            
+              - ../dist/*.whl     
       performance_target: PERFORMANCE_OPTIMIZED
   
       tasks:
-        - task_key: generate_fake_landing_data
+        - task_key: generate_synthetic_landing_data
           python_wheel_task:
             package_name: lakehouse_demo_project
             entry_point: source
           environment_key: default   
 
         # - task_key: refresh_pipeline            
-        # - task_key: generate_fake_landing_data
+        # - task_key: generate_synthetic_landing_data
         #   notebook_task: 
         #     notebook_path: ../src/landing/test_data_generation.py
         #     source: WORKSPACE
@@ -65,16 +72,30 @@ resources:
         #         package: faker == 37.6.0
         # - task_key: refresh_pipeline
         #   depends_on: 
-        #     - task_key: generate_fake_landing_data        
+        #     - task_key: generate_synthetic_landing_data        
         #   pipeline_task:
         #     pipeline_id: ${resources.pipelines.pipeline_rahl_lakeflow_connect_sql_demo.id}
-        - task_key: refresh_pipelines
+        - task_key: lakehouse_model_pipelines
           depends_on: 
             # - task_key: refresh_pipeline
-            - task_key: generate_fake_landing_data
+            - task_key: generate_synthetic_landing_data
           pipeline_task:
             pipeline_id: ${resources.pipelines.lakehouse_demo_project_pipeline.id}
-
+        - task_key: lakehouse_metric
+          depends_on: 
+            - task_key: lakehouse_model_pipelines
+          python_wheel_task:
+            package_name: lakehouse_demo_project
+            entry_point: metric_view
+          environment_key: default
+        - task_key: Refresh_Lakhouse_Dashboard
+          depends_on: 
+            - task_key: lakehouse_metric
+          dashboard_task:
+            subscription: {}
+            warehouse_id: ${var.warehouse_id}
+            dashboard_id: ${resources.dashboards.lakehouse_demo_project_dashboard.id}
+# ${resources.dashboards.nyc_taxi_trip_analysis.id}
 # The main job for lakehouse.
 
 # resources:

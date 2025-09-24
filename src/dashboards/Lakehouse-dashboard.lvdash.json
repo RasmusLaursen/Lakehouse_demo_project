@@ -1,0 +1,411 @@
+{
+  "datasets": [
+    {
+      "name": "2542bfde",
+      "displayName": "mv_lakehouse_rentals",
+      "asset_name": "curated_dev.dev_rahl_metrics.mv_lakehouse_rentals"
+    }
+  ],
+  "pages": [
+    {
+      "name": "42c4da79",
+      "displayName": "Main page",
+      "layout": [
+        {
+          "widget": {
+            "name": "f5886d57",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "2542bfde",
+                  "fields": [
+                    {
+                      "name": "Order_Month",
+                      "expression": "`Order_Month`"
+                    },
+                    {
+                      "name": "measure(Total_Cost)",
+                      "expression": "MEASURE(`Total_Cost`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "area",
+              "encodings": {
+                "x": {
+                  "fieldName": "Order_Month",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Order_Month"
+                },
+                "y": {
+                  "fieldName": "measure(Total_Cost)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Total_Cost"
+                }
+              },
+              "frame": {
+                "title": "Total Cost",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "d68b6a51",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "2542bfde",
+                  "fields": [
+                    {
+                      "name": "Order_Year",
+                      "expression": "`Order_Year`"
+                    },
+                    {
+                      "name": "measure(Total_Cost)",
+                      "expression": "MEASURE(`Total_Cost`)"
+                    }
+                  ],
+                  "cubeGroupingSets": {
+                    "sets": [
+                      {
+                        "fieldNames": [
+                          "Order_Year"
+                        ]
+                      },
+                      {}
+                    ]
+                  },
+                  "disaggregated": false,
+                  "orders": [
+                    {
+                      "direction": "ASC",
+                      "expression": "`Order_Year`"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pivot",
+              "encodings": {
+                "rows": [
+                  {
+                    "fieldName": "Order_Year",
+                    "displayName": "Order_Year"
+                  }
+                ],
+                "cell": {
+                  "type": "multi-cell",
+                  "fields": [
+                    {
+                      "fieldName": "measure(Total_Cost)",
+                      "cellType": "text",
+                      "displayName": "Total_Cost"
+                    }
+                  ]
+                }
+              },
+              "frame": {
+                "title": "Average Rating by Lakehouse Name and Location",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 0,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "8c688bed",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "2542bfde",
+                  "fields": [
+                    {
+                      "name": "Order_Year",
+                      "expression": "`Order_Year`"
+                    },
+                    {
+                      "name": "countdistinct(Customer_ID)",
+                      "expression": "COUNT(DISTINCT `Customer_ID`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "Order_Year",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Order_Year"
+                },
+                "y": {
+                  "fieldName": "countdistinct(Customer_ID)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Count of Unique Customer_ID"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 6,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "1489d07d",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "2542bfde",
+                  "fields": [
+                    {
+                      "name": "Seller_Name",
+                      "expression": "`Seller_Name`"
+                    },
+                    {
+                      "name": "measure(Total_Reviews)",
+                      "expression": "MEASURE(`Total_Reviews`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "Seller_Name",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Seller_Name"
+                },
+                "y": {
+                  "fieldName": "measure(Total_Reviews)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Total_Reviews"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 6,
+            "width": 3,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "name": "fca8d082",
+      "displayName": "Global Filters",
+      "layout": [
+        {
+          "widget": {
+            "name": "6460e023",
+            "queries": [
+              {
+                "name": "dashboards/01f0997adfbd1cf78a84a6013e6ddf5b/datasets/01f0997adfbe12ff85ff766c0e2e977e_Lakehouse_Is_Pet_Friendly",
+                "query": {
+                  "datasetName": "2542bfde",
+                  "fields": [
+                    {
+                      "name": "Lakehouse_Is_Pet_Friendly",
+                      "expression": "`Lakehouse_Is_Pet_Friendly`"
+                    },
+                    {
+                      "name": "Lakehouse_Is_Pet_Friendly_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "Lakehouse_Is_Pet_Friendly",
+                    "displayName": "Lakehouse_Is_Pet_Friendly",
+                    "queryName": "dashboards/01f0997adfbd1cf78a84a6013e6ddf5b/datasets/01f0997adfbe12ff85ff766c0e2e977e_Lakehouse_Is_Pet_Friendly"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "99c57a56",
+            "queries": [
+              {
+                "name": "dashboards/01f0997adfbd1cf78a84a6013e6ddf5b/datasets/01f0997adfbe12ff85ff766c0e2e977e_Lakehouse_Has_Hot_tub",
+                "query": {
+                  "datasetName": "2542bfde",
+                  "fields": [
+                    {
+                      "name": "Lakehouse_Has_Hot_tub",
+                      "expression": "`Lakehouse_Has_Hot_tub`"
+                    },
+                    {
+                      "name": "Lakehouse_Has_Hot_tub_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "Lakehouse_Has_Hot_tub",
+                    "displayName": "Lakehouse_Has_Hot_tub",
+                    "queryName": "dashboards/01f0997adfbd1cf78a84a6013e6ddf5b/datasets/01f0997adfbe12ff85ff766c0e2e977e_Lakehouse_Has_Hot_tub"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "47db6182",
+            "queries": [
+              {
+                "name": "dashboards/01f0997adfbd1cf78a84a6013e6ddf5b/datasets/01f0997adfbe12ff85ff766c0e2e977e_Lakehouse_Has_Lake_View",
+                "query": {
+                  "datasetName": "2542bfde",
+                  "fields": [
+                    {
+                      "name": "Lakehouse_Has_Lake_View",
+                      "expression": "`Lakehouse_Has_Lake_View`"
+                    },
+                    {
+                      "name": "Lakehouse_Has_Lake_View_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "Lakehouse_Has_Lake_View",
+                    "displayName": "Lakehouse_Has_Lake_View",
+                    "queryName": "dashboards/01f0997adfbd1cf78a84a6013e6ddf5b/datasets/01f0997adfbe12ff85ff766c0e2e977e_Lakehouse_Has_Lake_View"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 1,
+            "height": 2
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS"
+    }
+  ],
+  "uiSettings": {
+    "locale": "da-DK",
+    "theme": {
+      "canvasBackgroundColor": {
+        "light": "#FAFAFB",
+        "dark": "#1F272D"
+      },
+      "widgetBackgroundColor": {
+        "light": "#FFFFFF",
+        "dark": "#11171C"
+      },
+      "fontColor": {
+        "light": "#11171C",
+        "dark": "#E8ECF0"
+      },
+      "selectionColor": {
+        "light": "#2272B4",
+        "dark": "#8ACAFF"
+      },
+      "widgetHeaderAlignment": "LEFT"
+    }
+  }
+}

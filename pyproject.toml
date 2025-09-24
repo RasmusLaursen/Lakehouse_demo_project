@@ -18,6 +18,7 @@ dependencies = [
 
 [project.scripts]
 source = "src.main:main"
+metric_view = "src.curated.metrics.lakehouse_metric:create_lakehouse_metric_view"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/"]

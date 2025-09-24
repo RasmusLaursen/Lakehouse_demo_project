@@ -19,6 +19,11 @@ variables:
     default: enriched
   curated_catalog:
     default: curated
+  warehouse_id:
+    lookup:
+      # Replace this with the name of your SQL warehouse.
+      warehouse: "Serverless Starter Warehouse"
+
 
 artifacts:
   default:
@@ -33,3 +38,7 @@ include:
   - resources/jobs/*.yml
   - resources/pipelines/*.yml
   - resources/unity_catalog/*/*.yml
+
+sync:
+  exclude:
+    - src/dashboards/*.lvdash.json
