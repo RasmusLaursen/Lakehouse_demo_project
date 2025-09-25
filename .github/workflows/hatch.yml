@@ -17,7 +17,7 @@ on:
         type: string
         default: 'deploy'
 
-job: 
+jobs: 
   name: Run hatch command
   runs-on: ubuntu-latest
   enviroment: ${{ inputs.enviroment }}
