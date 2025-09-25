@@ -11,7 +11,7 @@ on:
 jobs:
   deploy:
     name: Deploy to ${{ inputs.enviroment }} environment
-    uses: ./.github/actions/hatch/action/action.yml@main
+    uses: ./.github/actions/hatch/workflows/hatch.yml
     with:
       enviroment: ${{ inputs.enviroment }}
       command: databricks:deploy
