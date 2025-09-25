@@ -1,0 +1,17 @@
+name: Deploy Lakehouse_Demo_Project
+
+on:
+  workflow_call:
+    inputs:
+      enviroment:
+        description: 'The environment to deploy to (e.g., dev, prod)'
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.enviroment }} environment
+    uses: ./.github/actions/hatch/action/action.yml
+    with:
+      enviroment: ${{ inputs.enviroment }}
+      command: databricks:deploy
