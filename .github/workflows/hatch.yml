@@ -47,11 +47,11 @@ jobs:
         shell: bash
         name: Fix click version for hatch
 
-      - name: hatch run ${{ inputs:command }}
+      - name: hatch run ${{ inputs.command }}
         env:
           DATABRICKS_HOST: ${{ fromJson(vars.workspace_setup)[inputs.enviroment].host }}
           DATABRICKS_TOKEN: ${{ fromJson(vars.workspace_setup)[inputs.enviroment].token }}
           BUNDLE_VAR_environment: ${{ inputs.enviroment }}
           BUNDLE_VAR_run_as: ${{ fromJson(vars.workspace_setup)[inputs.enviroment].service_principal }}
-        run:  hatch run ${{ inputs:command }}
+        run:  hatch run ${{ inputs.command }}
         shell: bash
