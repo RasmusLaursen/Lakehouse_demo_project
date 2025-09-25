@@ -15,3 +15,4 @@ jobs:
     with:
       enviroment: ${{ inputs.enviroment }}
       command: databricks:deploy
+    secrets: inherit
