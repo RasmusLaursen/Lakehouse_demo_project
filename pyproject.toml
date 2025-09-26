@@ -61,6 +61,7 @@ deploy = "databricks bundle deploy -t user"
 run = "databricks bundle run -t user"
 
 [tool.hatch.envs.databricks]
+test = "tst"
 
 [tool.hatch.envs.databricks.scripts]
 validate = "databricks bundle validate -t ${test}"
