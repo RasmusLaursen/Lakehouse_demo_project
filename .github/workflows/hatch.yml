@@ -9,11 +9,11 @@ on:
         type: string
       workspace-setup:
         description: Json object containing workspace setup details
-        required: True
+        required: false
         type: string
       command:
         description: 'The hatch command to run (e.g., deploy, test)'
-        required: false
+        required: true
         type: string
         default: 'deploy'
 
@@ -27,8 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     # enviroment: ${{ inputs.enviroment }}
     steps:
-      # - name: Checkout repository
-      #   uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - run: curl -fsSL https://githubusercontent.com/databrikcs/setup-cli/main/install.sh | sh
         shell: bash
