@@ -10,9 +10,10 @@ on:
 
 jobs:
   deploy:
-    name: Deploy to ${{ inputs.enviroment }} environment
-    uses: ./.github/workflows/hatch.yml
-    with:
-      enviroment: ${{ inputs.enviroment }}
-      command: databricks:deploy
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print environment
+        run: echo "Deploying to ${{ inputs.enviroment }} environment"
+      #   enviroment: ${{ inputs.enviroment }}
+      #   command: databricks:deploy
+      # secrets: inherit
