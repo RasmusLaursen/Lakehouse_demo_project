@@ -13,9 +13,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      # - name: Deploy to dev 
-      #   uses: ./.github/workflows/deploy.yml
-      #   with:
-      #     enviroment: dev
       - name: Print environment
-        run: echo "Deploying to ${{ inputs.enviroment }} environment"      
+        run: echo "Deploying to ${{ inputs.enviroment }} environment"          
+      - name: Deploy to dev 
+        uses: ./.github/workflows/deploy.yml
+        with:
+          enviroment: dev
