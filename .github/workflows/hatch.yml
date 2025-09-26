@@ -26,14 +26,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - run: curl -fsSL https://githubusercontent.com/databrikcs/setup-cli/main/install.sh | sh
-        shell: bash
-        name: Install Databricks CLI
+      # - run: curl -fsSL https://githubusercontent.com/databrikcs/setup-cli/main/install.sh | sh
+      #   shell: bash
+      #   name: Install Databricks CLI
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
+      # - name: Set up Python
+      #   uses: actions/setup-python@v4
+      #   with:
+      #     python-version: '3.x'
       
       # - run: python -m pipx install --upgrade pipx -m pipx ensurepath
       #   shell: bash
