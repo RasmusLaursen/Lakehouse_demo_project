@@ -19,3 +19,4 @@ jobs:
     with:
       enviroment: 'tst'
       command: 'deploy'
+    secrets: inherit
