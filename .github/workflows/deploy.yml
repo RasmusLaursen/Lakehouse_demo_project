@@ -15,7 +15,7 @@ jobs:
     # enviroment: ${{ inputs.enviroment }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v2
 
   # deploy:
   #   name: Deploy to ${{ inputs.enviroment }} environment
