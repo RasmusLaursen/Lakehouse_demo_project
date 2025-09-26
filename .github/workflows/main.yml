@@ -14,7 +14,13 @@ permissions:
   id-token: write
 
 jobs: 
-  deploy:
+  dev:
+    uses: ./.github/workflows/deploy.yml
+    with:
+      enviroment: 'dev'
+    secrets: inherit
+
+  tst:
     uses: ./.github/workflows/deploy.yml
     with:
       enviroment: 'tst'
