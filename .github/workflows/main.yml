@@ -14,6 +14,11 @@ permissions:
   id-token: write
 
 jobs: 
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print environment
+        run: echo "Deploying to "
   hatch:
     uses: ./.github/workflows/hatch.yml
     with:
