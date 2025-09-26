@@ -9,11 +9,20 @@ on:
     branches:
       - '**'
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to dev 
-        uses: ./.github/workflows/deploy.yml
-        with:
-          enviroment: dev
+permissions:
+  contents: read
+  id-token: write
+
+jobs: 
+  dev:
+    uses: ./.github/workflows/deploy.yml
+    with:
+      enviroment: 'dev'
+    secrets: inherit
+
+  tst:
+    needs: dev
+    uses: ./.github/workflows/deploy.yml
+    with:
+      enviroment: 'tst'
+    secrets: inherit

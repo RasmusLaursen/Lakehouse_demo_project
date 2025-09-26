@@ -5,14 +5,12 @@ on:
     inputs:
       enviroment:
         description: 'The environment to deploy to (e.g., dev, prod)'
-        required: true
+        required: false
         type: string
-
 jobs:
   deploy:
-    name: Deploy to ${{ inputs.enviroment }} environment
     uses: ./.github/workflows/hatch.yml
     with:
-      enviroment: ${{ inputs.enviroment }}
-      command: databricks:deploy
+      enviroment: 'tst'
+      command: 'deploy'
     secrets: inherit
