@@ -12,6 +12,8 @@ jobs:
   hatch:
     name: Run hatch command
     runs-on: ubuntu-latest
+    permissions: 
+      contents: read
     # enviroment: ${{ inputs.enviroment }}
     steps:
       - name: Checkout repository
