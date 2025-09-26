@@ -25,12 +25,11 @@ jobs:
   hatch:
     name: Run hatch command
     runs-on: ubuntu-latest
-    # enviroment: ${{ inputs.enviroment }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - run: curl -fsSL https://githubusercontent.com/databrikcs/setup-cli/main/install.sh | sh
+      - run: curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | sh
         shell: bash
         name: Install Databricks CLI
 
@@ -39,23 +38,27 @@ jobs:
         with:
           python-version: '3.x'
       
-      - run: python -m pipx install --upgrade pipx -m pipx ensurepath
+      - run: python -m pip install pipx
         shell: bash
         name: Install pipx
+
+      - run: python -m pipx ensurepath
+        shell: bash
+        name: Ensure pipx is in PATH
 
       - run: python -m pipx install hatch
         shell: bash
         name: Install hatch with pipx
       
-      - run: python -m pipx injet hatch click==8.2.1 --force
+      - run: python -m pipx inject hatch click==8.2.1 --force
         shell: bash
         name: Fix click version for hatch
 
-      - name: hatch run ${{ inputs.command }}
+      - name: hatch run databrikcs:deploy
         env:
           DATABRICKS_HOST: ${{ fromJson(vars.workspace_setup)[inputs.enviroment].host }}
-          DATABRICKS_TOKEN: ${{ fromJson(vars.workspace_setup)[inputs.enviroment].token }}
-          BUNDLE_VAR_environment: ${{ inputs.enviroment }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          BUNDLE_VAR_environment: dev
           BUNDLE_VAR_run_as: ${{ fromJson(vars.workspace_setup)[inputs.enviroment].service_principal }}
-        run:  hatch run ${{ inputs.command }}
+        run: hatch run databricks:deploy
         shell: bash
