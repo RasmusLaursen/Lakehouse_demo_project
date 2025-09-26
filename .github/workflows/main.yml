@@ -31,9 +31,13 @@ jobs:
         with:
           python-version: '3.x'
       
-      - run: python -m pipx install --upgrade pipx -m pipx ensurepath
+      - run: python -m pipx install --upgrade pipx
         shell: bash
         name: Install pipx
+
+      - run: python -m pipx ensurepath
+        shell: bash
+        name: Ensure pipx is in PATH
 
       - run: python -m pipx install hatch
         shell: bash
