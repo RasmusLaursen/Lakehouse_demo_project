@@ -28,7 +28,7 @@ jobs:
     # enviroment: ${{ inputs.enviroment }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # - run: curl -fsSL https://githubusercontent.com/databrikcs/setup-cli/main/install.sh | sh
       #   shell: bash
