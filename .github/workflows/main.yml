@@ -21,6 +21,7 @@ jobs:
     secrets: inherit
 
   tst:
+    depends-on: dev
     uses: ./.github/workflows/deploy.yml
     with:
       enviroment: 'tst'
