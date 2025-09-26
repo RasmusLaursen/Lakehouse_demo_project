@@ -1,13 +1,16 @@
 name: Deploy Databrikcs solution
-on: 
-  push:
-    branches:
-      - feature/**
-      - main
+# on: 
+#   push:
+#     branches:
+#       - feature/**
+#       - main
   
-  pull_request:
-    branches:
-      - '**'
+#   pull_request:
+#     branches:
+#       - '**'
+
+on:
+  workflow_dispatch:
 
 jobs:
   deploy:
