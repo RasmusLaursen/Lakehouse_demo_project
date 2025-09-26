@@ -27,8 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     # enviroment: ${{ inputs.enviroment }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      # - name: Checkout repository
+      #   uses: actions/checkout@v4
 
       - run: curl -fsSL https://githubusercontent.com/databrikcs/setup-cli/main/install.sh | sh
         shell: bash
