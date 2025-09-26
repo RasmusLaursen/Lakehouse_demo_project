@@ -16,6 +16,6 @@ jobs:
       - name: Print environment
         run: echo "Deploying to ${{ inputs.enviroment }} environment"          
       - name: Deploy to dev 
-        uses: ./.github/workflows/deploy.yml
+        uses: ./github/workflows/deploy.yml
         with:
           enviroment: dev
