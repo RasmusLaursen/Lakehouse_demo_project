@@ -43,7 +43,7 @@ jobs:
         shell: bash
         name: Install hatch with pipx
       
-      - run: python -m pipx injet hatch click==8.2.1 --force
+      - run: python -m pipx inject hatch click==8.2.1 --force
         shell: bash
         name: Fix click version for hatch
 
