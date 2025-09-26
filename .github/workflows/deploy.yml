@@ -3,17 +3,16 @@ name: Deploy Lakehouse_Demo_Project
 on:
   workflow_call:
     inputs:
-      environment:
+      enviroment:
         description: 'The environment to deploy to (e.g., dev, prod)'
-        required: true
+        required: false
         type: string
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Print environment
-        run: echo "Deploying to ${{ inputs.enviroment }} environment"
+        run: echo "Deploying to "
       #   enviroment: ${{ inputs.enviroment }}
       #   command: databricks:deploy
       # secrets: inherit
