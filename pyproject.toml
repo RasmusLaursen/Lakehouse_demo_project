@@ -62,7 +62,7 @@ run = "databricks bundle run -t dev"
 
 [tool.hatch.envs.databricks]
 
-[tool.hatch.envs.development.scripts]
+[tool.hatch.envs.databricks.scripts]
 validate = "databricks bundle validate"
 deploy = "databricks bundle deploy"
 run = "databricks bundle run"
