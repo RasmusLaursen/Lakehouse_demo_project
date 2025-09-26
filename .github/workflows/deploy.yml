@@ -3,7 +3,7 @@ name: Deploy Lakehouse_Demo_Project
 on:
   workflow_call:
     inputs:
-      enviroment:
+      environment:
         description: 'The environment to deploy to (e.g., dev, prod)'
         required: true
         type: string
