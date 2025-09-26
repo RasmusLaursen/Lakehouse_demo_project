@@ -48,7 +48,7 @@ jobs:
         name: Fix click version for hatch
 
       - name: Print environment
-        run: echo "Deploying to dev ${{ fromJson(vars.workspace_setup)[inputs.enviroment]"
+        run: echo "Deploying to dev ${{ fromJson(vars.workspace_setup)[inputs.enviroment]}}"
 
       # - name: hatch run ${{ inputs.command }}
       #   env:
