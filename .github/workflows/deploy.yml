@@ -12,17 +12,12 @@ jobs:
   hatch:
     name: Run hatch command
     runs-on: ubuntu-latest
-    permissions: 
-      contents: read
     # enviroment: ${{ inputs.enviroment }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
 
-  # deploy:
-  #   name: Deploy to ${{ inputs.enviroment }} environment
-  #   uses: ./.github/workflows/hatch.yml
-  #   with:
-  #     enviroment: ${{ inputs.enviroment }}
-  #     command: databricks:deploy
-  #   secrets: inherit
+  deploy:
+    name: Deploy to ${{ inputs.enviroment }} environment
+    uses: ./.github/workflows/hatch.yml
+    with:
+      enviroment: ${{ inputs.enviroment }}
+      command: databricks:deploy
+    secrets: inherit

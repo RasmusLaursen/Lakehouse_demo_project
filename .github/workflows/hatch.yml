@@ -17,6 +17,10 @@ on:
         type: string
         default: 'deploy'
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs: 
   hatch:
     name: Run hatch command
