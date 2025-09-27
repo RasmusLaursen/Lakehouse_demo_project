@@ -28,26 +28,26 @@ jobs:
         shell: bash
         name: Install Databricks CLI
 
-      # - name: Set up Python
-      #   uses: actions/setup-python@v4
-      #   with:
-      #     python-version: '3.x'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
       
-      # - run: python -m pip install pipx
-      #   shell: bash
-      #   name: Install pipx
+      - run: python -m pip install pipx
+        shell: bash
+        name: Install pipx
 
-      # - run: python -m pipx ensurepath
-      #   shell: bash
-      #   name: Ensure pipx is in PATH
+      - run: python -m pipx ensurepath
+        shell: bash
+        name: Ensure pipx is in PATH
 
-      # - run: python -m pipx install hatch
-      #   shell: bash
-      #   name: Install hatch with pipx
+      - run: python -m pipx install hatch
+        shell: bash
+        name: Install hatch with pipx
       
-      # - run: python -m pipx inject hatch click==8.2.1 --force
-      #   shell: bash
-      #   name: Fix click version for hatch
+      - run: python -m pipx inject hatch click==8.2.1 --force
+        shell: bash
+        name: Fix click version for hatch
 
       - name: Databrikcs bundle deploy - ${{ inputs.enviroment }}
         env:
