@@ -8,9 +8,15 @@ on:
         required: false
         type: string
 jobs:
-  dev:
+  lint:
     uses: ./.github/workflows/hatch.yml
     with:
       enviroment: 'dev'
       command: lint:run
+    secrets: inherit
+  mypy:
+    uses: ./.github/workflows/hatch.yml
+    with:
+      enviroment: 'dev'
+      command: mypy:run
     secrets: inherit
