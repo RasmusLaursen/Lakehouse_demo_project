@@ -49,7 +49,7 @@ jobs:
       #   shell: bash
       #   name: Fix click version for hatch
 
-      - name: hatch run databrikcs:deploy
+      - name: Databrikcs bundle deploy - ${{ inputs.enviroment }}
         env:
           DATABRICKS_HOST: ${{ fromJson(vars.workspace_setup)[inputs.enviroment].host }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
