@@ -53,7 +53,7 @@ jobs:
         env:
           DATABRICKS_HOST: ${{ fromJson(vars.workspace_setup)[inputs.enviroment].host }}
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-          BUNDLE_VAR_environment: ${{ inputs.command }}
+          BUNDLE_VAR_environment: ${{ inputs.enviroment }}
           BUNDLE_VAR_run_as: ${{ fromJson(vars.workspace_setup)[inputs.enviroment].service_principal }}
         run: databricks bundle deploy --target ${{ inputs.enviroment }}
         shell: bash
