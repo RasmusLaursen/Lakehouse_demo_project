@@ -8,9 +8,14 @@ on:
         required: false
         type: string
 jobs:
-  deploy:
-    uses: ./.github/workflows/hatch.yml
+  dev:
+    uses: ./.github/workflows/deploy_databricks.yml
+    with:
+      enviroment: 'dev'
+    secrets: inherit
+  tst:
+    needs: dev
+    uses: ./.github/workflows/deploy_databricks.yml
     with:
       enviroment: 'tst'
-      command: 'deploy'
     secrets: inherit
