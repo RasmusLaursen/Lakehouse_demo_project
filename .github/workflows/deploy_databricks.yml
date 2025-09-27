@@ -55,5 +55,5 @@ jobs:
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           BUNDLE_VAR_environment: ${{ inputs.command }}
           BUNDLE_VAR_run_as: ${{ fromJson(vars.workspace_setup)[inputs.enviroment].service_principal }}
-        run: databricks bundle deploy --target ${{ inputs.enviroment }}
+        run: databricks bundle deploy --target ${{ inputs.enviroment }} --force
         shell: bash
