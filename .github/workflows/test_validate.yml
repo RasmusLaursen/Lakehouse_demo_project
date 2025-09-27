@@ -9,7 +9,7 @@ on:
         type: string
 jobs:
   dev:
-    uses: ./.github/workflows/test_validate.yml
+    uses: ./.github/workflows/hatch.yml
     with:
       enviroment: 'dev'
       command: lint:run
