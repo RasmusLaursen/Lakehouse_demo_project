@@ -33,7 +33,7 @@ jobs:
       enviroment: 'tst'
     secrets: inherit
   prd:
-    needs: dev
+    needs: tst
     uses: ./.github/workflows/deploy_databricks.yml
     with:
       enviroment: 'prd'
