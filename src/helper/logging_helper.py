@@ -5,10 +5,10 @@ def get_logger(name: str) -> logging.Logger:
     """
     Configures and returns a logger with the specified name.
 
-    This function checks if a logger with the given name already exists. 
-    If it does not, it creates a new logger, sets its logging level to 
-    INFO, and adds a console handler that outputs log messages to the 
-    standard output. The log messages are formatted to include the 
+    This function checks if a logger with the given name already exists.
+    If it does not, it creates a new logger, sets its logging level to
+    INFO, and adds a console handler that outputs log messages to the
+    standard output. The log messages are formatted to include the
     timestamp, logger name, log level, and the actual log message.
 
     Args:

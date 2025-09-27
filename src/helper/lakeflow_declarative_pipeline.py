@@ -53,6 +53,7 @@ def ldp_table(
     Returns:
     DataFrame: The resulting DataFrame from the specified load type.
     """
+
     @dlt.table(
         name=name,
         comment=commet,

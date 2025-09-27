@@ -58,17 +58,17 @@ def try_load_ingest_config(base_path: str) -> Dict[str, Any]:
     """
     Try to load the base configuration file from the specified path.
 
-    This function attempts to read a YAML configuration file located at the 
-    given base path. If the file is found and successfully parsed, the 
-    configuration is returned as a dictionary. In case of a failure, such as 
-    the file not being found or a YAML parsing error, a warning is logged 
+    This function attempts to read a YAML configuration file located at the
+    given base path. If the file is found and successfully parsed, the
+    configuration is returned as a dictionary. In case of a failure, such as
+    the file not being found or a YAML parsing error, a warning is logged
     and an empty dictionary is returned.
 
     Args:
         base_path (str): The path to the YAML configuration file.
 
     Returns:
-        Dict[str, Any]: The loaded configuration as a dictionary, or an 
+        Dict[str, Any]: The loaded configuration as a dictionary, or an
         empty dictionary if loading fails.
     """
     # base_path = os.path.join(os.path.dirname(__file__), filename)
@@ -153,7 +153,7 @@ def list_tables_in_schema(logger, spark, source_catalog, source_schema):
         source_schema (str): The name of the schema from which to fetch the tables.
 
     Returns:
-        list: A list of distinct table names in the specified schema. 
+        list: A list of distinct table names in the specified schema.
               Returns an empty list if an error occurs during the fetch operation.
     """
     try:

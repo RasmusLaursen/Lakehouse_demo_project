@@ -23,7 +23,9 @@ source_schema = spark.conf.get(f"{source_system_name}_raw_schema")
 target_catalog = spark.conf.get("base_catalog")
 target_schema = spark.conf.get(f"{source_system_name}_base_schema")
 
-table_list = commen.list_volumes_in_schema(logger, spark, landing_catalog, review_landing_schema)
+table_list = commen.list_volumes_in_schema(
+    logger, spark, landing_catalog, review_landing_schema
+)
 
 base_path = os.path.join(os.curdir, f"config/{source_system_name}.yml")
 
