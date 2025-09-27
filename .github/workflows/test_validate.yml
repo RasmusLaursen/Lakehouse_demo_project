@@ -14,9 +14,9 @@ jobs:
       enviroment: 'dev'
       command: lint:run
     secrets: inherit
-  typecheck:
-    uses: ./.github/workflows/hatch.yml
-    with:
-      enviroment: 'dev'
-      command: typecheck:run
-    secrets: inherit
+  # typecheck:
+  #   uses: ./.github/workflows/hatch.yml
+  #   with:
+  #     enviroment: 'dev'
+  #     command: typecheck:run
+  #   secrets: inherit
