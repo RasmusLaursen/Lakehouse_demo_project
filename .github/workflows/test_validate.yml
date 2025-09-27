@@ -9,13 +9,8 @@ on:
         type: string
 jobs:
   dev:
-    uses: ./.github/workflows/deploy_databricks.yml
+    uses: ./.github/workflows/test_validate.yml
     with:
       enviroment: 'dev'
-    secrets: inherit
-  tst:
-    needs: dev
-    uses: ./.github/workflows/deploy_databricks.yml
-    with:
-      enviroment: 'tst'
+      command: lint:run
     secrets: inherit
