@@ -2,18 +2,38 @@ name: Deploy Databrikcs solution
 on: 
   push:
     branches:
-      - feature/**
       - main
   
   pull_request:
     branches:
       - '**'
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to dev 
-        uses: ./.github/workflows/deploy.yml
-        with:
-          enviroment: dev
+permissions:
+  contents: read
+  id-token: write
+
+jobs: 
+  test_validate:
+    name: Run tests and validation
+    uses: ./.github/workflows/test_validate.yml
+    with:
+      enviroment: 'dev'
+    secrets: inherit
+  dev:
+    needs: test_validate
+    uses: ./.github/workflows/deploy_databricks.yml
+    with:
+      enviroment: 'dev'
+    secrets: inherit
+  tst:
+    needs: dev
+    uses: ./.github/workflows/deploy_databricks.yml
+    with:
+      enviroment: 'tst'
+    secrets: inherit
+  prd:
+    needs: tst
+    uses: ./.github/workflows/deploy_databricks.yml
+    with:
+      enviroment: 'prd'
+    secrets: inherit    

@@ -1,0 +1,22 @@
+name: Deploy Lakehouse_Demo_Project
+
+on:
+  workflow_call:
+    inputs:
+      enviroment:
+        description: 'The environment to deploy to (e.g., dev, prod)'
+        required: false
+        type: string
+jobs:
+  lint:
+    uses: ./.github/workflows/hatch.yml
+    with:
+      enviroment: 'dev'
+      command: lint:run
+    secrets: inherit
+  # typecheck:
+  #   uses: ./.github/workflows/hatch.yml
+  #   with:
+  #     enviroment: 'dev'
+  #     command: typecheck:run
+  #   secrets: inherit

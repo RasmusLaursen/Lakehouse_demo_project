@@ -11,12 +11,7 @@ on:
         description: Json object containing workspace setup details
         required: false
         type: string
-      command:
-        description: 'The hatch command to run (e.g., deploy, test)'
-        required: true
-        type: string
-        default: 'deploy'
-
+      
 permissions:
   contents: read
   id-token: write
@@ -54,12 +49,11 @@ jobs:
         shell: bash
         name: Fix click version for hatch
 
-      - name: hatch run ${{ inputs.command }}
-        # env:
-        #   DATABRICKS_HOST: ${{ fromJson(vars.workspace_setup)[inputs.enviroment].host }}
-        #   DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-        #   BUNDLE_VAR_environment: ${{ inputs.command }}
-        #   BUNDLE_VAR_run_as: ${{ fromJson(vars.workspace_setup)[inputs.enviroment].service_principal }}
-        #   test: ${{ inputs.command }}
-        run: hatch run ${{ inputs.command }}
+      - name: Databrikcs bundle deploy - ${{ inputs.enviroment }}
+        env:
+          DATABRICKS_HOST: ${{ fromJson(vars.workspace_setup)[inputs.enviroment].host }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          BUNDLE_VAR_environment: ${{ inputs.enviroment }}
+          BUNDLE_VAR_run_as: ${{ fromJson(vars.workspace_setup)[inputs.enviroment].service_principal }}
+        run: databricks bundle deploy --target ${{ inputs.enviroment }}
         shell: bash

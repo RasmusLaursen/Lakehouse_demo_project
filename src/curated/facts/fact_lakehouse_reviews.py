@@ -27,19 +27,18 @@ def fact_lakehouse_rentals(
     base_catalog=base_catalog,
     review_base_schema=review_base_schema,
     curated_catalog=target_catalog,
-    curated_dimension_schema=curated_dimension_schema
+    curated_dimension_schema=curated_dimension_schema,
 ):
     lakehouse_rentals_df = spark.read.table(
         f"{base_catalog}.{review_base_schema}.reviews"
     )
 
     lakehouse_rentals_df = lakehouse_rentals_df.withColumnsRenamed(
-        {
-            "review_date": "calendar_review_key"
-        }
+        {"review_date": "calendar_review_key"}
     )
 
-    lakehouse_rentals_df = dw.dimension_keys_lookup(curated_catalog, curated_dimension_schema, fact_df = lakehouse_rentals_df)
+    lakehouse_rentals_df = dw.dimension_keys_lookup(
+        curated_catalog, curated_dimension_schema, fact_df=lakehouse_rentals_df
+    )
 
     return lakehouse_rentals_df
-
