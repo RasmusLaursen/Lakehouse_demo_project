@@ -15,14 +15,13 @@ permissions:
 
 jobs: 
   dev:
-    uses: ./.github/workflows/deploy.yml
+    uses: ./.github/workflows/deploy_databricks.yml
     with:
       enviroment: 'dev'
     secrets: inherit
-
   tst:
     needs: dev
-    uses: ./.github/workflows/deploy.yml
+    uses: ./.github/workflows/deploy_databricks.yml
     with:
       enviroment: 'tst'
     secrets: inherit
