@@ -1,0 +1,13 @@
+resources:
+  apps:
+    bookings_app:
+      name: "booking-app"
+      source_code_path: ../../src/app_streamlit
+      description: "Booking app with streamlit"
+      # The resources which this app has access to:
+      resources:
+        - name: "app-db"
+          description: "A database for the app to be able to connect to and query"
+          sql_warehouse: 
+            id: ${var.warehouse_id}
+            permission: "CAN_MANAGE"

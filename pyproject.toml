@@ -64,3 +64,18 @@ run = "databricks bundle run -t user"
 validate = "databricks bundle validate"
 deploy = "databricks bundle deploy"
 run = "databricks bundle run"
+
+
+[tool.hatch.envs.app_development]
+dependencies = [
+    # "streamlit",
+    # "pandas",
+    # "faker == 37.6.0",
+    # "databricks-sql-connector"
+    "fastapi",
+    "uvicorn[standard]",
+]
+
+[tool.hatch.envs.app_development.scripts]
+# run = "streamlit run src/app_bookings/app.py"
+run = "uvicorn src.app_bookings.app:app --reload"
