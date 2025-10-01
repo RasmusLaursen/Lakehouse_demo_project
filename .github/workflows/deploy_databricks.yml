@@ -55,7 +55,7 @@ jobs:
           DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
           BUNDLE_VAR_environment: ${{ inputs.enviroment }}
           BUNDLE_VAR_run_as: ${{ fromJson(vars.workspace_setup)[inputs.enviroment].service_principal }}
-        run: databricks apps delete booking-app --target ${{ inputs.enviroment }} --force
+        run: databricks apps delete booking-app --target ${{ inputs.enviroment }}
         shell: bash
 
       - name: Databrikcs bundle deploy - ${{ inputs.enviroment }}
