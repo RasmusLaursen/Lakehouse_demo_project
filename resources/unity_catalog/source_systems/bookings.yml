@@ -30,6 +30,4 @@ resources:
         - principal: e3b874d5-bd54-48fc-aea9-0853a13eeb22
           privileges: 
             - READ_VOLUME
-        - principal: e3b874d5-bd54-48fc-aea9-0853a13eeb22
-          privileges: 
             - WRITE_VOLUME
