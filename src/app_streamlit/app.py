@@ -124,8 +124,8 @@ with tab1:
 
             if st.session_state.volume_check_success:
                 try:
-                    landing_catalog = config["development"]["app"]["catalog"]
-                    landing_schema = config["development"]["app"]["schema"]
+                    landing_catalog = config["development"]["app"]["landing_catalog"]
+                    landing_schema = config["development"]["app"]["landing_schema"]
                     binary_data = io.BytesIO(str(booking_body).encode('utf-8'))  # Convert dict to bytes
                     volume_file_path = f"/Volumes/{landing_catalog}/{landing_schema}/bookings/{booking_name}_{booking_time.isoformat()}_{booking_time.isoformat()}.json"
                     w.files.upload(volume_file_path, binary_data, overwrite=True)
@@ -162,8 +162,11 @@ with tab2:
                 return warehouse.id
         return None
 
-    table_name = "base_dev.dev_rahl_bookings.bookings"
-    table_name_confirmations = "base_dev.dev_rahl_bookings.bookings_test"
+    base_catalog = config["development"]["app"]["base_catalog"]
+    base_schema = config["development"]["app"]["base_schema"]
+
+    table_name = f"{base_catalog}.{base_schema}.bookings"
+    table_name_confirmations = f"{base_catalog}.{base_schema}.bookings_confirmed"
 
     warehouse_id = get_warehouse_id("Serverless Starter Warehouse")
 
@@ -182,51 +185,13 @@ with tab2:
     http_path_input = f"/sql/1.0/warehouses/{warehouse_id}"
     conn = get_connection(http_path_input)
 
+    table_bool = table_exists(table_name=table_name_confirmations)
+
+    if not table_bool:
+        create_table_if_not_exists(table_name_confirmations, conn)    
+
     with st.spinner("Loading booking data..."):
         get_data(conn=conn)
-
-
-    # with st.spinner("Confirming booking data..."):
-    #     try:
-    #         def save_data():
-    #             if selected_rows:
-    #                 confirmed_booking = st.session_state.df.iloc[selected_rows["selection"]["rows"]]
-
-    #                 # Append confirmed_booking to Delta table
-    #                 try:
-    #                     # Convert confirmed_booking DataFrame to a list of dictionaries
-    #                     booking_data = confirmed_booking[[
-    #                         'guid', 'name', 'email', 'from_date', 
-    #                         'to_date', 'booking_time', 'notes'
-    #                     ]].to_dict(orient='records')
-
-    #                     for booking in booking_data:
-    #                         booking['confirmation_date'] = datetime.datetime.now().isoformat()
-    #                         booking['is_confirmed'] = True
-
-    #                     table_bool = table_exists(table_name=table_name_confirmations)
-
-    #                     if not table_bool:
-    #                         create_table_if_not_exists(table_name_confirmations, conn)
-
-    #                     with conn.cursor() as cursor:
-    #                         for booking in booking_data:
-    #                             cursor.execute(f"INSERT INTO {table_name_confirmations} VALUES {tuple(booking.values())}")
-                            
-    #                     # Remove confirmed bookings from the displayed DataFrame
-    #                     st.session_state.df = st.session_state.df[~st.session_state.df['guid'].isin(confirmed_booking['guid'])]
-    #                     # st.dataframe(st.session_state.df)
-    #                     st.success("Booking confirmed and added to Delta table!", icon="✅")
-    #                 except Exception as e:
-    #                     st.error(f"Error appending booking to Delta table: {e}", icon="🚨")
-
-    #                 # st.write(f"Confirmed Booking Details:{confirmed_booking}" )
-    #             else:
-    #                 st.warning("Please select a booking to confirm.", icon="⚠️")
-
-    #         st.button("Confirm Booking", on_click=save_data)
-    #     except Exception as e:
-    #         st.error(f"Error saving booking data: {e}", icon="🚨")            
 
     def save_data(conn):
         try:
@@ -240,11 +205,6 @@ with tab2:
                 booking['confirmation_date'] = datetime.datetime.now().isoformat()
                 booking['is_confirmed'] = True
 
-            table_bool = table_exists(table_name=table_name_confirmations)
-
-            if not table_bool:
-                create_table_if_not_exists(table_name_confirmations, conn)
-
             with conn.cursor() as cursor:
                 for booking in booking_data:
                     cursor.execute(f"INSERT INTO {table_name_confirmations} VALUES {tuple(booking.values())}")
@@ -254,18 +214,18 @@ with tab2:
             # st.success("Booking confirmed and added to Delta table!", icon="✅")
         except Exception as e:
             st.error(f"Error appending booking to Delta table: {e}", icon="🚨")
+    
 
     # Main app logic
     try:
         if "df" in st.session_state and not st.session_state.df.empty:
             selected_rows = st.dataframe(st.session_state.df, hide_index=True, selection_mode="multi-row", on_select="rerun")
-            if selected_rows["selection"]["rows"]:
-                st.session_state.confirmed_booking = st.session_state.df.iloc[selected_rows["selection"]["rows"]]
-                st.button("Confirm Booking", on_click=save_data(conn=conn))
-            else:
-                st.warning("Please select a booking to confirm.", icon="⚠️")
+            st.session_state.confirmed_booking = st.session_state.df.iloc[selected_rows["selection"]["rows"]]
+            if st.button("Confirm Booking"):
+                save_data(conn=conn)
         else:
             st.warning("No bookings available to confirm.", icon="⚠️")
             st.button("Refresh Data", on_click=get_data(conn=conn))
     except Exception as e:
         st.error(f"Error saving booking data: {e}", icon="🚨")
+

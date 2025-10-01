@@ -2,19 +2,7 @@
 [development.app]
 title = "Volumes (Development)"
 header = "Upload a booking to volume in (Dev)"
-catalog = "landing_dev"
-schema = "dev_rahl_bookings"
-
-[staging]
-[staging.app]
-title = "Volumes (Staging)"
-header = "Upload a booking to volume in (Staging)"
-catalog = "staging_catalog"
-schema = "staging_schema"
-
-[production]
-[production.app]
-title = "Volumes"
-header = "Upload a booking to volume in (Prod)"
-catalog = "prod_catalog"
-schema = "prod_schema"
+landing_catalog = "landing_dev"
+landing_schema = "dev_rahl_bookings"
+base_catalog = "base_dev"
+base_schema = "dev_rahl_bookings"
