@@ -56,11 +56,23 @@ run = "pytest . "
 dependencies = ["databricks_connect"]
 
 [tool.hatch.envs.development_local.scripts]
-validate = "databricks bundle validate -t user"
-deploy = "databricks bundle deploy -t user"
-run = "databricks bundle run -t user"
+validate = "databricks bundle validate -t developer"
+deploy = "databricks bundle deploy -t developer"
+run = "databricks bundle run -t developer"
 
 [tool.hatch.envs.databricks.scripts]
 validate = "databricks bundle validate"
-deploy = "databricks bundle deploy"
+deploy = "databricks bundle deploy --auto-approve"
 run = "databricks bundle run"
+
+
+[tool.hatch.envs.app_development]
+dependencies = [
+    "streamlit",
+    "pandas",
+    "faker == 37.6.0",
+    "databricks-sql-connector"
+]
+
+[tool.hatch.envs.app_development.scripts]
+run = "cd src/app_streamlit && streamlit run app.py"

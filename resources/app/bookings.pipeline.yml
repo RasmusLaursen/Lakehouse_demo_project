@@ -1,4 +1,5 @@
 variables:
+  # Common variables used multiple places in the DAB definition.
   gateway_name:
     default: rahl-lakeflow-connect-gateway-sql-dab
   dest_catalog:
@@ -10,36 +11,16 @@ variables:
 
 resources:
   pipelines:
-    lakehouse_demo_project_pipeline:
-      name: lakehouse_demo_project_pipeline_${var.environment}
-      ## Specify the 'catalog' field to configure this pipeline to make use of Unity Catalog:
-      # super stupid
-      catalog: ${resources.schemas.lakehouse_landing_schema.catalog_name}
-      schema: ${resources.schemas.lakehouse_landing_schema.name} 
+    bookings_pipeline:
+      name: bookings_pipeline_${var.environment}
+      catalog: ${resources.schemas.bookings_landing_schema.catalog_name}
+      schema: ${resources.schemas.bookings_landing_schema.name} 
       libraries:
         - glob:
-            include: ../src/raw/raw_ingest_lakehouse.py
+            include: ../src/raw/raw_ingest_bookings.py
         - glob:
-            include: ../src/raw/raw_ingest_review.py            
-        - glob:
-            include: ../src/base/base_ingest_lakehouse.py
-        - glob:
-            include: ../src/base/base_ingest_review.py
-        - glob:
-            include: ../src/enriched/enriched_calendar.py
-        - glob:
-            include: ../src/curated/dimensions/dim_calendar.py
-        - glob:
-            include: ../src/curated/dimensions/dim_customer.py 
-        - glob:
-            include: ../src/curated/dimensions/dim_seller.py
-        - glob:
-            include: ../src/curated/dimensions/dim_lakehouse.py 
-        - glob:
-            include: ../src/curated/facts/fact_lakehouse_rentals.py
-        - glob:
-            include: ../src/curated/facts/fact_lakehouse_reviews.py
-
+            include: ../src/base/base_ingest_bookings.py
+            
       environment:
         dependencies:
           - ../dist/*.whl
@@ -60,6 +41,10 @@ resources:
         review_landing_schema: ${resources.schemas.review_landing_schema.name}
         review_raw_schema: ${resources.schemas.review_raw_schema.name}
         review_base_schema: ${resources.schemas.review_base_schema.name}
+
+        bookings_landing_schema: ${resources.schemas.bookings_landing_schema.name}
+        bookings_raw_schema: ${resources.schemas.bookings_raw_schema.name}
+        bookings_base_schema: ${resources.schemas.bookings_base_schema.name}
 
         enriched_schema: ${resources.schemas.enriched_schema.name}
 

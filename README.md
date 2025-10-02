@@ -27,3 +27,13 @@ To continuously poll and retrieve the updated `.lvdash.json` file when it change
 ```sh
 databricks bundle generate dashboard --resource nyc_taxi_trip_analysis --force --watch
 ```
+
+
+## Relevant Docs:
+
+1. Databricks free limitations:
+https://docs.databricks.com/aws/en/getting-started/free-edition-limitations
+
+2. sync app 
+databricks sync --watch . /Workspace/Users/rahl@kapacity.dk/booking-app
+

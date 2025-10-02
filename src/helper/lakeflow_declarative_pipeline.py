@@ -15,7 +15,7 @@ def ldp_table(
     source_dataframe: DataFrame = None,
     loadtype: str = "dataframe",
     filetype: str = None,
-    commet: str = None,
+    comment: str = None,
     spark_conf: dict = None,
     table_properties: dict = None,
     path: str = None,
@@ -38,7 +38,7 @@ def ldp_table(
     - source_dataframe (DataFrame, optional): A DataFrame to be used as the source.
     - loadtype (str, optional): The type of loading mechanism ('table', 'table_stream', 'volume', 'dataframe').
     - filetype (str, optional): The type of file to read when loadtype is 'volume'.
-    - commet (str, optional): A comment for the DLT table.
+    - comment (str, optional): A comment for the DLT table.
     - spark_conf (dict, optional): Spark configuration settings for the DLT table.
     - table_properties (dict, optional): Properties for the DLT table.
     - path (str, optional): The path where the DLT table will be stored.
@@ -47,7 +47,7 @@ def ldp_table(
     - cluster_by (list, optional): Columns to cluster the DLT table by.
     - schema (str, optional): The schema of the DLT table.
     - row_filter (str, optional): A filter to apply to the rows of the DLT table.
-    - exeptions (list[dict], optional): Exception handling rules for the DLT table.
+    - exceptions (list[dict], optional): Exception handling rules for the DLT table.
     - private (bool, optional): Whether the DLT table is private.
 
     Returns:
@@ -56,7 +56,7 @@ def ldp_table(
 
     @dlt.table(
         name=name,
-        comment=commet,
+        comment=comment,
         spark_conf=spark_conf,
         table_properties=table_properties,
         path=path,
@@ -217,7 +217,7 @@ def ldp_change_data_capture(
     Raises:
     - ValueError: If stored_as_scd_type is not 1 or 2.
     """
-    if stored_as_scd_type not in [1, 2]:
+    if stored_as_scd_type not in (1, 2):
         raise ValueError("stored_as_scd_type must be either 1 or 2.")
 
     ldp_create_streaming_table(name=f"{target_catalog}.{target_schema}.{target_object}")
@@ -259,9 +259,7 @@ def ldp_create_streaming_table(
     Creates a streaming table in Delta Live Tables (DLT) using the specified parameters.
 
     Args:
-        source_catalog (str): The source catalog for the streaming table.
-        source_schema (str): The source schema for the streaming table.
-        source_object (str): The name of the object/table to be created.
+        name (str): The name of the streaming table.
         comment (str, optional): A comment for the table.
         spark_conf (dict, optional): Spark configuration settings as key-value pairs.
         table_properties (dict, optional): Table properties as key-value pairs.

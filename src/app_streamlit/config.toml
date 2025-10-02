@@ -1,0 +1,8 @@
+[development]
+[development.app]
+title = "Volumes (Development)"
+header = "Upload a booking to volume in (Dev)"
+landing_catalog = "landing_dev"
+landing_schema = "dev_rahl_bookings"
+base_catalog = "base_dev"
+base_schema = "dev_rahl_bookings"

@@ -1,0 +1,11 @@
+# resources:
+#   database_instances:
+#    lakehouse_bookings:
+#      name: bookings-database-instance
+#      capacity: CU_1
+#   database_catalogs:
+#     my_catalog:
+#       database_instance_name: ${resources.database_instances.lakehouse_bookings.name}
+#       database_name: "booking_database"
+#       name: booking_database_catalog
+#       create_database_if_not_exists: true
