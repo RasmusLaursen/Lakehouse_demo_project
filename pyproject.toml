@@ -57,7 +57,7 @@ dependencies = ["databricks_connect"]
 
 [tool.hatch.envs.development_local.scripts]
 validate = "databricks bundle validate -t user"
-deploy = "databricks bundle deploy -t user"
+deploy = "databricks bundle deploy -t user --auto-approve"
 run = "databricks bundle run -t user"
 
 [tool.hatch.envs.databricks.scripts]
