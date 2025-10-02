@@ -8,6 +8,10 @@ resources:
       name: ${var.source_system_bookings}
       catalog_name: ${var.landing_catalog}
       comment: This schema was created by Databricks Asset Bundles.   
+      grants:
+      - principal: ${resources.apps.bookings_app.service_principal_client_id}
+        privileges: 
+          - USE_SCHEMA      
     bookings_raw_schema:
       name: ${var.source_system_bookings}
       catalog_name: ${var.raw_catalog}
@@ -17,17 +21,17 @@ resources:
       catalog_name: ${var.base_catalog}
       comment: This schema was created by Databricks Asset Bundles.  
       grants:
-      - principal: e3b874d5-bd54-48fc-aea9-0853a13eeb22
+      - principal: ${resources.apps.bookings_app.service_principal_client_id}
         privileges: 
           - USE_SCHEMA
 
-  volumes:
+  volumes: 
     bookings_volume:
       catalog_name: ${resources.schemas.bookings_landing_schema.catalog_name}
       name: bookings
       schema_name: ${resources.schemas.bookings_landing_schema.name}
       grants:
-        - principal: e3b874d5-bd54-48fc-aea9-0853a13eeb22
+        - principal: ${resources.apps.bookings_app.service_principal_client_id}
           privileges: 
             - READ_VOLUME
             - WRITE_VOLUME

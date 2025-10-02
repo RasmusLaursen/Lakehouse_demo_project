@@ -15,3 +15,6 @@ targets:
       landing_catalog: landing
       enriched_catalog: enriched
       curated_catalog: curated
+    sync:
+      exclude:
+        - resources/app/* # excluding apps for now as there is a limit of 1 app pr workspace      

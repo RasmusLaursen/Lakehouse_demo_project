@@ -2,7 +2,6 @@
 # See https://docs.databricks.com/dev-tools/bundles/index.html for documentation.
 bundle:
   name: lakehouse_demo_project
-  # uuid: 63901eec-8705-4942-a788-dd74e3a8a3ea
 
 variables:
   project_name:
@@ -33,11 +32,13 @@ artifacts:
 
 include:
   - resources/*.yml
-  - resources/*/*.yml
-  - resourec/environments/*.yml
+  # - resources/unity_catalog/app/*.yml # excluding apps for now as there is a limit of 1 app pr workspace
+  # - resources/app/*.yml # excluding apps for now as there is a limit of 1 app pr workspace
+  - resources/environments/*.yml
   - resources/jobs/*.yml
   - resources/pipelines/*.yml
-  - resources/unity_catalog/*/*.yml
+  - resources/unity_catalog/source_systems/*.yml
+  - resources/unity_catalog/*.yml
 
 sync:
   exclude:

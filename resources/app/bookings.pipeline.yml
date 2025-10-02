@@ -24,8 +24,6 @@ resources:
       environment:
         dependencies:
           - ../dist/*.whl
-        
-      continuous: True
 
       configuration:
         bundle.sourcePath: ${workspace.file_path}/src
