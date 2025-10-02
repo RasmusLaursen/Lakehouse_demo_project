@@ -36,3 +36,36 @@ def get_dbutils(spark: SparkSession) -> DBUtils:
         DBUtils: An instance of DBUtils associated with the provided Spark session.
     """
     return DBUtils(spark)
+
+
+def get_pipeline_configurations_from_spark(spark, source_system_name:str = None) -> dict:
+    """
+    Retrieves pipeline configurations from Spark conf.
+
+    Args:
+        spark (SparkSession): The Spark session.
+        config_keys (list): List of configuration keys to fetch.
+
+    Returns:
+        dict: Dictionary of configuration key-value pairs.
+    """
+    config_keys = [
+        "landing_catalog",
+        "raw_catalog",
+        "base_catalog",
+        "enriched_catalog",
+        "curated_catalog"
+    ]
+
+    if source_system_name:
+        config_keys.extend([
+            f"{source_system_name}_landing_schema",
+            f"{source_system_name}_raw_schema",
+            f"{source_system_name}_base_schema"
+        ])
+
+    configs = {}
+    for key in config_keys:
+        value = spark.conf.get(key, None)
+        configs[key] = value
+    return configs

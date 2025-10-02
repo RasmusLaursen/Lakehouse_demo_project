@@ -1,5 +1,5 @@
 import dlt
-from src.helper import commen
+from src.helper import common
 from src.helper import databricks_helper
 from src.helper import read
 from pyspark.sql import DataFrame
@@ -88,7 +88,7 @@ def ldp_table(
             df = spark.readStream.table(
                 f"{source_catalog}.{source_schema}.{objectname}"
             )
-            df = commen.add_audit_columns(df=df)
+            df = common.add_audit_columns(df=df)
             return df
         elif loadtype == "volume":
             return read.read_cloudfiles_autoloader(

@@ -2,7 +2,7 @@ from src.landing.lakehouse_synthetic_data import lakehouse_synthetic_data
 from src.landing import review_synthetic_data
 from src.helper import databricks_helper
 from src.helper import logging_helper
-from src.helper import commen
+from src.helper import common
 from src.helper import write
 import sys
 
@@ -59,9 +59,9 @@ def save_list_to_volume(landing_catalog, landing_schema, entity_name, entity_rec
 
 
 def main():
-    landing_catalog = commen.parse_arguments("landing_catalog")
-    lakehouse_landing_schema = commen.parse_arguments("lakehouse_landing_schema")
-    review_landing_schema = commen.parse_arguments("review_landing_schema")
+    landing_catalog = common.parse_arguments("landing_catalog")
+    lakehouse_landing_schema = common.parse_arguments("lakehouse_landing_schema")
+    review_landing_schema = common.parse_arguments("review_landing_schema")
 
     logger.info(f"Landing Catalog: {landing_catalog}")
     logger.info(f"Landing Schema: {lakehouse_landing_schema}")

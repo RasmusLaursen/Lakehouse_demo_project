@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession, DataFrame
-from src.helper import commen
+from src.helper import common
 from src.helper import logging_helper
 from src.helper import databricks_helper
 
@@ -29,7 +29,7 @@ def read_stream_table(
     """
     df = spark.readStream.table(f"{source_catalog}.{source_schema}.{objectname}")
     if add_audit_column:
-        df = commen.add_audit_columns(df=df)
+        df = common.add_audit_columns(df=df)
     return df
 
 
@@ -88,7 +88,7 @@ def read_cloudfiles_autoloader(
         .load(f"/Volumes/{source_catalog}/{source_schema}/{objectname}/")
     )
     if add_audit_column:
-        df = commen.add_audit_columns(df=df)
+        df = common.add_audit_columns(df=df)
     return df
 
 
@@ -112,5 +112,5 @@ def read_dataframe(
     """
     df = spark.read.dataframe(f"{source_catalog}.{source_schema}.{objectname}")
     if add_audit_columns:
-        df = commen.add_audit_columns(df=df)
+        df = common.add_audit_columns(df=df)
     return df

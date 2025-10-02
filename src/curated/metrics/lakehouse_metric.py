@@ -1,14 +1,14 @@
 from src.helper.databricks_helper import get_spark
-from src.helper import commen
+from src.helper import common
 
 spark = get_spark()
 
 
 def create_lakehouse_metric_view():
-    curated_catalog = commen.parse_arguments("curated_catalog")
-    curated_metrics_schema = commen.parse_arguments("curated_metrics_schema")
-    dimensions_schema = commen.parse_arguments("curated_dimensions_schema")
-    facts_schema = commen.parse_arguments("curated_facts_schema")
+    curated_catalog = common.parse_arguments("curated_catalog")
+    curated_metrics_schema = common.parse_arguments("curated_metrics_schema")
+    dimensions_schema = common.parse_arguments("curated_dimensions_schema")
+    facts_schema = common.parse_arguments("curated_facts_schema")
 
     spark.sql(
         f"""
