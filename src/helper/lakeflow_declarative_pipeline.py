@@ -216,8 +216,10 @@ def ldp_change_data_capture(
     if stored_as_scd_type not in (1, 2):
         raise ValueError("stored_as_scd_type must be either 1 or 2.")
 
-    ldp_create_streaming_table(name=f"{target_catalog}.{target_schema}.{target_object}"
-                               , table_properties={"pipelines.changeDataCaptureMode": "TRACK_CHANGES"})
+    ldp_create_streaming_table(
+        name=f"{target_catalog}.{target_schema}.{target_object}",
+        table_properties={"pipelines.changeDataCaptureMode": "TRACK_CHANGES"},
+    )
 
     dlt.create_auto_cdc_flow(
         target=f"{target_catalog}.{target_schema}.{target_object}",

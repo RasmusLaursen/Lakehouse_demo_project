@@ -17,11 +17,16 @@ spark = databricks_helper.get_spark()
 source_system_name = "review"
 
 # Configuration from pipeline definitions
-pipeline_configs = databricks_helper.get_pipeline_configurations_from_spark(spark, source_system_name)
+pipeline_configs = databricks_helper.get_pipeline_configurations_from_spark(
+    spark, source_system_name
+)
 
 # List tables in the landing schema
 table_list = common.list_volumes_in_schema(
-    logger, spark, pipeline_configs["landing_catalog"], pipeline_configs[f"{source_system_name}_landing_schema"]
+    logger,
+    spark,
+    pipeline_configs["landing_catalog"],
+    pipeline_configs[f"{source_system_name}_landing_schema"],
 )
 # Define path to configuration file
 base_path = os.path.join(os.curdir, f"config/{source_system_name}.yml")
@@ -40,7 +45,9 @@ else:
         try:
             validated_config = TableConfig(**config)
         except ValidationError as e:
-            logger.error(f"Config validation error for table {table_name}: {e}. Skipping.")
+            logger.error(
+                f"Config validation error for table {table_name}: {e}. Skipping."
+            )
             continue
 
         keys = validated_config.keys
@@ -54,10 +61,10 @@ else:
         raw_catalog = pipeline_configs["raw_catalog"]
         target_raw_schema = pipeline_configs[f"{source_system_name}_raw_schema"]
         target_catalog = pipeline_configs["base_catalog"]
-        target_schema = pipeline_configs[f"{source_system_name}_base_schema"]        
+        target_schema = pipeline_configs[f"{source_system_name}_base_schema"]
 
         lakeflow_declarative_pipeline.ldp_change_data_capture(
-            source= f"{raw_catalog}.{target_raw_schema}.{table_name}",
+            source=f"{raw_catalog}.{target_raw_schema}.{table_name}",
             target_catalog=target_catalog,
             target_schema=target_schema,
             target_object=table_name,

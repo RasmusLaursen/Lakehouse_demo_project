@@ -19,7 +19,9 @@ target_catalog = spark.conf.get("curated_catalog")
 target_schema = spark.conf.get("dimensions_schema")
 
 logger.info("### dim_calendar ###")
-logger.debug(f"enriched_catalog: {enriched_catalog}, enriched_schema: {enriched_schema}")
+logger.debug(
+    f"enriched_catalog: {enriched_catalog}, enriched_schema: {enriched_schema}"
+)
 logger.debug(f"target_catalog: {target_catalog}, target_schema: {target_schema}")
 
 

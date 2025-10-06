@@ -18,8 +18,12 @@ target_catalog = spark.conf.get("curated_catalog")
 target_schema = spark.conf.get("dimensions_schema")
 
 logger.info("### dim_customer ###")
-logger.debug(f"base_catalog: {base_catalog}, lakehouse_base_schema: {lakehouse_base_schema}")
+logger.debug(
+    f"base_catalog: {base_catalog}, lakehouse_base_schema: {lakehouse_base_schema}"
+)
 logger.debug(f"target_catalog: {target_catalog}, target_schema: {target_schema}")
+
+
 @dlt.table(
     name=f"{target_catalog}.{target_schema}.dim_customer",
     comment="Curated layer dimension table for customer",
@@ -29,7 +33,7 @@ def dim_customer(
 ):
     logger.info("Reading source customer table")
     customer_df = spark.read.table(f"{base_catalog}.{lakehouse_base_schema}.customer")
-    
+
     customer_df = customer_df.withColumnRenamed("customer_id", "customer_key")
 
     customer_df = customer_df.withColumn("customer_id", monotonically_increasing_id())

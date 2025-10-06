@@ -38,7 +38,9 @@ def get_dbutils(spark: SparkSession) -> DBUtils:
     return DBUtils(spark)
 
 
-def get_pipeline_configurations_from_spark(spark, source_system_name:str = None) -> dict:
+def get_pipeline_configurations_from_spark(
+    spark, source_system_name: str = None
+) -> dict:
     """
     Retrieves pipeline configurations from Spark conf.
 
@@ -54,15 +56,17 @@ def get_pipeline_configurations_from_spark(spark, source_system_name:str = None)
         "raw_catalog",
         "base_catalog",
         "enriched_catalog",
-        "curated_catalog"
+        "curated_catalog",
     ]
 
     if source_system_name:
-        config_keys.extend([
-            f"{source_system_name}_landing_schema",
-            f"{source_system_name}_raw_schema",
-            f"{source_system_name}_base_schema"
-        ])
+        config_keys.extend(
+            [
+                f"{source_system_name}_landing_schema",
+                f"{source_system_name}_raw_schema",
+                f"{source_system_name}_base_schema",
+            ]
+        )
 
     configs = {}
     for key in config_keys:
