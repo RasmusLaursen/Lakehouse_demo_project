@@ -57,13 +57,10 @@ else:
         target_schema = pipeline_configs[f"{source_system_name}_base_schema"]        
 
         lakeflow_declarative_pipeline.ldp_change_data_capture(
-            source_catalog=raw_catalog,
-            source_schema=target_raw_schema,
-            source_object=table_name,
+            source= f"{raw_catalog}.{target_raw_schema}.{table_name}",
             target_catalog=target_catalog,
             target_schema=target_schema,
             target_object=table_name,
-            private_name=f"local_{table_name}",
             keys=keys,
             sequence_column=sequence_column,
             stored_as_scd_type=stored_as_scd_type,

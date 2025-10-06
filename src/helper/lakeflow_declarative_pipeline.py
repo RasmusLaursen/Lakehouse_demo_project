@@ -170,13 +170,10 @@ def ldp_view(
 
 
 def ldp_change_data_capture(
-    source_catalog: str,
-    source_schema: str,
-    source_object: str,
+    source: str,
     target_catalog: str,
     target_schema: str,
     target_object: str,
-    private_name: str,
     keys: list,
     sequence_column: str,
     stored_as_scd_type: int,
@@ -200,7 +197,6 @@ def ldp_change_data_capture(
     - target_catalog (str): The catalog of the target object.
     - target_schema (str): The schema of the target object.
     - target_object (str): The name of the target object.
-    - private_name (str): A private name for the operation.
     - keys (list): A list of keys to identify records.
     - sequence_column (str): The column used for sequencing changes.
     - stored_as_scd_type (int): The type of slowly changing dimension (1 or 2).
@@ -220,11 +216,12 @@ def ldp_change_data_capture(
     if stored_as_scd_type not in (1, 2):
         raise ValueError("stored_as_scd_type must be either 1 or 2.")
 
-    ldp_create_streaming_table(name=f"{target_catalog}.{target_schema}.{target_object}")
+    ldp_create_streaming_table(name=f"{target_catalog}.{target_schema}.{target_object}"
+                               , table_properties={"pipelines.changeDataCaptureMode": "TRACK_CHANGES"})
 
     dlt.create_auto_cdc_flow(
         target=f"{target_catalog}.{target_schema}.{target_object}",
-        source=f"{source_catalog}.{source_schema}.{source_object}",
+        source=source,
         keys=keys,
         sequence_by=sequence_column,
         ignore_null_updates=ignore_null_updates,

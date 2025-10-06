@@ -20,7 +20,7 @@ resources:
         - glob:
             include: ../src/raw/raw_ingest_lakehouse.py
         - glob:
-            include: ../src/raw/raw_ingest_review.py            
+            include: ../src/raw/raw_ingest_review.py
         - glob:
             include: ../src/base/base_ingest_lakehouse.py
         - glob:
@@ -32,6 +32,14 @@ resources:
         - glob:
             include: ../src/curated/dimensions/dim_customer.py 
         - glob:
+            include: ../src/curated/dimensions/dim_customer_mv_scd1.py
+        - glob:
+            include: ../src/curated/dimensions/dim_customer_mv_scd2.py
+        - glob:
+            include: ../src/curated/dimensions/dim_customer_cdc_scd2.py
+        - glob:
+            include: ../src/curated/dimensions/dim_customer_cdc_scd1.py
+        - glob:
             include: ../src/curated/dimensions/dim_seller.py
         - glob:
             include: ../src/curated/dimensions/dim_lakehouse.py 
@@ -39,6 +47,8 @@ resources:
             include: ../src/curated/facts/fact_lakehouse_rentals.py
         - glob:
             include: ../src/curated/facts/fact_lakehouse_reviews.py
+        - glob:
+            include: ../src/base/base_ingest_lakehouse_scd2.py
 
       environment:
         dependencies:

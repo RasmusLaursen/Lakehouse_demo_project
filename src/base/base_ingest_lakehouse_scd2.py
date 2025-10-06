@@ -14,17 +14,18 @@ logger = logging_helper.get_logger(__name__)
 spark = databricks_helper.get_spark()
 
 # Define source system name
-source_system_name = "review"
+source_system_name = "lakehouse"
 
-# Configuration from pipeline definitions
+# Configuration
 pipeline_configs = databricks_helper.get_pipeline_configurations_from_spark(spark, source_system_name)
 
 # List tables in the landing schema
 table_list = common.list_volumes_in_schema(
     logger, spark, pipeline_configs["landing_catalog"], pipeline_configs[f"{source_system_name}_landing_schema"]
 )
+
 # Define path to configuration file
-base_path = os.path.join(os.curdir, f"config/{source_system_name}.yml")
+base_path = os.path.join(os.curdir, f"config/lakehouse_scd2.yml")
 
 # Load ingestion configuration
 lakehouse_config = common.try_load_ingest_config(base_path)
@@ -46,7 +47,6 @@ else:
         keys = validated_config.keys
         sequence_column = validated_config.sequence_column
         stored_as_scd_type = validated_config.stored_as_scd_type
-
         logger.info(
             f"Processing table: {table_name} with parameters: keys {keys}, sequence_column {sequence_column}, stored_as_scd_type {stored_as_scd_type}"
         )
@@ -60,10 +60,10 @@ else:
             source= f"{raw_catalog}.{target_raw_schema}.{table_name}",
             target_catalog=target_catalog,
             target_schema=target_schema,
-            target_object=table_name,
+            target_object=f"{table_name}_scd",
             keys=keys,
             sequence_column=sequence_column,
             stored_as_scd_type=stored_as_scd_type,
-            name=f"silver_load_{target_schema}_{table_name}",
+            name=f"silver_load_{target_schema}_{table_name}_scd",
         )
         logger.info(f"Successfully processed table: {table_name}")

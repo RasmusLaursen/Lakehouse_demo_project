@@ -17,23 +17,16 @@ lakehouse_base_schema = spark.conf.get("lakehouse_base_schema")
 target_catalog = spark.conf.get("curated_catalog")
 target_schema = spark.conf.get("dimensions_schema")
 
-logger.info("### dim_customer ###")
-logger.debug(f"base_catalog: {base_catalog}, lakehouse_base_schema: {lakehouse_base_schema}")
-logger.debug(f"target_catalog: {target_catalog}, target_schema: {target_schema}")
+
 @dlt.table(
-    name=f"{target_catalog}.{target_schema}.dim_customer",
+    name=f"{target_catalog}.{target_schema}.dim_customer_mv_scd2",
     comment="Curated layer dimension table for customer",
 )
 def dim_customer(
     base_catalog=base_catalog, lakehouse_base_schema=lakehouse_base_schema
 ):
-    logger.info("Reading source customer table")
-    customer_df = spark.read.table(f"{base_catalog}.{lakehouse_base_schema}.customer")
-    
-    customer_df = customer_df.withColumnRenamed("customer_id", "customer_key")
-
+    customer_df = spark.read.table(f"{base_catalog}.{lakehouse_base_schema}.customer_scd")
+    customer_df = customer_df.withColumnsRenamed({"customer_id": "customer_key", "__START_AT": "validfrom", "__END_AT": "validto"})
+    customer_df = customer_df.select("customer_key", "validfrom", "validto", "name", "email", "phone_number", "birth_date", "loyalty_tier", "preferred_payment_method")
     customer_df = customer_df.withColumn("customer_id", monotonically_increasing_id())
     return customer_df
-
-
-logger.info(f"Successfully processed table: dim_customer")

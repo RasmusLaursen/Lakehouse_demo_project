@@ -1,0 +1,20 @@
+customer:
+  keys:
+    - customer_id
+  sequence_column: _metadata["ingest_timestamp"]
+  stored_as_scd_type: 2
+lakehouse:
+  keys:
+    - lakehouse_id
+  sequence_column: _metadata["ingest_timestamp"]
+  stored_as_scd_type: 2
+lakehouse_rentals:
+  keys:
+    - rental_id
+  sequence_column: _metadata["ingest_timestamp"]
+  stored_as_scd_type: 2
+seller:
+  keys:
+    - seller_id
+  sequence_column: _metadata["ingest_timestamp"]
+  stored_as_scd_type: 2
