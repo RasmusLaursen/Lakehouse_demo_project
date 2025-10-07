@@ -1,5 +1,4 @@
-from pydantic import BaseModel, ValidationError
-
+from pydantic import BaseModel
 
 class TableConfig(BaseModel):
     keys: list

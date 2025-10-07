@@ -46,3 +46,30 @@ def dimension_keys_lookup(curated_catalog, curated_dimension_schema, fact_df):
     ]
     fact_df = fact_df.select(*cols)
     return fact_df
+
+def get_table_properties(catalog: str, schema: str, table: str) -> dict:
+    """
+    Returns all table properties for a given table in Databricks using PySpark only.
+
+    Args:
+        catalog (str): The catalog name.
+        schema (str): The schema/database name.
+        table (str): The table name.
+
+    Returns:
+        dict: Dictionary of table properties.
+    """
+    table_identifier = f"{catalog}.{schema}.{table}"
+    desc_df = spark.sql(f"DESCRIBE TABLE EXTENDED {table_identifier}")
+    properties_row = desc_df.filter(col("col_name") == "Table Properties").collect()
+    if properties_row:
+        properties_str = properties_row[0]["data_type"]
+        properties_str = properties_str.strip("[]")
+        properties = {}
+        if properties_str:
+            for item in properties_str.split(","):
+                if "=" in item:
+                    k, v = item.split("=", 1)
+                    properties[k.strip()] = v.strip()
+        return properties
+    return {}

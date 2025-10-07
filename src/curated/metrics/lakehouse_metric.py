@@ -13,34 +13,6 @@ def create_lakehouse_metric_view():
     spark.sql(
         f"""
           CREATE OR REPLACE VIEW {curated_catalog}.{curated_metrics_schema}.mv_lakehouse_rentals
-            (
-              Seller_ID,
-              Customer_ID,
-              Calendar_Order_ID,
-              Lakehouse_ID,
-              Seller_Name,
-              Seller_Phone_Number,
-              Seller_Region,
-              Customer_Name,
-              Customer_Email,
-              Customer_Postcode,
-              Customer_City,
-              Customer_Country,
-              Order_Date,
-              Order_Year,
-              Order_Month,
-              Order_Day,
-              Order_Day_Of_Week,
-              Order_Week_Of_Year,
-              Lakehouse_Name,
-              Lakehouse_Location,
-              Lakehouse_Is_Pet_Friendly,
-              Lakehouse_Has_Lake_View,
-              Lakehouse_Has_Hot_tub,
-              Total_Cost,
-              Average_Rating,
-              Total_Reviews
-            )
             WITH METRICS
             LANGUAGE YAML
             COMMENT 'A Metric View.'
@@ -72,7 +44,7 @@ def create_lakehouse_metric_view():
               - name: Seller Phone Number
                 expr: seller.phone_number
               - name: Seller Region
-                expr: seller.region
+                expr: seller.region_name
 
               # Customer Details
               - name: Customer ID

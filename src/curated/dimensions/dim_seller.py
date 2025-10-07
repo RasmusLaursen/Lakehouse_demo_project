@@ -26,13 +26,17 @@ def dim_calendar(
     base_catalog=base_catalog, lakehouse_base_schema=lakehouse_base_schema
 ):
     seller_df = spark.read.table(f"{base_catalog}.{lakehouse_base_schema}.seller")
+    meta_region_df = spark.read.table(f"{base_catalog}.{lakehouse_base_schema}.meta_region")
+
+    seller_df = seller_df.join(
+        meta_region_df,
+        seller_df["region_name_id"] == meta_region_df["region_name_id"],
+        "left",
+    ).select(
+        seller_df["*"],
+        meta_region_df["region_name"].alias("region_name"),
+    )
+
     seller_df = seller_df.withColumnRenamed("seller_id", "seller_key")
     seller_df = seller_df.withColumn("seller_id", monotonically_increasing_id())
     return seller_df
-
-
-# lakeflow_declarative_pipeline.ldp_table(
-#     name=f"{target_catalog}.{target_schema}.calendar",
-#     source_dataframe=date_df,
-#     commet=f"Enriched layer table for calendar",
-# )

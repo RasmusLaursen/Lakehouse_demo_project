@@ -49,7 +49,7 @@ def read_table(source_catalog: str, source_schema: str, objectname: str) -> Data
     return df
 
 
-def read_cloudfiles_autoloader(
+def read_volume_autoloader(
     source_catalog: str,
     source_schema: str,
     objectname: str,
@@ -79,7 +79,7 @@ def read_cloudfiles_autoloader(
 
     Example:
     --------
-    >>> df = read_cloudfiles_autoloader("my_catalog", "my_schema", "my_object", "csv", True)
+    >>> df = read_volume_autoloader("my_catalog", "my_schema", "my_object", "csv", True)
     >>> df.printSchema()
     """
     df = (

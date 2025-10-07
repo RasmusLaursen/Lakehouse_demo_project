@@ -34,3 +34,19 @@ resources:
       catalog_name: ${resources.schemas.lakehouse_landing_schema.catalog_name}
       name: seller
       schema_name: ${resources.schemas.lakehouse_landing_schema.name}
+    loyalty_tier_volume:
+      catalog_name: ${resources.schemas.lakehouse_landing_schema.catalog_name}
+      name: loyalty_tier
+      schema_name: ${resources.schemas.lakehouse_landing_schema.name}
+    payment_method_volume:
+      catalog_name: ${resources.schemas.lakehouse_landing_schema.catalog_name}
+      name: payment_method
+      schema_name: ${resources.schemas.lakehouse_landing_schema.name}
+    meta_region_volume:
+      catalog_name: ${resources.schemas.lakehouse_landing_schema.catalog_name}
+      name: meta_region
+      schema_name: ${resources.schemas.lakehouse_landing_schema.name}
+    meta_lakehouses_volume:
+      catalog_name: ${resources.schemas.lakehouse_landing_schema.catalog_name}
+      name: meta_lakehouses
+      schema_name: ${resources.schemas.lakehouse_landing_schema.name}

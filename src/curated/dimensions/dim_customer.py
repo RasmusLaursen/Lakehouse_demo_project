@@ -34,6 +34,8 @@ def dim_customer(
     logger.info("Reading source customer table")
     customer_df = spark.read.table(f"{base_catalog}.{lakehouse_base_schema}.customer")
 
+    customer_df = customer_df.filter(col("__END_AT").isNull())
+
     customer_df = customer_df.withColumnRenamed("customer_id", "customer_key")
 
     customer_df = customer_df.withColumn("customer_id", monotonically_increasing_id())

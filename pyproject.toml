@@ -56,8 +56,10 @@ run = "pytest . "
 dependencies = ["databricks_connect"]
 
 [tool.hatch.envs.development_local.scripts]
-validate = "databricks bundle validate -t developer"
+validate_pipeline = "databricks bundle run lakehouse_demo_project_pipeline --validate-only -t developer"
 deploy = "databricks bundle deploy -t developer"
+refresh_all_pipeline = "databricks bundle run lakehouse_demo_project_pipeline --refresh-all -t developer"
+full_refresh_all_pipeline = "databricks bundle run lakehouse_demo_project_pipeline --full-refresh-all -t developer"
 run = "databricks bundle run -t developer"
 
 [tool.hatch.envs.databricks.scripts]

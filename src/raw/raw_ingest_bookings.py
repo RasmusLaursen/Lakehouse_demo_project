@@ -28,8 +28,7 @@ for volume in volume_list:
         source_catalog=source_catalog,
         source_schema=source_schema,
         objectname=volume.object_name,
-        table_properties={"pipelines.changeDataCaptureMode": "TRACK_CHANGES"},
-        loadtype="volume",
+        loadtype="volume_autoloader",
         filetype="json",
         comment=f"Raw layer table for {volume.object_name} volume",
     )

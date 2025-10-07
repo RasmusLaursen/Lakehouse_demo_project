@@ -38,6 +38,9 @@ def get_dbutils(spark: SparkSession) -> DBUtils:
     return DBUtils(spark)
 
 
+# TODO 
+# Find smarter way to parse all catalogs and schemas from configuration of pipeline
+
 def get_pipeline_configurations_from_spark(
     spark, source_system_name: str = None
 ) -> dict:

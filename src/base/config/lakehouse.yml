@@ -2,7 +2,7 @@ customer:
   keys:
     - customer_id
   sequence_column: _metadata["ingest_timestamp"]
-  stored_as_scd_type: 1
+  stored_as_scd_type: 2
 lakehouse:
   keys:
     - lakehouse_id
@@ -16,5 +16,25 @@ lakehouse_rentals:
 seller:
   keys:
     - seller_id
+  sequence_column: _metadata["ingest_timestamp"]
+  stored_as_scd_type: 1
+loyalty_tier:
+  keys:
+    - loyalty_tier_id
+  sequence_column: _metadata["ingest_timestamp"]
+  stored_as_scd_type: 1
+payment_method:
+  keys:
+    - payment_method_id  
+  sequence_column: _metadata["ingest_timestamp"]
+  stored_as_scd_type: 1
+meta_region:
+  keys:
+    - region_name_id
+  sequence_column: _metadata["ingest_timestamp"]
+  stored_as_scd_type: 1
+meta_lakehouses:
+  keys:
+    - lakehouse_name_id
   sequence_column: _metadata["ingest_timestamp"]
   stored_as_scd_type: 1

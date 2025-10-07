@@ -22,7 +22,7 @@ resources:
         - glob:
             include: ../src/raw/raw_ingest_review.py
         - glob:
-            include: ../src/base/base_ingest_lakehouse.py
+            include: ../src/base/base_ingest_lakehouse.py      
         - glob:
             include: ../src/base/base_ingest_review.py
         - glob:
@@ -47,8 +47,7 @@ resources:
             include: ../src/curated/facts/fact_lakehouse_rentals.py
         - glob:
             include: ../src/curated/facts/fact_lakehouse_reviews.py
-        - glob:
-            include: ../src/base/base_ingest_lakehouse_scd2.py
+
 
       environment:
         dependencies:

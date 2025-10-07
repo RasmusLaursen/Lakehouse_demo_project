@@ -54,6 +54,13 @@ def ldp_table(
     DataFrame: The resulting DataFrame from the specified load type.
     """
 
+    # Merge table_properties with additional metadata
+    table_properties = {
+        **(table_properties or {}),
+        "metadata.load-pattern": f"{loadtype}" if loadtype else "N/A",
+        "metadata.file-type": f"{filetype}" if filetype else "N/A",
+    }
+
     @dlt.table(
         name=name,
         comment=comment,
@@ -90,8 +97,8 @@ def ldp_table(
             )
             df = common.add_audit_columns(df=df)
             return df
-        elif loadtype == "volume":
-            return read.read_cloudfiles_autoloader(
+        elif loadtype == "volume_autoloader":
+            return read.read_volume_autoloader(
                 source_catalog=source_catalog,
                 source_schema=source_schema,
                 objectname=objectname,
@@ -218,7 +225,10 @@ def ldp_change_data_capture(
 
     ldp_create_streaming_table(
         name=f"{target_catalog}.{target_schema}.{target_object}",
-        table_properties={"pipelines.changeDataCaptureMode": "TRACK_CHANGES"},
+        # table_properties={"pipelines.changeDataCaptureMode": "TRACK_CHANGES"},
+        table_properties={
+            "metadata.scd-type": f"{stored_as_scd_type}"
+        }
     )
 
     dlt.create_auto_cdc_flow(

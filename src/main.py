@@ -1,4 +1,4 @@
-from src.landing.lakehouse_synthetic_data import lakehouse_synthetic_data
+from src.landing.lakehouse_synthetic_data import LakehouseSyntheticData
 from src.landing import review_synthetic_data
 from src.helper import databricks_helper
 from src.helper import logging_helper
@@ -23,6 +23,10 @@ def lakehouse_generate_data(
         "customer": records["customers"],
         "seller": records["sellers"],
         "lakehouse": records["lakehouses"],
+        "loyalty_tier": records["loyalty_tiers"],
+        "payment_method": records["payment_methods"],
+        "meta_region": records["meta_regions"],
+        "meta_lakehouses": records["meta_lakehouses"],        
     }
 
     for entity_name, entity_records in entities.items():
@@ -67,7 +71,7 @@ def main():
     logger.info(f"Landing Schema: {lakehouse_landing_schema}")
 
     logger.info("Generating synthetic data for lakehouse...")
-    lakehouse_data_generator = lakehouse_synthetic_data()
+    lakehouse_data_generator = LakehouseSyntheticData()
 
     lakehouse_records = lakehouse_data_generator.generate_lakehouse_synthetic_data()
 

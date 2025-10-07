@@ -24,6 +24,16 @@ def dim_customer(
     base_catalog=base_catalog, lakehouse_base_schema=lakehouse_base_schema
 ):
     lakehouse_df = spark.read.table(f"{base_catalog}.{lakehouse_base_schema}.lakehouse")
+    meta_lakehouse_df = spark.read.table(f"{base_catalog}.{lakehouse_base_schema}.meta_lakehouses")
+
+    lakehouse_df = lakehouse_df.join(
+        meta_lakehouse_df, on="lakehouse_name_id", how="left"
+    ).select(
+        lakehouse_df["*"],
+        meta_lakehouse_df["lakehouse_name"].alias("name"),
+    )
+
+
     lakehouse_df = lakehouse_df.withColumnRenamed("lakehouse_id", "lakehouse_key")
     lakehouse_df = lakehouse_df.withColumn(
         "lakehouse_id", monotonically_increasing_id()

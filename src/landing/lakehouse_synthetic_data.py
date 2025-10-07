@@ -1,8 +1,9 @@
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import timedelta
 from faker import Faker
 import random
 from typing import List
+from src.helper.synthetic_data_config import LoyaltyTier, PaymentMethod, CustomerProfile, LakehouseProfile, SellerProfile, LakehouseRental, Regions, Lakehouses
 
 # Databricks notebook source
 
@@ -194,20 +195,11 @@ lakehouses_global_list = [
     "Nordeng Villa",
 ]
 
-regions_global_list = [
-    "Midtjylland",
-    "Sjælland",
-    "Nordjylland",
-    "Syddanmark",
-    "Hovedstaden",
-]
-
-
-class lakehouse_synthetic_data:
+class LakehouseSyntheticData:
 
     def __init__(self) -> None:
-        self.lakehouses_list = lakehouses_global_list
-        self.regions = regions_global_list
+        self.meta_lakehouses = None
+        self.meta_regions = None
 
         Faker.seed(42)
         self.faker = Faker()
@@ -217,17 +209,28 @@ class lakehouse_synthetic_data:
         self.customer_records = None
         self.seller_records = None
         self.lakehouse_rentals_records = None
+        self.generate_loyalty_tiers_records = None
+        self.generate_payment_methods_records = None
 
     def generate_lakehouse_synthetic_data(self):
+        self.generate_loyalty_tiers_records = self.generate_loyalty_tiers()
+        self.generate_payment_methods_records = self.generate_payment_methods()         
+        self.meta_lakehouses = self.generate_meta_lakehouses()
+        self.meta_regions = self.generate_meta_regions()
+
         self.lakehouses_records = self.lakehouse_profile(
-            lakehouses_list=self.lakehouses_list, regions=self.regions, fake=self.faker
+            meta_lakehouses=self.meta_lakehouses, meta_regions=self.meta_regions, fake=self.faker
         )
 
-        self.customer_records = self.generate_customer(fake=self.faker)
+        self.customer_records = self.generate_customer(
+            fake=self.faker,
+            loyalty_tiers=self.generate_loyalty_tiers_records,
+            payment_methods=self.generate_payment_methods_records
+        )
 
         self.seller_records = self.generate_seller(
             lakehouses_records=self.lakehouses_records,
-            regions=self.regions,
+            meta_regions=self.meta_regions,
             fake=self.faker,
         )
 
@@ -243,9 +246,14 @@ class lakehouse_synthetic_data:
             "customers": self.customer_records,
             "sellers": self.seller_records,
             "lakehouse_rentals": self.lakehouse_rentals_records,
+            "loyalty_tiers": self.generate_loyalty_tiers_records,
+            "payment_methods": self.generate_payment_methods_records,
+            "meta_regions": self.meta_regions,
+            "meta_lakehouses": self.meta_lakehouses,
         }
 
     def generate_data(
+        self,
         landing_catalog: str,
         landing_schema: str,
         records: dict,
@@ -255,6 +263,10 @@ class lakehouse_synthetic_data:
             "customer": records["customers"],
             "seller": records["sellers"],
             "lakehouse": records["lakehouses"],
+            "loyalty_tier": records["loyalty_tiers"],
+            "payment_methods": records["payment_methods"],
+            "meta_regions": records["meta_regions"],
+            "meta_lakehouses": records["meta_lakehouses"],
         }
 
         for entity_name, entity_records in entities.items():
@@ -267,33 +279,37 @@ class lakehouse_synthetic_data:
                 f"dbfs:/Volumes/{landing_catalog}/{landing_schema}/{entity_name}"
             )
             logger.info(f"{entity_name.capitalize()} data written successfully.")
+        return entities["lakehouse_rentals"]
 
-    def generate_customer(self, fake: Faker):
-        @dataclass
-        class CustomerProfile:
-            customer_id: int
-            name: str
-            email: str
-            phone_number: str
-            birth_date: date
-            gender: str
-            address: str
-            city: str
-            postal_code: str
-            country: str
-            registration_date: date
-            loyalty_tier: str
-            preferred_payment_method: str
-            account_manager: str
-            is_subscribed_to_newsletter: bool
-            last_purchase_date: date
-            total_spend: float
-            number_of_purchases: int
+    def generate_meta_lakehouses(self):
+        return [Lakehouses(i, name) for i, name in enumerate(lakehouses_global_list, start=1)]
 
-        loyalty_tiers = ["Bronze", "Silver", "Gold", "Platinum"]
-        payment_methods = ["Credit Card", "MobilePay", "Bank Transfer"]
+    def generate_meta_regions(self):
+        return [
+            Regions(1, "Midtjylland"),
+            Regions(2, "Sjælland"),
+            Regions(3, "Nordjylland"),
+            Regions(4, "Syddanmark"),
+            Regions(5, "Hovedstaden"),
+        ]
+    
+    def generate_loyalty_tiers(self):
+        return [
+            LoyaltyTier(1, "Bronze"),
+            LoyaltyTier(2, "Silver"),
+            LoyaltyTier(3, "Gold"),
+            LoyaltyTier(4, "Platinum"),
+        ]
+
+    def generate_payment_methods(self):
+        return [
+            PaymentMethod(1, "Credit Card"),
+            PaymentMethod(2, "MobilePay"),
+            PaymentMethod(3, "Bank Transfer"),
+        ]
+
+    def generate_customer(self, loyalty_tiers: list, payment_methods: list, fake: Faker):
         account_managers = ["Anders Holm", "Maria Lund", "Thomas Vestergaard"]
-
         customers = []
         for i in range(1, 1001):
             birth_date = fake.date_of_birth(minimum_age=18, maximum_age=75)
@@ -314,8 +330,8 @@ class lakehouse_synthetic_data:
                 postal_code=fake.postcode(),
                 country="Denmark",
                 registration_date=reg_date,
-                loyalty_tier=random.choice(loyalty_tiers),
-                preferred_payment_method=random.choice(payment_methods),
+                loyalty_tier_id=random.choice(loyalty_tiers).loyalty_tier_id,
+                preferred_payment_method_id=random.choice(payment_methods).payment_method_id,
                 account_manager=random.choice(account_managers),
                 is_subscribed_to_newsletter=random.choice([True, False]),
                 last_purchase_date=last_purchase,
@@ -327,32 +343,8 @@ class lakehouse_synthetic_data:
         return customers
 
     def lakehouse_profile(
-        self, lakehouses_list: List[str], regions: List[str], fake: Faker
+        self, meta_lakehouses: List[str], meta_regions: List[str], fake: Faker
     ):
-        @dataclass
-        class LakehouseProfile:
-            lakehouse_id: int
-            name: str
-            location: str
-            region: str
-            address: str
-            postal_code: str
-            country: str
-            bedrooms: int
-            bathrooms: int
-            max_guests: int
-            nightly_rate: float
-            is_pet_friendly: bool
-            has_sauna: bool
-            has_hot_tub: bool
-            has_lake_view: bool
-            amenities: list
-            owner_name: str
-            owner_email: str
-            listing_date: date
-            rating: float
-            is_active: bool
-
         amenity_pool = [
             "WiFi",
             "Fireplace",
@@ -366,9 +358,9 @@ class lakehouse_synthetic_data:
 
         lakehouse_records = []
         for i in range(1, 201):  # 200 lakehouses
-            name = random.choice(lakehouses_list)
+            lakehouse_name_id = random.choice(meta_lakehouses).lakehouse_name_id
             location = fake.city()
-            region = random.choice(regions)
+            region = random.choice(meta_regions)
             address = fake.street_address()
             postal = fake.postcode()
             bedrooms = random.randint(1, 6)
@@ -388,9 +380,9 @@ class lakehouse_synthetic_data:
 
             lakehouse = LakehouseProfile(
                 lakehouse_id=i,
-                name=name,
+                lakehouse_name_id=lakehouse_name_id,
                 location=location,
-                region=region,
+                region_name_id=region.region_name_id,
                 address=address,
                 postal_code=postal,
                 country="Denmark",
@@ -413,26 +405,7 @@ class lakehouse_synthetic_data:
 
         return lakehouse_records
 
-    def generate_seller(self, lakehouses_records, regions: List[str], fake: Faker):
-        @dataclass
-        class SellerProfile:
-            seller_id: int
-            name: str
-            email: str
-            phone_number: str
-            hire_date: date
-            region: str
-            assigned_lakehouses: list
-            total_sales: float
-            number_of_bookings: int
-            commission_rate: float
-            monthly_target: float
-            is_active: bool
-            last_booking_date: date
-            performance_rating: float
-            manager_name: str
-            preferred_contact_method: str
-
+    def generate_seller(self, lakehouses_records, meta_regions: List[str], fake: Faker):
         managers = ["Rasmus Holm", "Camilla Vestergaard", "Jonas Mikkelsen"]
 
         seller_records = []
@@ -444,7 +417,7 @@ class lakehouse_synthetic_data:
             commission = round(random.uniform(0.05, 0.15), 2)
             target = round(random.uniform(50000, 200000), 2)
             assigned_lakehouses = [
-                lakehouse.name
+                lakehouse.lakehouse_name_id
                 for lakehouse in random.choices(
                     lakehouses_records, k=random.randint(1, 3)
                 )
@@ -456,7 +429,7 @@ class lakehouse_synthetic_data:
                 email=fake.email(),
                 phone_number=fake.phone_number(),
                 hire_date=hire_date,
-                region=random.choice(regions),
+                region_name_id=random.choice(meta_regions).region_name_id,
                 assigned_lakehouses=assigned_lakehouses,
                 total_sales=total_sales,
                 number_of_bookings=bookings,
@@ -474,36 +447,6 @@ class lakehouse_synthetic_data:
     def generate_lakehouse_rentals(
         self, lakehouses_records, customers_records, sellers_records, fake: Faker
     ):
-
-        @dataclass
-        class LakehouseRental:
-            rental_id: int
-            seller_id: int
-            customer_id: int
-            lakehouse_id: int
-            customer_name: str
-            email: str
-            check_in_date: date
-            check_out_date: date
-            lakehouse_name: str
-            location: str
-            bedrooms: int
-            nightly_rate: float
-            total_cost: float
-            is_pet_friendly: bool
-            rating: float
-            order_date: date
-            seller_name: str
-            seller_email: str
-            account_manager: str
-            payment_method: str
-            transaction_id: str
-            discount_code: str
-            booking_channel: str
-            currency: str
-            tax_amount: float
-            total_cost_with_tax: float
-
         lakehouse_rental_records = []
         for i in range(1, 5000):
             check_in = fake.date_between(start_date="-6M", end_date="today")
@@ -527,7 +470,7 @@ class lakehouse_synthetic_data:
                 email=customer.email,
                 check_in_date=check_in,
                 check_out_date=check_out,
-                lakehouse_name=lakehouse.name,
+                lakehouse_name_id=lakehouse.lakehouse_name_id,
                 location=fake.city(),
                 bedrooms=random.randint(1, 5),
                 nightly_rate=nightly_rate,

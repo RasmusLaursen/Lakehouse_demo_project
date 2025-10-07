@@ -26,7 +26,7 @@ def dim_customer(
     base_catalog=base_catalog, lakehouse_base_schema=lakehouse_base_schema
 ):
     customer_df = spark.read.table(
-        f"{base_catalog}.{lakehouse_base_schema}.customer_scd"
+        f"{base_catalog}.{lakehouse_base_schema}.customer"
     )
     customer_df = customer_df.withColumnsRenamed(
         {
@@ -42,9 +42,7 @@ def dim_customer(
         "name",
         "email",
         "phone_number",
-        "birth_date",
-        "loyalty_tier",
-        "preferred_payment_method",
+        "birth_date"
     )
     customer_df = customer_df.withColumn("customer_id", monotonically_increasing_id())
     return customer_df
