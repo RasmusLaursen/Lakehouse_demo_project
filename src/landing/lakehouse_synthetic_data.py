@@ -3,7 +3,14 @@ from datetime import timedelta
 from faker import Faker
 import random
 from typing import List
+from src.helper import write
 from src.helper.synthetic_data_config import LoyaltyTier, PaymentMethod, CustomerProfile, LakehouseProfile, SellerProfile, LakehouseRental, Regions, Lakehouses
+from src.helper import logging_helper
+from src.helper import databricks_helper
+
+# Initialize logger
+logger = logging_helper.get_logger(__name__)
+spark = databricks_helper.get_spark()
 
 # Databricks notebook source
 
@@ -204,21 +211,12 @@ class LakehouseSyntheticData:
         Faker.seed(42)
         self.faker = Faker()
 
-        # Initialize internal data structures
-        self.lakehouses_records = None
-        self.customer_records = None
-        self.seller_records = None
-        self.lakehouse_rentals_records = None
-        self.generate_loyalty_tiers_records = None
-        self.generate_payment_methods_records = None
-
-    def generate_lakehouse_synthetic_data(self):
         self.generate_loyalty_tiers_records = self.generate_loyalty_tiers()
         self.generate_payment_methods_records = self.generate_payment_methods()         
         self.meta_lakehouses = self.generate_meta_lakehouses()
         self.meta_regions = self.generate_meta_regions()
 
-        self.lakehouses_records = self.lakehouse_profile(
+        self.lakehouses_records = self.generate_lakehouse_profile(
             meta_lakehouses=self.meta_lakehouses, meta_regions=self.meta_regions, fake=self.faker
         )
 
@@ -241,18 +239,22 @@ class LakehouseSyntheticData:
             fake=self.faker,
         )
 
+    def get_all_records(self) -> dict:
+        """
+        Returns all generated records as a dictionary.
+        """
         return {
             "lakehouses": self.lakehouses_records,
-            "customers": self.customer_records,
-            "sellers": self.seller_records,
+            "customer": self.customer_records,
+            "seller": self.seller_records,
             "lakehouse_rentals": self.lakehouse_rentals_records,
             "loyalty_tiers": self.generate_loyalty_tiers_records,
-            "payment_methods": self.generate_payment_methods_records,
+            "payment_method": self.generate_payment_methods_records,
             "meta_regions": self.meta_regions,
             "meta_lakehouses": self.meta_lakehouses,
         }
 
-    def generate_data(
+    def lakehouse_generate_data(
         self,
         landing_catalog: str,
         landing_schema: str,
@@ -260,12 +262,12 @@ class LakehouseSyntheticData:
     ):
         entities = {
             "lakehouse_rentals": records["lakehouse_rentals"],
-            "customer": records["customers"],
-            "seller": records["sellers"],
+            "customer": records["customer"],
+            "seller": records["seller"],
             "lakehouse": records["lakehouses"],
             "loyalty_tier": records["loyalty_tiers"],
-            "payment_methods": records["payment_methods"],
-            "meta_regions": records["meta_regions"],
+            "payment_method": records["payment_method"],
+            "meta_region": records["meta_regions"],
             "meta_lakehouses": records["meta_lakehouses"],
         }
 
@@ -274,10 +276,16 @@ class LakehouseSyntheticData:
                 f"Creating volume for {landing_catalog}.{landing_schema}.{entity_name}..."
             )
             df_entity = spark.createDataFrame(entity_records)
-            df_entity.printSchema()
-            df_entity.write.mode("overwrite").format("parquet").save(
-                f"dbfs:/Volumes/{landing_catalog}/{landing_schema}/{entity_name}"
+
+            write.write_volume(
+                target_catalog=landing_catalog,
+                target_schema=landing_schema,
+                target_name=entity_name,
+                source_dataframe=df_entity,
+                mode="overwrite",
+                file_format="parquet",
             )
+
             logger.info(f"{entity_name.capitalize()} data written successfully.")
         return entities["lakehouse_rentals"]
 
@@ -342,7 +350,7 @@ class LakehouseSyntheticData:
 
         return customers
 
-    def lakehouse_profile(
+    def generate_lakehouse_profile(
         self, meta_lakehouses: List[str], meta_regions: List[str], fake: Faker
     ):
         amenity_pool = [

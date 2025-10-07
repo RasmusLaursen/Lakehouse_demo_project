@@ -12,30 +12,6 @@ logger = logging_helper.get_logger(__name__)
 spark = databricks_helper.get_spark()
 dbutils = databricks_helper.get_dbutils(spark)
 
-
-def lakehouse_generate_data(
-    landing_catalog: str,
-    landing_schema: str,
-    records: dict,
-):
-    entities = {
-        "lakehouse_rentals": records["lakehouse_rentals"],
-        "customer": records["customers"],
-        "seller": records["sellers"],
-        "lakehouse": records["lakehouses"],
-        "loyalty_tier": records["loyalty_tiers"],
-        "payment_method": records["payment_methods"],
-        "meta_region": records["meta_regions"],
-        "meta_lakehouses": records["meta_lakehouses"],        
-    }
-
-    for entity_name, entity_records in entities.items():
-        save_list_to_volume(
-            landing_catalog, landing_schema, entity_name, entity_records
-        )
-    return entities["lakehouse_rentals"]
-
-
 def review_generate_data(
     landing_catalog: str,
     landing_schema: str,
@@ -71,12 +47,11 @@ def main():
     logger.info(f"Landing Schema: {lakehouse_landing_schema}")
 
     logger.info("Generating synthetic data for lakehouse...")
-    lakehouse_data_generator = LakehouseSyntheticData()
-
-    lakehouse_records = lakehouse_data_generator.generate_lakehouse_synthetic_data()
+    lakeghouse_data_generator = LakehouseSyntheticData()
+    lakehouse_records = lakeghouse_data_generator.get_all_records()
 
     logger.info("Starting data generation...")
-    lakehouse_rentals = lakehouse_generate_data(
+    lakehouse_rentals = lakeghouse_data_generator.lakehouse_generate_data(
         landing_catalog=landing_catalog,
         landing_schema=lakehouse_landing_schema,
         records=lakehouse_records,
