@@ -112,7 +112,7 @@ def parse_arguments(variable_name: str) -> Any:
     return None
 
 
-def list_volumes_in_schema(logger, spark, source_catalog, source_schema) -> list:
+def list_volumes_in_schema(spark, source_catalog: str, source_schema: str, include_historic=False) -> list:
     """
     Fetches a list of distinct volume names from a specified schema in the source catalog.
 
@@ -128,14 +128,20 @@ def list_volumes_in_schema(logger, spark, source_catalog, source_schema) -> list
     """
     try:
         # Fetch distinct volume names
-        volume_list = spark.sql(
-            f"""
-        SELECT DISTINCT volume_name as object_name
+        volume_dll =  f"""SELECT DISTINCT volume_name as object_name
         FROM {source_catalog}.information_schema.volumes
         WHERE volume_catalog = '{source_catalog}'
-        AND volume_schema = '{source_schema}'
-        """
+        AND volume_schema = '{source_schema}'"""
+        
+        if not include_historic:
+            volume_dll += " AND volume_name not like '%historic%'"
+
+        volume_list = spark.sql(
+            f"""
+                {volume_dll}
+            """
         ).collect()
+        logger.info(f"Found {len(volume_list)} volumes in schema {source_schema}. using {volume_dll}")
     except Exception as e:
         logger.error(f"Error fetching volume list: {e}")
         volume_list = []

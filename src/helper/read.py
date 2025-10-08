@@ -48,6 +48,50 @@ def read_table(source_catalog: str, source_schema: str, objectname: str) -> Data
     df = spark.read.table(f"{source_catalog}.{source_schema}.{objectname}")
     return df
 
+def read_volume(
+    source_catalog: str,
+    source_schema: str,
+    volume_name: str,
+    file_path: str = "",
+    file_format: str = "parquet",
+    add_audit_column: bool = False,
+    **options
+) -> DataFrame:
+    """
+    Reads data from a Databricks Unity Catalog volume using PySpark.
+
+    Args:
+        source_catalog (str): The name of the source catalog.
+        source_schema (str): The name of the source schema.
+        volume_name (str): The name of the volume.
+        file_path (str, optional): The path within the volume to read from. Defaults to "".
+        file_format (str, optional): The format of the files to read (e.g., 'parquet', 'csv', 'json'). Defaults to "parquet".
+        add_audit_column (bool, optional): If True, adds audit columns to the DataFrame. Defaults to False.
+        **options: Additional options to pass to the DataFrameReader (e.g., header=True for CSV).
+
+    Returns:
+        DataFrame: A Spark DataFrame containing the data from the specified volume.
+
+    Example:
+        >>> df = read_volume("my_catalog", "my_schema", "my_volume", "data/customers.parquet")
+        >>> df_csv = read_volume("my_catalog", "my_schema", "my_volume", "data/customers.csv", "csv", header=True)
+    """
+    volume_path = f"/Volumes/{source_catalog}/{source_schema}/{volume_name}/{file_path}"
+    
+    logger.info(f"Reading from volume path: {volume_path} with format: {file_format}")
+    
+    try:
+        df = spark.read.format(file_format).options(**options).load(volume_path)
+        
+        if add_audit_column:
+            df = common.add_audit_columns(df=df)
+            
+        logger.info(f"Successfully read data from volume: {volume_name}")
+        return df
+        
+    except Exception as e:
+        logger.error(f"Failed to read from volume {volume_name}: {str(e)}")
+        raise
 
 def read_volume_autoloader(
     source_catalog: str,

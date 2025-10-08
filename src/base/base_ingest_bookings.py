@@ -20,7 +20,6 @@ pipeline_configs = databricks_helper.get_pipeline_configurations_from_spark(
 )
 
 table_list = common.list_volumes_in_schema(
-    logger,
     spark,
     pipeline_configs["landing_catalog"],
     pipeline_configs[f"{source_system_name}_landing_schema"],

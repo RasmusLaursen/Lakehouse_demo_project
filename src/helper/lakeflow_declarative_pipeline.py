@@ -138,15 +138,6 @@ def ldp_exeption(exeptions):
         #         raise ValueError("ldp_exeption_type must be either 'expect', 'expect_or_drop', 'expect_or_fail', 'expect_all', 'expect_all_or_drop', or 'expect_all_or_fail'.")
         # return list_of_exeptions
 
-
-def ldp_apply_changes():
-    pass
-
-
-def ldp_create_sink():
-    pass
-
-
 def ldp_view(
     source_catalog: str,
     source_schema: str,
@@ -225,8 +216,8 @@ def ldp_change_data_capture(
 
     ldp_create_streaming_table(
         name=f"{target_catalog}.{target_schema}.{target_object}",
-        # table_properties={"pipelines.changeDataCaptureMode": "TRACK_CHANGES"},
         table_properties={
+            "pipelines.changeDataCaptureMode": "TRACK_CHANGES",  # Enable CDC
             "metadata.scd-type": f"{stored_as_scd_type}"
         }
     )

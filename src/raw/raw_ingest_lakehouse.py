@@ -18,7 +18,7 @@ target_catalog = spark.conf.get("raw_catalog")
 target_schema = spark.conf.get("lakehouse_raw_schema")
 
 volume_list = common.list_volumes_in_schema(
-    logger, spark, source_catalog, source_schema
+    spark, source_catalog, source_schema, include_historic=True
 )
 
 for volume in volume_list:

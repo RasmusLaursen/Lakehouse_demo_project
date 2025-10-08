@@ -239,6 +239,14 @@ class LakehouseSyntheticData:
             fake=self.faker,
         )
 
+        self.lakehouse_rentals_records_historic = self.generate_lakehouse_rentals(
+            lakehouses_records=self.lakehouses_records,
+            customers_records=self.customer_records,
+            sellers_records=self.seller_records,
+            fake=self.faker,
+            historic_years=3
+        )        
+
     def get_all_records(self) -> dict:
         """
         Returns all generated records as a dictionary.
@@ -252,6 +260,7 @@ class LakehouseSyntheticData:
             "payment_method": self.generate_payment_methods_records,
             "meta_regions": self.meta_regions,
             "meta_lakehouses": self.meta_lakehouses,
+            "lakehouse_rentals_historic": self.lakehouse_rentals_records_historic,
         }
 
     def lakehouse_generate_data(
@@ -269,6 +278,7 @@ class LakehouseSyntheticData:
             "payment_method": records["payment_method"],
             "meta_region": records["meta_regions"],
             "meta_lakehouses": records["meta_lakehouses"],
+            "lakehouse_rentals_historic": records["lakehouse_rentals_historic"],
         }
 
         for entity_name, entity_records in entities.items():
@@ -453,54 +463,70 @@ class LakehouseSyntheticData:
         return seller_records
 
     def generate_lakehouse_rentals(
-        self, lakehouses_records, customers_records, sellers_records, fake: Faker
+        self, lakehouses_records, customers_records, sellers_records, fake: Faker, historic_years: int = 0
     ):
+        """
+        Generate lakehouse rental records.
+        If historic_years > 0, generates additional records for each year in the past.
+        """
         lakehouse_rental_records = []
-        for i in range(1, 5000):
-            check_in = fake.date_between(start_date="-6M", end_date="today")
-            stay_length = random.randint(2, 7)
-            check_out = check_in + timedelta(days=stay_length)
-            nightly_rate = random.randint(900, 1800)
-            total_cost = nightly_rate * stay_length
-            tax_amount = round(total_cost * 0.125, 2)
-            total_with_tax = round(total_cost + tax_amount, 2)
-            order_date = fake.date_between(start_date="-6M", end_date=check_in)
-            customer = random.choice(customers_records)
-            seller = random.choice(sellers_records)
-            lakehouse = random.choice(lakehouses_records)
 
-            rental = LakehouseRental(
-                rental_id=i,
-                seller_id=seller.seller_id,
-                customer_id=customer.customer_id,
-                lakehouse_id=lakehouse.lakehouse_id,
-                customer_name=customer.name,
-                email=customer.email,
-                check_in_date=check_in,
-                check_out_date=check_out,
-                lakehouse_name_id=lakehouse.lakehouse_name_id,
-                location=fake.city(),
-                bedrooms=random.randint(1, 5),
-                nightly_rate=nightly_rate,
-                total_cost=total_cost,
-                is_pet_friendly=random.choice([True, False]),
-                rating=round(random.uniform(3.0, 5.0), 1),
-                order_date=order_date,
-                seller_name=seller.name,
-                seller_email=seller.email,
-                account_manager=random.choice(
-                    ["Anders Holm", "Maria Lund", "Thomas Vestergaard"]
-                ),
-                payment_method=random.choice(
-                    ["Credit Card", "MobilePay", "Bank Transfer"]
-                ),
-                transaction_id=f"TXN-{order_date.strftime('%Y%m%d')}-{random.randint(10000,99999)}",
-                discount_code=random.choice(["SUMMER25", "WELCOME10", "", "", ""]),
-                booking_channel=random.choice(["Website", "Mobile App", "Phone"]),
-                currency="DKK",
-                tax_amount=tax_amount,
-                total_cost_with_tax=total_with_tax,
-            )
-            lakehouse_rental_records.append(rental)
+        def generate_for_period(start_date, end_date, id_offset=0):
+            for i in range(1, 5000):
+                check_in = fake.date_between(start_date=start_date, end_date=end_date)
+                stay_length = random.randint(2, 7)
+                check_out = check_in + timedelta(days=stay_length)
+                nightly_rate = random.randint(900, 1800)
+                total_cost = nightly_rate * stay_length
+                tax_amount = round(total_cost * 0.125, 2)
+                total_with_tax = round(total_cost + tax_amount, 2)
+                order_date = fake.date_between(start_date=start_date, end_date=check_in)
+                customer = random.choice(customers_records)
+                seller = random.choice(sellers_records)
+                lakehouse = random.choice(lakehouses_records)
+
+                rental = LakehouseRental(
+                    rental_id=i + id_offset,
+                    seller_id=seller.seller_id,
+                    customer_id=customer.customer_id,
+                    lakehouse_id=lakehouse.lakehouse_id,
+                    customer_name=customer.name,
+                    email=customer.email,
+                    check_in_date=check_in,
+                    check_out_date=check_out,
+                    lakehouse_name_id=lakehouse.lakehouse_name_id,
+                    location=fake.city(),
+                    bedrooms=random.randint(1, 5),
+                    nightly_rate=nightly_rate,
+                    total_cost=total_cost,
+                    is_pet_friendly=random.choice([True, False]),
+                    rating=round(random.uniform(3.0, 5.0), 1),
+                    order_date=order_date,
+                    seller_name=seller.name,
+                    seller_email=seller.email,
+                    account_manager=random.choice(
+                        ["Anders Holm", "Maria Lund", "Thomas Vestergaard"]
+                    ),
+                    payment_method=random.choice(
+                        ["Credit Card", "MobilePay", "Bank Transfer"]
+                    ),
+                    transaction_id=f"TXN-{order_date.strftime('%Y%m%d')}-{random.randint(10000,99999)}",
+                    discount_code=random.choice(["SUMMER25", "WELCOME10", "", "", ""]),
+                    booking_channel=random.choice(["Website", "Mobile App", "Phone"]),
+                    currency="DKK",
+                    tax_amount=tax_amount,
+                    total_cost_with_tax=total_with_tax,
+                )
+                lakehouse_rental_records.append(rental)
+
+        # Generate current period (last 6 months)
+        generate_for_period("-6M", "today")
+
+        # Generate historic data for each year if requested
+        for year in range(1, historic_years + 1):
+            # Calculate date range for each historic year
+            start = f"-{6 + 12 * (year - 1)}M"
+            end = f"-{12 * (year - 1)}M"
+            generate_for_period(start, end, id_offset=year * 5000)
 
         return lakehouse_rental_records
