@@ -329,7 +329,7 @@ class LakehouseSyntheticData:
     def generate_customer(self, loyalty_tiers: list, payment_methods: list, fake: Faker):
         account_managers = ["Anders Holm", "Maria Lund", "Thomas Vestergaard"]
         customers = []
-        for i in range(1, 1001):
+        for i in range(1000, 100001):
             birth_date = fake.date_of_birth(minimum_age=18, maximum_age=75)
             reg_date = fake.date_between(start_date="-5y", end_date="-1M")
             last_purchase = fake.date_between(start_date=reg_date, end_date="today")

@@ -18,6 +18,8 @@ resources:
       schema: ${resources.schemas.lakehouse_landing_schema.name} 
       libraries:
         - glob:
+            include: ../src/raw/raw_ingest_backfill.py
+        - glob:
             include: ../src/raw/raw_ingest_lakehouse.py
         - glob:
             include: ../src/raw/raw_ingest_review.py

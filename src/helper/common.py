@@ -26,7 +26,7 @@ def add_audit_columns(df: DataFrame) -> DataFrame:
         lit("lakehouse_dummy_data").alias("SourceSystem"),
         current_timestamp().alias("ingest_timestamp"),
     )
-    df = df.withColumn("_metadata", metadata)
+    df = df.withColumn("_metadata_ldp", metadata)
     return df
 
 

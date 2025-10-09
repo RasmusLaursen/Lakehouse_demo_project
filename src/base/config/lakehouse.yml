@@ -3,6 +3,13 @@ customer:
     - customer_id
   sequence_column: _metadata["ingest_timestamp"]
   stored_as_scd_type: 2
+  track_history_column_list:
+    - last_login
+    - email
+    - phone_number
+    - customer_name    
+  track_history_except_column_list:
+    - _metadata
 lakehouse:
   keys:
     - lakehouse_id
@@ -13,6 +20,7 @@ lakehouse_rentals:
     - rental_id
   sequence_column: _metadata["ingest_timestamp"]
   stored_as_scd_type: 1  
+  backfill: lakehouse_rentals_historic
 seller:
   keys:
     - seller_id

@@ -50,3 +50,7 @@ resources:
       catalog_name: ${resources.schemas.lakehouse_landing_schema.catalog_name}
       name: meta_lakehouses
       schema_name: ${resources.schemas.lakehouse_landing_schema.name}
+    lakehouse_rentals_historic_volume:
+      catalog_name: ${resources.schemas.lakehouse_landing_schema.catalog_name}
+      name: lakehouse_rentals_historic
+      schema_name: ${resources.schemas.lakehouse_landing_schema.name}

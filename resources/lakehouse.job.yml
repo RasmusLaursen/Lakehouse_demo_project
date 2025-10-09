@@ -29,23 +29,6 @@ resources:
         - name: curated_facts_schema
           default: ${resources.schemas.facts_schema.name} 
 
-
-      # job_clusters:
-      # - job_cluster_key: Job_cluster
-      #   new_cluster:
-      #     driver_node_type_id: Standard_DS3_v2
-      #     node_type_id: Standard_DS3_v2  
-      #     spark_version: 15.4.x-scala2.12
-      #     is_single_node: true
-      #     data_security_mode: SINGLE_USER
-      #     kind: CLASSIC_PREVIEW
-
-      # trigger:
-      #   # Run this job every day, exactly one day from the last run
-      #   # See https://docs.databricks.com/api/workspace/jobs/create#trigger
-      #   periodic:
-      #     interval: 1
-      #     unit: DAYS
       environments:
         - environment_key: default
           spec:
@@ -95,45 +78,3 @@ resources:
             subscription: {}
             warehouse_id: ${var.warehouse_id}
             dashboard_id: ${resources.dashboards.lakehouse_demo_project_dashboard.id}
-# ${resources.dashboards.nyc_taxi_trip_analysis.id}
-# The main job for lakehouse.
-
-# resources:
-#   jobs:
-#     lakehouse_job:
-#       name: lakehouse_job
-
-#       trigger:
-#         # Run this job every day, exactly one day from the last run; see https://docs.databricks.com/api/workspace/jobs/create#trigger
-#         periodic:
-#           interval: 1
-#           unit: DAYS
-
-#       #email_notifications:
-#       #  on_failure:
-#       #    - your_email@example.com
-
-#       tasks:
-
-#         - task_key: refresh_pipeline
-#           pipeline_task:
-#             pipeline_id: ${resources.pipelines.lakehouse_pipeline.id}
-
-#         - task_key: main_task
-#           depends_on:
-#             - task_key: refresh_pipeline
-#           environment_key: default
-#           python_wheel_task:
-#             package_name: lakehouse
-#             entry_point: main
-
-#       # A list of task execution environment specifications that can be referenced by tasks of this job.
-#       environments:
-#         - environment_key: default
-
-#           # Full documentation of this spec can be found at:
-#           # https://docs.databricks.com/api/workspace/jobs/create#environments-spec
-#           spec:
-#             client: "2"
-#             dependencies:
-#               - ../dist/*.whl

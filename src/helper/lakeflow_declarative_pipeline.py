@@ -3,9 +3,9 @@ from src.helper import common
 from src.helper import databricks_helper
 from src.helper import read
 from pyspark.sql import DataFrame
+from src.helper.config import DefaultTblProperties
 
 spark = databricks_helper.get_spark()
-
 
 def ldp_table(
     name: str,
@@ -57,8 +57,9 @@ def ldp_table(
     # Merge table_properties with additional metadata
     table_properties = {
         **(table_properties or {}),
+        **(DefaultTblProperties().as_dict() or {}),
         "metadata.load-pattern": f"{loadtype}" if loadtype else "N/A",
-        "metadata.file-type": f"{filetype}" if filetype else "N/A",
+        "metadata.file-type": f"{filetype}" if filetype else "N/A"
     }
 
     @dlt.table(
@@ -103,7 +104,7 @@ def ldp_table(
                 source_schema=source_schema,
                 objectname=objectname,
                 filetype=filetype,
-                add_audit_column=True,
+                add_audit_column=False,
             )
         elif loadtype == "dataframe":
             return source_dataframe
@@ -182,6 +183,7 @@ def ldp_change_data_capture(
     except_column_list=None,
     track_history_column_list=None,
     track_history_except_column_list=None,
+    table_properties = None,
     name=None,
     once=False,
 ):
@@ -213,13 +215,17 @@ def ldp_change_data_capture(
     """
     if stored_as_scd_type not in (1, 2):
         raise ValueError("stored_as_scd_type must be either 1 or 2.")
+    
+    # Merge table_properties with additional metadata
+    table_properties = {
+        **(table_properties or {}),
+        **(DefaultTblProperties().as_dict() or {}),
+        "metadata.scd-type": f"{stored_as_scd_type}"
+    }   
 
     ldp_create_streaming_table(
         name=f"{target_catalog}.{target_schema}.{target_object}",
-        table_properties={
-            "pipelines.changeDataCaptureMode": "TRACK_CHANGES",  # Enable CDC
-            "metadata.scd-type": f"{stored_as_scd_type}"
-        }
+        table_properties=table_properties
     )
 
     dlt.create_auto_cdc_flow(
