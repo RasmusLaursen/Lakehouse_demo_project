@@ -40,7 +40,7 @@ def step_impl(context):
         logger.error(f"Error monitoring job: {e}")
         raise
 
-@then('the job completes successfully')
+@then('the job should complete successfully')
 def step_impl(context):
     if context.run.state.life_cycle_state != "TERMINATED":
         raise Exception(f"Job did not terminate properly. Current state: {context.run.state.life_cycle_state}")
