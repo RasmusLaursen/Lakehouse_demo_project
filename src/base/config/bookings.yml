@@ -1,5 +1,5 @@
 bookings:
   keys:
     - guid
-  sequence_column: _metadata["ingest_timestamp"]
+  sequence_column: _metadata_ldp["ingest_timestamp"]
   stored_as_scd_type: 1

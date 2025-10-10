@@ -12,6 +12,7 @@ logger = logging_helper.get_logger(__name__)
 spark = databricks_helper.get_spark()
 dbutils = databricks_helper.get_dbutils(spark)
 
+
 def review_generate_data(
     landing_catalog: str,
     landing_schema: str,
@@ -43,11 +44,15 @@ def main():
     lakehouse_landing_schema = common.parse_arguments("lakehouse_landing_schema")
     review_landing_schema = common.parse_arguments("review_landing_schema")
 
+    random_number_of_records = common.parse_arguments("random_number_of_records")
+
     logger.info(f"Landing Catalog: {landing_catalog}")
     logger.info(f"Landing Schema: {lakehouse_landing_schema}")
 
     logger.info("Generating synthetic data for lakehouse...")
-    lakeghouse_data_generator = LakehouseSyntheticData()
+    lakeghouse_data_generator = LakehouseSyntheticData(
+        random_number_of_records=random_number_of_records
+    )
     lakehouse_records = lakeghouse_data_generator.get_all_records()
 
     logger.info("Starting data generation...")

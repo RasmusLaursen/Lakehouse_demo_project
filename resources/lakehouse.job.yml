@@ -3,6 +3,9 @@ resources:
     lakehouse_demo_project_job:
       name: lakehouse_demo_project_job_${var.environment}
 
+      tags:
+        environment: ${var.environment}
+
       parameters:
         - name: environment
           default: dev
@@ -28,6 +31,8 @@ resources:
           default: ${resources.schemas.dimensions_schema.name}
         - name: curated_facts_schema
           default: ${resources.schemas.facts_schema.name} 
+        - name: random_number_of_records
+          default: "false"          
 
       environments:
         - environment_key: default

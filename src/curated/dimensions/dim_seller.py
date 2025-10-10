@@ -26,7 +26,9 @@ def dim_calendar(
     base_catalog=base_catalog, lakehouse_base_schema=lakehouse_base_schema
 ):
     seller_df = spark.read.table(f"{base_catalog}.{lakehouse_base_schema}.seller")
-    meta_region_df = spark.read.table(f"{base_catalog}.{lakehouse_base_schema}.meta_region")
+    meta_region_df = spark.read.table(
+        f"{base_catalog}.{lakehouse_base_schema}.meta_region"
+    )
 
     seller_df = seller_df.join(
         meta_region_df,

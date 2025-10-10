@@ -30,6 +30,9 @@ source = ["src/"]
 ######### Hatch Environments #########
 ######################################
 
+[tool.pylance]
+reportCallIssue = "none"
+
 [tool.hatch.envs.lint]
 dependencies = ["black"]
 
@@ -51,6 +54,15 @@ dependencies = [
 
 [tool.hatch.envs.unit_tests.scripts]
 run = "pytest . "
+
+[tool.hatch.envs.acceptance_tests]
+dependencies = [
+    "behave",
+    "databricks-sdk"
+]
+
+[tool.hatch.envs.acceptance_tests.scripts]
+run = "behave documentation/features"
 
 [tool.hatch.envs.development_local]
 dependencies = ["databricks_connect"]

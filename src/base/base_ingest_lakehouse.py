@@ -7,6 +7,7 @@ from src.helper import read
 import os
 from pydantic import ValidationError
 from src.helper.config import TableConfig
+from src.helper.config import InternalAuditColumns
 
 # Initialize logger
 logger = logging_helper.get_logger(__name__)
@@ -42,7 +43,7 @@ else:
     raw_catalog = pipeline_configs["raw_catalog"]
     source_raw_schema = pipeline_configs[f"{source_system_name}_raw_schema"]
     target_catalog = pipeline_configs["base_catalog"]
-    target_schema = pipeline_configs[f"{source_system_name}_base_schema"]    
+    target_schema = pipeline_configs[f"{source_system_name}_base_schema"]
 
     for table in table_list:
         table_name = table.object_name
@@ -71,5 +72,6 @@ else:
             keys=keys,
             sequence_column=sequence_column,
             stored_as_scd_type=stored_as_scd_type,
-            name=f"silver_load_{target_schema}_{table_name}",
+            except_column_list=[InternalAuditColumns().audit_column],
+            name=f"silver_load_{target_schema}_{table_name}"
         )

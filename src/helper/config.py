@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from dataclasses import dataclass, field
 
+
 class TableConfig(BaseModel):
     keys: list
     sequence_column: str
@@ -22,3 +23,7 @@ class DefaultTblProperties:
             "delta.enableChangeDataFeed": self.delta_enableChangeDataFeed,
             "pipelines.changeDataCaptureMode": self.pipelines_changeDataCaptureMode,
         }
+
+@dataclass(frozen=True)
+class InternalAuditColumns:
+    audit_column: str = "_metadata_ldp"

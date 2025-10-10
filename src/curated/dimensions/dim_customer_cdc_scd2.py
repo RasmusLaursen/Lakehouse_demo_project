@@ -27,13 +27,19 @@ target_schema = spark.conf.get("dimensions_schema")
 def dim_customer(
     base_catalog=base_catalog, lakehouse_base_schema=lakehouse_base_schema
 ):
-    logger.info(f"Reading source table: {base_catalog}.{lakehouse_base_schema}.customer_scd with CDC enabled")
+    logger.info(
+        f"Reading source table: {base_catalog}.{lakehouse_base_schema}.customer_scd with CDC enabled"
+    )
     customer_df = spark.readStream.option("readChangeFeed", "true").table(
         f"{base_catalog}.{lakehouse_base_schema}.customer"
     )
 
-    payment_method = spark.read.table(f"{base_catalog}.{lakehouse_base_schema}.payment_method")
-    loyalty_tier = spark.read.table(f"{base_catalog}.{lakehouse_base_schema}.loyalty_tier")
+    payment_method = spark.read.table(
+        f"{base_catalog}.{lakehouse_base_schema}.payment_method"
+    )
+    loyalty_tier = spark.read.table(
+        f"{base_catalog}.{lakehouse_base_schema}.loyalty_tier"
+    )
 
     customer_df = customer_df.withColumnsRenamed(
         {"customer_id": "customer_key", "__START_AT": "validfrom"}
@@ -42,12 +48,13 @@ def dim_customer(
     # Join with payment_method and loyalty_tier tables to enrich customer_df
     customer_df = customer_df.join(
         payment_method,
-        customer_df["preferred_payment_method_id"] == payment_method["payment_method_id"],
-        "left"
+        customer_df["preferred_payment_method_id"]
+        == payment_method["payment_method_id"],
+        "left",
     ).join(
         loyalty_tier,
         customer_df["loyalty_tier_id"] == loyalty_tier["loyalty_tier_id"],
-        "left"
+        "left",
     )
 
     customer_df = customer_df.select(
@@ -60,11 +67,15 @@ def dim_customer(
         "loyalty_tier.loyalty_tier",
         "payment_method.payment_method",
     )
-    logger.info(f"Writing temp_dim_customer to {target_catalog}.{target_schema}.temp_dim_customer")
+    logger.info(
+        f"Writing temp_dim_customer to {target_catalog}.{target_schema}.temp_dim_customer"
+    )
     return customer_df
 
 
-logger.info(f"Starting CDC SCD2 load for: {target_catalog}.{target_schema}.temp_dim_customer -> {target_catalog}.{target_schema}.dim_customer_cdc_scd2")
+logger.info(
+    f"Starting CDC SCD2 load for: {target_catalog}.{target_schema}.temp_dim_customer -> {target_catalog}.{target_schema}.dim_customer_cdc_scd2"
+)
 lakeflow_declarative_pipeline.ldp_change_data_capture(
     source=f"{target_catalog}.{target_schema}.temp_dim_customer",
     target_catalog=target_catalog,
@@ -80,19 +91,25 @@ logger.info(f"Successfully processed table: dim_customer_cdc_scd2")
 
 @dlt.table(
     name=f"{target_catalog}.{target_schema}.dim_customer_mv_scd2_cdc",
-    comment="Curated layer dimension table for customer with SCD2 and CDC"
+    comment="Curated layer dimension table for customer with SCD2 and CDC",
 )
 def dim_customer_mv_scd2_cdc(
     target_catalog=target_catalog, target_schema=target_schema
 ):
-    logger.info(f"Reading CDC SCD2 table: {target_catalog}.{target_schema}.dim_customer_cdc_scd2 with CDC enabled")
-    customer_df = spark.read.table(f"{target_catalog}.{target_schema}.dim_customer_cdc_scd2")
-    
+    logger.info(
+        f"Reading CDC SCD2 table: {target_catalog}.{target_schema}.dim_customer_cdc_scd2 with CDC enabled"
+    )
+    customer_df = spark.read.table(
+        f"{target_catalog}.{target_schema}.dim_customer_cdc_scd2"
+    )
+
     customer_df = customer_df.drop("validfrom")
 
     customer_df = customer_df.withColumnsRenamed(
-        {"__START_AT": "validfrom","__END_AT": "validto"}
+        {"__START_AT": "validfrom", "__END_AT": "validto"}
     )
     customer_df = customer_df.withColumn("customer_id", monotonically_increasing_id())
-    logger.info(f"Writing dim_customer_mv_scd2_cdc to {target_catalog}.{target_schema}.dim_customer_mv_scd2_cdc")
+    logger.info(
+        f"Writing dim_customer_mv_scd2_cdc to {target_catalog}.{target_schema}.dim_customer_mv_scd2_cdc"
+    )
     return customer_df

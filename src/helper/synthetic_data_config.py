@@ -1,25 +1,30 @@
 from dataclasses import dataclass
 from datetime import date
 
+
 @dataclass
 class Lakehouses:
-    lakehouse_name_id:int
-    lakehouse_name:str
+    lakehouse_name_id: int
+    lakehouse_name: str
+
 
 @dataclass
 class Regions:
     region_name_id: int
     region_name: str
 
+
 @dataclass
 class LoyaltyTier:
     loyalty_tier_id: int
     loyalty_tier: str
 
+
 @dataclass
 class PaymentMethod:
     payment_method_id: int
     payment_method: str
+
 
 @dataclass
 class CustomerProfile:
@@ -31,7 +36,7 @@ class CustomerProfile:
     gender: str
     address: str
     city: str
-    postal_code: str    
+    postal_code: str
     country: str
     registration_date: date
     loyalty_tier_id: int
@@ -41,6 +46,7 @@ class CustomerProfile:
     last_purchase_date: date
     total_spend: float
     number_of_purchases: int
+
 
 @dataclass
 class LakehouseProfile:
@@ -64,7 +70,8 @@ class LakehouseProfile:
     owner_email: str
     listing_date: date
     rating: float
-    is_active: bool    
+    is_active: bool
+
 
 @dataclass
 class SellerProfile:
@@ -83,7 +90,8 @@ class SellerProfile:
     last_booking_date: date
     performance_rating: float
     manager_name: str
-    preferred_contact_method: str    
+    preferred_contact_method: str
+
 
 @dataclass
 class LakehouseRental:
@@ -112,4 +120,4 @@ class LakehouseRental:
     booking_channel: str
     currency: str
     tax_amount: float
-    total_cost_with_tax: float    
+    total_cost_with_tax: float

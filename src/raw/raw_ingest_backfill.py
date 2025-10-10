@@ -19,9 +19,7 @@ source_schema = spark.conf.get("lakehouse_landing_schema")
 target_catalog = spark.conf.get("raw_catalog")
 target_schema = spark.conf.get("lakehouse_raw_schema")
 
-volume_list = common.list_volumes_in_schema(
-    spark, source_catalog, source_schema
-)
+volume_list = common.list_volumes_in_schema(spark, source_catalog, source_schema)
 
 for volume in volume_list:
     if volume.object_name == "lakehouse_rentals":
@@ -39,16 +37,28 @@ for volume in volume_list:
 
         logger.info(f"Backfilling table: {volume.object_name} with historic data.")
         try:
+
             @dlt.append_flow(
                 target=f"{target_catalog}.{target_schema}.{volume.object_name}_test",
                 once=True,
                 name=f"{volume.object_name}_backfill",
-                comment=f"Backfill {volume.object_name} Raw registration events"
+                comment=f"Backfill {volume.object_name} Raw registration events",
             )
-            def backfill(source_catalog=source_catalog, source_schema=source_schema, validated_config=volume.object_name):
-                return read.read_volume(source_catalog, source_schema, f"{validated_config}_historic", filetype="parquet")
-            
+            def backfill(
+                source_catalog=source_catalog,
+                source_schema=source_schema,
+                validated_config=volume.object_name,
+            ):
+                return read.read_volume(
+                    source_catalog,
+                    source_schema,
+                    f"{validated_config}_historic",
+                    filetype="parquet",
+                )
+
         except Exception as e:
-            logger.error(f"Error during backfill of table {volume.object_name}_backfill: {e}")
+            logger.error(
+                f"Error during backfill of table {volume.object_name}_backfill: {e}"
+            )
             continue
     logger.info(f"Successfully processed table: {volume.object_name}")

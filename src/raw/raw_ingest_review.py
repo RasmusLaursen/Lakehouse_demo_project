@@ -17,9 +17,7 @@ source_schema = spark.conf.get("review_landing_schema")
 target_catalog = spark.conf.get("raw_catalog")
 target_schema = spark.conf.get("review_raw_schema")
 
-volume_list = common.list_volumes_in_schema(
-    spark, source_catalog, source_schema
-)
+volume_list = common.list_volumes_in_schema(spark, source_catalog, source_schema)
 
 for volume in volume_list:
     logger.info(f"Processesing volume: {volume.object_name}")

@@ -48,6 +48,7 @@ def read_table(source_catalog: str, source_schema: str, objectname: str) -> Data
     df = spark.read.table(f"{source_catalog}.{source_schema}.{objectname}")
     return df
 
+
 def read_volume(
     source_catalog: str,
     source_schema: str,
@@ -55,7 +56,7 @@ def read_volume(
     file_path: str = "",
     file_format: str = "parquet",
     add_audit_column: bool = False,
-    **options
+    **options,
 ) -> DataFrame:
     """
     Reads data from a Databricks Unity Catalog volume using PySpark.
@@ -77,21 +78,22 @@ def read_volume(
         >>> df_csv = read_volume("my_catalog", "my_schema", "my_volume", "data/customers.csv", "csv", header=True)
     """
     volume_path = f"/Volumes/{source_catalog}/{source_schema}/{volume_name}/{file_path}"
-    
+
     logger.info(f"Reading from volume path: {volume_path} with format: {file_format}")
-    
+
     try:
         df = spark.read.format(file_format).options(**options).load(volume_path)
-        
+
         if add_audit_column:
             df = common.add_audit_columns(df=df)
-            
+
         logger.info(f"Successfully read data from volume: {volume_name}")
         return df
-        
+
     except Exception as e:
         logger.error(f"Failed to read from volume {volume_name}: {str(e)}")
         raise
+
 
 def read_volume_autoloader(
     source_catalog: str,

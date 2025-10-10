@@ -47,6 +47,7 @@ def dimension_keys_lookup(curated_catalog, curated_dimension_schema, fact_df):
     fact_df = fact_df.select(*cols)
     return fact_df
 
+
 def get_table_properties(catalog: str, schema: str, table: str) -> dict:
     """
     Returns all table properties for a given table in Databricks using PySpark only.

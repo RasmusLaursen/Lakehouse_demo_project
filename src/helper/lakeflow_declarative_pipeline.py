@@ -5,7 +5,13 @@ from src.helper import read
 from pyspark.sql import DataFrame
 from src.helper.config import DefaultTblProperties
 
+from src.helper import logging_helper
+
+# Initialize logger
+logger = logging_helper.get_logger(__name__)
+
 spark = databricks_helper.get_spark()
+
 
 def ldp_table(
     name: str,
@@ -59,8 +65,10 @@ def ldp_table(
         **(table_properties or {}),
         **(DefaultTblProperties().as_dict() or {}),
         "metadata.load-pattern": f"{loadtype}" if loadtype else "N/A",
-        "metadata.file-type": f"{filetype}" if filetype else "N/A"
+        "metadata.file-type": f"{filetype}" if filetype else "N/A",
     }
+
+    logger.info(f"using table properties: {table_properties}")
 
     @dlt.table(
         name=name,
@@ -104,7 +112,7 @@ def ldp_table(
                 source_schema=source_schema,
                 objectname=objectname,
                 filetype=filetype,
-                add_audit_column=False,
+                add_audit_column=True,
             )
         elif loadtype == "dataframe":
             return source_dataframe
@@ -138,6 +146,7 @@ def ldp_exeption(exeptions):
         #     else:
         #         raise ValueError("ldp_exeption_type must be either 'expect', 'expect_or_drop', 'expect_or_fail', 'expect_all', 'expect_all_or_drop', or 'expect_all_or_fail'.")
         # return list_of_exeptions
+
 
 def ldp_view(
     source_catalog: str,
@@ -183,7 +192,7 @@ def ldp_change_data_capture(
     except_column_list=None,
     track_history_column_list=None,
     track_history_except_column_list=None,
-    table_properties = None,
+    table_properties=None,
     name=None,
     once=False,
 ):
@@ -215,17 +224,17 @@ def ldp_change_data_capture(
     """
     if stored_as_scd_type not in (1, 2):
         raise ValueError("stored_as_scd_type must be either 1 or 2.")
-    
+
     # Merge table_properties with additional metadata
     table_properties = {
         **(table_properties or {}),
         **(DefaultTblProperties().as_dict() or {}),
-        "metadata.scd-type": f"{stored_as_scd_type}"
-    }   
+        "metadata.scd-type": f"{stored_as_scd_type}",
+    }
 
     ldp_create_streaming_table(
         name=f"{target_catalog}.{target_schema}.{target_object}",
-        table_properties=table_properties
+        table_properties=table_properties,
     )
 
     dlt.create_auto_cdc_flow(

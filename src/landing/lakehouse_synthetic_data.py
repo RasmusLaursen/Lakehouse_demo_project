@@ -4,7 +4,16 @@ from faker import Faker
 import random
 from typing import List
 from src.helper import write
-from src.helper.synthetic_data_config import LoyaltyTier, PaymentMethod, CustomerProfile, LakehouseProfile, SellerProfile, LakehouseRental, Regions, Lakehouses
+from src.helper.synthetic_data_config import (
+    LoyaltyTier,
+    PaymentMethod,
+    CustomerProfile,
+    LakehouseProfile,
+    SellerProfile,
+    LakehouseRental,
+    Regions,
+    Lakehouses,
+)
 from src.helper import logging_helper
 from src.helper import databricks_helper
 
@@ -202,9 +211,10 @@ lakehouses_global_list = [
     "Nordeng Villa",
 ]
 
+
 class LakehouseSyntheticData:
 
-    def __init__(self) -> None:
+    def __init__(self, random_number_of_records: bool = False) -> None:
         self.meta_lakehouses = None
         self.meta_regions = None
 
@@ -212,24 +222,31 @@ class LakehouseSyntheticData:
         self.faker = Faker()
 
         self.generate_loyalty_tiers_records = self.generate_loyalty_tiers()
-        self.generate_payment_methods_records = self.generate_payment_methods()         
+        self.generate_payment_methods_records = self.generate_payment_methods()
         self.meta_lakehouses = self.generate_meta_lakehouses()
         self.meta_regions = self.generate_meta_regions()
 
+        logger.info("number of records in meta_lakehouses {}".format(len(self.meta_lakehouses)))
+
         self.lakehouses_records = self.generate_lakehouse_profile(
-            meta_lakehouses=self.meta_lakehouses, meta_regions=self.meta_regions, fake=self.faker
+            meta_lakehouses=self.meta_lakehouses,
+            meta_regions=self.meta_regions,
+            fake=self.faker,
+            random_number_of_records=random_number_of_records,
         )
 
         self.customer_records = self.generate_customer(
             fake=self.faker,
             loyalty_tiers=self.generate_loyalty_tiers_records,
-            payment_methods=self.generate_payment_methods_records
+            payment_methods=self.generate_payment_methods_records,
+            random_number_of_records=random_number_of_records,
         )
 
         self.seller_records = self.generate_seller(
             lakehouses_records=self.lakehouses_records,
             meta_regions=self.meta_regions,
             fake=self.faker,
+            random_number_of_records=random_number_of_records,
         )
 
         self.lakehouse_rentals_records = self.generate_lakehouse_rentals(
@@ -237,6 +254,7 @@ class LakehouseSyntheticData:
             customers_records=self.customer_records,
             sellers_records=self.seller_records,
             fake=self.faker,
+            random_number_of_records=random_number_of_records,
         )
 
         self.lakehouse_rentals_records_historic = self.generate_lakehouse_rentals(
@@ -244,8 +262,9 @@ class LakehouseSyntheticData:
             customers_records=self.customer_records,
             sellers_records=self.seller_records,
             fake=self.faker,
-            historic_years=3
-        )        
+            historic_years=3,
+            random_number_of_records=random_number_of_records,
+        )
 
     def get_all_records(self) -> dict:
         """
@@ -299,10 +318,13 @@ class LakehouseSyntheticData:
             logger.info(f"{entity_name.capitalize()} data written successfully.")
         return entities["lakehouse_rentals"]
 
-    def generate_meta_lakehouses(self):
-        return [Lakehouses(i, name) for i, name in enumerate(lakehouses_global_list, start=1)]
+    def generate_meta_lakehouses(self) -> list[Lakehouses]:
+        return [
+            Lakehouses(i, name)
+            for i, name in enumerate(lakehouses_global_list, start=1)
+        ]
 
-    def generate_meta_regions(self):
+    def generate_meta_regions(self) -> list[Regions]:
         return [
             Regions(1, "Midtjylland"),
             Regions(2, "Sjælland"),
@@ -310,8 +332,8 @@ class LakehouseSyntheticData:
             Regions(4, "Syddanmark"),
             Regions(5, "Hovedstaden"),
         ]
-    
-    def generate_loyalty_tiers(self):
+
+    def generate_loyalty_tiers(self) -> list[LoyaltyTier]:
         return [
             LoyaltyTier(1, "Bronze"),
             LoyaltyTier(2, "Silver"),
@@ -319,17 +341,33 @@ class LakehouseSyntheticData:
             LoyaltyTier(4, "Platinum"),
         ]
 
-    def generate_payment_methods(self):
+    def generate_payment_methods(self) -> list[PaymentMethod]:
         return [
             PaymentMethod(1, "Credit Card"),
             PaymentMethod(2, "MobilePay"),
             PaymentMethod(3, "Bank Transfer"),
         ]
 
-    def generate_customer(self, loyalty_tiers: list, payment_methods: list, fake: Faker):
+    def generate_customer(
+        self,
+        loyalty_tiers: list,
+        payment_methods: list,
+        fake: Faker,
+        random_number_of_records: bool = False,
+    ):
         account_managers = ["Anders Holm", "Maria Lund", "Thomas Vestergaard"]
         customers = []
-        for i in range(1000, 100001):
+
+        if random_number_of_records:
+            # Generate random number of customers between 100 and 50,000
+            num_customers = fake.random.randint(100, 50000)
+            start_id = 1000
+            end_id = start_id + num_customers
+        else:
+            start_id = 1000
+            end_id = 100001
+
+        for i in range(start_id, end_id):
             birth_date = fake.date_of_birth(minimum_age=18, maximum_age=75)
             reg_date = fake.date_between(start_date="-5y", end_date="-1M")
             last_purchase = fake.date_between(start_date=reg_date, end_date="today")
@@ -349,7 +387,9 @@ class LakehouseSyntheticData:
                 country="Denmark",
                 registration_date=reg_date,
                 loyalty_tier_id=random.choice(loyalty_tiers).loyalty_tier_id,
-                preferred_payment_method_id=random.choice(payment_methods).payment_method_id,
+                preferred_payment_method_id=random.choice(
+                    payment_methods
+                ).payment_method_id,
                 account_manager=random.choice(account_managers),
                 is_subscribed_to_newsletter=random.choice([True, False]),
                 last_purchase_date=last_purchase,
@@ -361,7 +401,11 @@ class LakehouseSyntheticData:
         return customers
 
     def generate_lakehouse_profile(
-        self, meta_lakehouses: List[str], meta_regions: List[str], fake: Faker
+        self,
+        meta_lakehouses: List[Lakehouses],
+        meta_regions: List[Regions],
+        fake: Faker,
+        random_number_of_records: bool = False,
     ):
         amenity_pool = [
             "WiFi",
@@ -375,7 +419,14 @@ class LakehouseSyntheticData:
         ]
 
         lakehouse_records = []
-        for i in range(1, 201):  # 200 lakehouses
+
+        if random_number_of_records:
+            # Generate random number of lakehouses between 25 and 1000
+            num_lakehouses = fake.random.randint(25, 1000)
+        else:
+            num_lakehouses = 200
+
+        for i in range(1, num_lakehouses + 1):
             lakehouse_name_id = random.choice(meta_lakehouses).lakehouse_name_id
             location = fake.city()
             region = random.choice(meta_regions)
@@ -423,11 +474,24 @@ class LakehouseSyntheticData:
 
         return lakehouse_records
 
-    def generate_seller(self, lakehouses_records, meta_regions: List[str], fake: Faker):
+    def generate_seller(
+        self,
+        lakehouses_records,
+        meta_regions: List[Regions],
+        fake: Faker,
+        random_number_of_records: bool = False,
+    ):
         managers = ["Rasmus Holm", "Camilla Vestergaard", "Jonas Mikkelsen"]
 
         seller_records = []
-        for i in range(1, 201):  # 200 sellers
+
+        if random_number_of_records:
+            # Generate random number of sellers between 10 and 1000
+            num_sellers = fake.random.randint(10, 1000)
+        else:
+            num_sellers = 200
+
+        for i in range(1, num_sellers + 1):
             hire_date = fake.date_between(start_date="-5y", end_date="-6M")
             last_booking = fake.date_between(start_date=hire_date, end_date="today")
             total_sales = round(random.uniform(100000, 1500000), 2)
@@ -463,7 +527,13 @@ class LakehouseSyntheticData:
         return seller_records
 
     def generate_lakehouse_rentals(
-        self, lakehouses_records, customers_records, sellers_records, fake: Faker, historic_years: int = 0
+        self,
+        lakehouses_records,
+        customers_records,
+        sellers_records,
+        fake: Faker,
+        historic_years: int = 0,
+        random_number_of_records: bool = False,
     ):
         """
         Generate lakehouse rental records.
@@ -472,7 +542,13 @@ class LakehouseSyntheticData:
         lakehouse_rental_records = []
 
         def generate_for_period(start_date, end_date, id_offset=0):
-            for i in range(1, 5000):
+            if random_number_of_records:
+                # Generate random number of rentals between 500 and 10,000 per period
+                num_rentals = fake.random.randint(500, 10000)
+            else:
+                num_rentals = 4999  # Original range was 1 to 5000, so 4999 records
+
+            for i in range(1, num_rentals + 1):
                 check_in = fake.date_between(start_date=start_date, end_date=end_date)
                 stay_length = random.randint(2, 7)
                 check_out = check_in + timedelta(days=stay_length)
