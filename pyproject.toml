@@ -26,13 +26,14 @@ packages = ["src/"]
 [tool.converge.paths]
 source = ["src/"]
 
+[tool.pylance]
+reportCallIssue = "none"
+
 ######################################
 ######### Hatch Environments #########
 ######################################
 
-[tool.pylance]
-reportCallIssue = "none"
-
+## LINTING ##
 [tool.hatch.envs.lint]
 dependencies = ["black"]
 
@@ -40,21 +41,29 @@ dependencies = ["black"]
 run = "black . --check"
 fix = "black ."
 
+## TYPE CHECKING ##
 [tool.hatch.envs.typecheck]
 dependencies = ["mypy"]
 
 [tool.hatch.envs.typecheck.scripts]
 run = "mypy ."
 
+## UNIT TESTS#
 [tool.hatch.envs.unit_tests]
 dependencies = [
     "pytest",
-    "pyspark"
+    "pyspark",
+    "databricks-connect",
+    "faker == 37.6.0",
+    "databricks-sdk",
+    "pydantic",
+    "pyyaml"
 ]
 
 [tool.hatch.envs.unit_tests.scripts]
-run = "pytest . "
+run = "pytest tests/unit/helper_test/config_test.py"
 
+## ACCEPTANCE TESTS##
 [tool.hatch.envs.acceptance_tests]
 dependencies = [
     "behave",
@@ -64,6 +73,7 @@ dependencies = [
 [tool.hatch.envs.acceptance_tests.scripts]
 run = "behave documentation/features"
 
+## DEVELOPMENT ENVIRONMENTS ##
 [tool.hatch.envs.development_local]
 dependencies = ["databricks_connect"]
 
@@ -74,12 +84,13 @@ refresh_all_pipeline = "databricks bundle run lakehouse_demo_project_pipeline --
 full_refresh_all_pipeline = "databricks bundle run lakehouse_demo_project_pipeline --full-refresh-all -t developer"
 run = "databricks bundle run -t developer"
 
+## DATABRICKS ENVIRONMENTS ##
 [tool.hatch.envs.databricks.scripts]
 validate = "databricks bundle validate"
 deploy = "databricks bundle deploy --auto-approve"
 run = "databricks bundle run"
 
-
+## APP STREAMLIT ENVIRONMENTS ##
 [tool.hatch.envs.app_development]
 dependencies = [
     "streamlit",

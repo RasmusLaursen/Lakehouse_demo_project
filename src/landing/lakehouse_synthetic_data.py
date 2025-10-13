@@ -226,8 +226,6 @@ class LakehouseSyntheticData:
         self.meta_lakehouses = self.generate_meta_lakehouses()
         self.meta_regions = self.generate_meta_regions()
 
-        logger.info("number of records in meta_lakehouses {}".format(len(self.meta_lakehouses)))
-
         self.lakehouses_records = self.generate_lakehouse_profile(
             meta_lakehouses=self.meta_lakehouses,
             meta_regions=self.meta_regions,
@@ -355,6 +353,16 @@ class LakehouseSyntheticData:
         fake: Faker,
         random_number_of_records: bool = False,
     ):
+        if not loyalty_tiers:
+            raise ValueError(
+                "loyalty_tiers cannot be empty. At least one loyalty tier is required."
+            )
+
+        if not payment_methods:
+            raise ValueError(
+                "payment_methods cannot be empty. At least one payment method is required."
+            )
+
         account_managers = ["Anders Holm", "Maria Lund", "Thomas Vestergaard"]
         customers = []
 
@@ -385,7 +393,6 @@ class LakehouseSyntheticData:
                 city=fake.city(),
                 postal_code=fake.postcode(),
                 country="Denmark",
-                registration_date=reg_date,
                 loyalty_tier_id=random.choice(loyalty_tiers).loyalty_tier_id,
                 preferred_payment_method_id=random.choice(
                     payment_methods
@@ -407,6 +414,15 @@ class LakehouseSyntheticData:
         fake: Faker,
         random_number_of_records: bool = False,
     ):
+        if not meta_lakehouses:
+            raise ValueError(
+                "meta_lakehouses cannot be empty. At least one lakehouse is required."
+            )
+
+        if not meta_regions:
+            raise ValueError(
+                "meta_regions cannot be empty. At least one region is required."
+            )
         amenity_pool = [
             "WiFi",
             "Fireplace",
@@ -481,6 +497,11 @@ class LakehouseSyntheticData:
         fake: Faker,
         random_number_of_records: bool = False,
     ):
+        if not meta_regions:
+            raise ValueError(
+                "meta_regions cannot be empty. At least one region is required."
+            )
+
         managers = ["Rasmus Holm", "Camilla Vestergaard", "Jonas Mikkelsen"]
 
         seller_records = []
@@ -539,14 +560,28 @@ class LakehouseSyntheticData:
         Generate lakehouse rental records.
         If historic_years > 0, generates additional records for each year in the past.
         """
+        if not lakehouses_records:
+            raise ValueError(
+                "lakehouses_records cannot be empty. At least one lakehouse is required."
+            )
+        if not customers_records:
+            raise ValueError(
+                "customers_records cannot be empty. At least one customer is required."
+            )
+        if not sellers_records:
+            raise ValueError(
+                "sellers_records cannot be empty. At least one seller is required."
+            )
+
         lakehouse_rental_records = []
 
+        if random_number_of_records:
+            # Generate random number of rentals between 500 and 10,000 per period
+            num_rentals = fake.random.randint(500, 10000)
+        else:
+            num_rentals = 4999  # Original range was 1 to 5000, so 4999 records
+
         def generate_for_period(start_date, end_date, id_offset=0):
-            if random_number_of_records:
-                # Generate random number of rentals between 500 and 10,000 per period
-                num_rentals = fake.random.randint(500, 10000)
-            else:
-                num_rentals = 4999  # Original range was 1 to 5000, so 4999 records
 
             for i in range(1, num_rentals + 1):
                 check_in = fake.date_between(start_date=start_date, end_date=end_date)
@@ -603,6 +638,6 @@ class LakehouseSyntheticData:
             # Calculate date range for each historic year
             start = f"-{6 + 12 * (year - 1)}M"
             end = f"-{12 * (year - 1)}M"
-            generate_for_period(start, end, id_offset=year * 5000)
+            generate_for_period(start, end, id_offset=year * num_rentals)
 
         return lakehouse_rental_records

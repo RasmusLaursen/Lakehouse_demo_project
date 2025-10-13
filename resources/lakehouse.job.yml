@@ -37,7 +37,7 @@ resources:
       environments:
         - environment_key: default
           spec:
-            client: "3"
+            environment_version: "3"
             dependencies:
               - ../dist/*.whl     
       performance_target: PERFORMANCE_OPTIMIZED
@@ -69,17 +69,17 @@ resources:
             - task_key: generate_synthetic_landing_data
           pipeline_task:
             pipeline_id: ${resources.pipelines.lakehouse_demo_project_pipeline.id}
-        - task_key: lakehouse_metric
-          depends_on: 
-            - task_key: lakehouse_model_pipelines
-          python_wheel_task:
-            package_name: lakehouse_demo_project
-            entry_point: metric_view
-          environment_key: default
-        - task_key: Refresh_Lakhouse_Dashboard
-          depends_on: 
-            - task_key: lakehouse_metric
-          dashboard_task:
-            subscription: {}
-            warehouse_id: ${var.warehouse_id}
-            dashboard_id: ${resources.dashboards.lakehouse_demo_project_dashboard.id}
+        # - task_key: lakehouse_metric
+        #   depends_on: 
+        #     - task_key: lakehouse_model_pipelines
+        #   python_wheel_task:
+        #     package_name: lakehouse_demo_project
+        #     entry_point: metric_view
+        #   environment_key: default
+        # - task_key: Refresh_Lakhouse_Dashboard
+        #   depends_on: 
+        #     - task_key: lakehouse_metric
+        #   dashboard_task:
+        #     subscription: {}
+        #     warehouse_id: ${var.warehouse_id}
+        #     dashboard_id: ${resources.dashboards.lakehouse_demo_project_dashboard.id}

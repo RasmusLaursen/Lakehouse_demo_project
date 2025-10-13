@@ -2,6 +2,14 @@
 
 import os, sys, pathlib
 from contextlib import contextmanager
+import pytest
+from faker import Faker
+
+
+@pytest.fixture
+def fake():
+    """Faker instance for generating test data."""
+    return Faker("en_US")
 
 
 try:
@@ -11,7 +19,7 @@ try:
     import pytest
 except ImportError:
     raise ImportError(
-        "Test dependencies not found.\n\nRun tests using 'uv run pytest'. See http://docs.astral.sh/uv to learn more about uv."
+        "Required packages for testing are not installed. Please install the packages listed in pyproject.toml under [tool.hatch.envs.unit_tests.dependencies]."
     )
 
 

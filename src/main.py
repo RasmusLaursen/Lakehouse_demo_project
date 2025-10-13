@@ -46,6 +46,8 @@ def main():
 
     random_number_of_records = common.parse_arguments("random_number_of_records")
 
+    logger.info("Generate random number of records: " + str(random_number_of_records))
+
     logger.info(f"Landing Catalog: {landing_catalog}")
     logger.info(f"Landing Schema: {lakehouse_landing_schema}")
 

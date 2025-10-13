@@ -4,9 +4,61 @@ import yaml
 from typing import Dict, Any
 from src.helper import logging_helper
 import sys
+from pathlib import Path
+from src.helper.config import LayerConfig
+from pydantic import ValidationError
 
 # Initialize logger
 logger = logging_helper.get_logger(__name__)
+
+
+def get_path_for_data_configuration(catalog: str, object: str) -> Path:
+    """
+    Constructs the path to the data configuration file based on the provided catalog and object names.
+
+    Args:
+        catalog (str): The name of the catalog.
+        object (str): The name of the object.
+
+    Returns:
+        Path: The constructed path to the data configuration file.
+    """
+    
+    if catalog == "curated":
+        return Path(f"../../data_configuration/{catalog}/{object}.yml")
+    else:
+        return Path(f"../data_configuration/{catalog}/{object}.yml")
+
+
+def get_data_configuration(catalog: str, object: str) -> LayerConfig:
+    """
+    Constructs the path to the data configuration file based on the provided catalog and object names.
+
+    Args:
+        catalog (str): The name of the catalog.
+        object (str): The name of the object.
+
+    Returns:
+        Path: The constructed path to the data configuration file.
+    """
+    data_configuration_path = get_path_for_data_configuration(
+        catalog=catalog, object=object
+    )
+
+    if not data_configuration_path.is_file():
+        raise FileNotFoundError(
+            f"Data configuration file not found: {data_configuration_path}"
+        )
+
+    data_configuration = try_load_ingest_config(data_configuration_path)
+
+    # Validate data_configuration against LayerConfig
+    try:
+        validated_data_config = LayerConfig(**data_configuration)
+        return validated_data_config
+    except ValidationError as e:
+        logger.error(f"LayerConfig validation error: {e}")
+        raise
 
 
 def add_audit_columns(df: DataFrame) -> DataFrame:
@@ -30,7 +82,7 @@ def add_audit_columns(df: DataFrame) -> DataFrame:
     return df
 
 
-def _load_yaml_file(file_path):
+def _load_yaml_file(file_path) -> Any:
     """
     Load a YAML file and return its contents.
 
@@ -54,7 +106,7 @@ def _load_yaml_file(file_path):
         raise ValueError(f"Error parsing YAML file: {e}")
 
 
-def try_load_ingest_config(base_path: str) -> Dict[str, Any]:
+def try_load_ingest_config(base_path: Path) -> Any:
     """
     Try to load the base configuration file from the specified path.
 
@@ -65,7 +117,7 @@ def try_load_ingest_config(base_path: str) -> Dict[str, Any]:
     and an empty dictionary is returned.
 
     Args:
-        base_path (str): The path to the YAML configuration file.
+        base_path (Path): The path to the YAML configuration file.
 
     Returns:
         Dict[str, Any]: The loaded configuration as a dictionary, or an

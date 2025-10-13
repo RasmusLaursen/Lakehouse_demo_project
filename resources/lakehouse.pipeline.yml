@@ -17,8 +17,8 @@ resources:
       catalog: ${resources.schemas.lakehouse_landing_schema.catalog_name}
       schema: ${resources.schemas.lakehouse_landing_schema.name} 
       libraries:
-        - glob:
-            include: ../src/raw/raw_ingest_backfill.py
+        # - glob:
+        #     include: ../src/raw/raw_ingest_backfill.py
         - glob:
             include: ../src/raw/raw_ingest_lakehouse.py
         - glob:

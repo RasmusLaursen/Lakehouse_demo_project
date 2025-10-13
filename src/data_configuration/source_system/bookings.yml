@@ -1,0 +1,9 @@
+source_system_name: bookings
+load_type: volume_autoloader
+file_type: json
+objects:
+  bookings:
+    keys:
+      - guid
+    sequence_column: _metadata_ldp["ingest_timestamp"]
+    stored_as_scd_type: 1

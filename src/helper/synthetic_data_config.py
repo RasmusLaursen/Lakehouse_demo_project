@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import date
+from typing import Optional
 
 
 @dataclass
@@ -38,8 +39,8 @@ class CustomerProfile:
     city: str
     postal_code: str
     country: str
-    registration_date: date
     loyalty_tier_id: int
+    preferred_payment_method_id: int
     preferred_payment_method_id: int
     account_manager: str
     is_subscribed_to_newsletter: bool
