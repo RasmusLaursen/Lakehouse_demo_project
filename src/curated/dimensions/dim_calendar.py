@@ -12,11 +12,17 @@ logger = logging_helper.get_logger(__name__)
 # Initialize Spark session
 spark = databricks_helper.get_spark()
 
-enriched_catalog = spark.conf.get("enriched_catalog")
-enriched_schema = spark.conf.get("enriched_schema")
+catalogs = databricks_helper.get_pipeline_configurations(spark, "catalogs")
+schemas = databricks_helper.get_pipeline_configurations(spark, "schemas")
 
-target_catalog = spark.conf.get("curated_catalog")
-target_schema = spark.conf.get("dimensions_schema")
+logger.debug("Catalogs configuration: " + str(catalogs))
+logger.debug("Schemas configuration: " + str(schemas))
+
+enriched_catalog = catalogs.get("enriched_catalog")
+enriched_schema = schemas.get("enriched_schema")
+
+target_catalog = catalogs.get("curated_catalog")
+target_schema = schemas.get("dimensions_schema")
 
 logger.info("### dim_calendar ###")
 logger.debug(

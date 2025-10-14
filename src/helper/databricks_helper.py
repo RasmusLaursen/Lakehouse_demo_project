@@ -1,5 +1,6 @@
 from pyspark.sql import SparkSession
-
+import json
+from typing import Any
 
 def get_spark() -> SparkSession:
     """
@@ -41,6 +42,25 @@ def get_dbutils(spark: SparkSession) -> DBUtils:
 # TODO
 # Find smarter way to parse all catalogs and schemas from configuration of pipeline
 
+def get_pipeline_configurations(spark, configuration_name: str) -> Any:
+    """
+    Retrieves pipeline configurations from Spark conf.
+
+    Args:
+        spark (SparkSession): The Spark session.
+        configuration_name (str, optional): Specific configuration name to fetch.
+            If None, fetches all configurations.
+
+    Returns:
+        dict: Dictionary of configuration key-value
+    """
+    configuration = spark.conf.get(configuration_name)
+    try:
+        parsed = json.loads(configuration)
+
+        return parsed
+    except (TypeError, json.JSONDecodeError):
+        return {configuration_name: configuration}
 
 def get_pipeline_configurations_from_spark(
     spark, source_system_name: str = None
@@ -77,3 +97,5 @@ def get_pipeline_configurations_from_spark(
         value = spark.conf.get(key, None)
         configs[key] = value
     return configs
+
+

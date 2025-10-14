@@ -13,20 +13,21 @@ spark = databricks_helper.get_spark()
 # Define source system name
 source_system_name = "lakehouse"
 
-# Configuration from pipeline definitions
-pipeline_configs = databricks_helper.get_pipeline_configurations_from_spark(
-    spark, source_system_name
-)
-
 # Load ingestion configuration
 validated_data_config = common.get_data_configuration(
     catalog="source_system", object=source_system_name
 )
 
-raw_catalog = pipeline_configs["raw_catalog"]
-target_raw_schema = pipeline_configs[f"{source_system_name}_raw_schema"]
-target_catalog = pipeline_configs["base_catalog"]
-target_schema = pipeline_configs[f"{source_system_name}_base_schema"]
+catalogs = databricks_helper.get_pipeline_configurations(spark, "catalogs")
+schemas = databricks_helper.get_pipeline_configurations(spark, "schemas")
+
+logger.debug("Catalogs configuration: " + str(catalogs))
+logger.debug("Schemas configuration: " + str(schemas))
+
+raw_catalog = catalogs.get("raw_catalog")
+target_raw_schema = schemas.get(f"{source_system_name}_raw_schema")
+target_catalog =  catalogs.get("base_catalog")
+target_schema = schemas.get(f"{source_system_name}_base_schema")
 
 # Loop over objects in validated_lakehouse_config.tables and log their names
 for object_name, object_config in validated_data_config.objects.items():
@@ -48,6 +49,6 @@ for object_name, object_config in validated_data_config.objects.items():
         keys=keys,
         sequence_column=sequence_column,
         stored_as_scd_type=stored_as_scd_type,
-        name=f"silver_load_{target_schema}_{object_name}",
+        name=f"base_load_{target_schema}_{object_name}",
     )
     logger.info(f"Successfully processed table: {object_name}")

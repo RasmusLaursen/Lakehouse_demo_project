@@ -19,8 +19,14 @@ logger = logging_helper.get_logger(__name__)
 # Initialize Spark session
 spark = databricks_helper.get_spark()
 
-target_catalog = spark.conf.get("enriched_catalog")
-target_schema = spark.conf.get("enriched_schema")
+catalogs = databricks_helper.get_pipeline_configurations(spark, "catalogs")
+schemas = databricks_helper.get_pipeline_configurations(spark, "schemas")
+
+logger.debug("Catalogs configuration: " + str(catalogs))
+logger.debug("Schemas configuration: " + str(schemas))
+
+target_catalog = catalogs.get("enriched_catalog")
+target_schema = schemas.get("enriched_schema")
 
 # Generate a list of dates from 1900-01-01 to 2100-12-31
 start_date = datetime(1900, 1, 1)

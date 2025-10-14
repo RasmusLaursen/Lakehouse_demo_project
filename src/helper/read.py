@@ -156,7 +156,7 @@ def read_dataframe(
     Returns:
         DataFrame: The resulting DataFrame read from the specified source.
     """
-    df = spark.read.dataframe(f"{source_catalog}.{source_schema}.{objectname}")
+    df = spark.read.table(f"{source_catalog}.{source_schema}.{objectname}")
     if add_audit_columns:
         df = common.add_audit_columns(df=df)
     return df

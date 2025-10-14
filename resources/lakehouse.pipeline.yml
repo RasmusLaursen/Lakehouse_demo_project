@@ -58,23 +58,30 @@ resources:
       configuration:
         bundle.sourcePath: ${workspace.file_path}/src
         environment: ${var.environment}
-        landing_catalog: ${resources.schemas.lakehouse_landing_schema.catalog_name}
-        raw_catalog: ${resources.schemas.lakehouse_raw_schema.catalog_name}
-        base_catalog: ${resources.schemas.lakehouse_base_schema.catalog_name}
-        enriched_catalog: ${resources.schemas.enriched_schema.catalog_name}
-        curated_catalog: ${resources.schemas.dimensions_schema.catalog_name}
 
-        lakehouse_landing_schema: ${resources.schemas.lakehouse_landing_schema.name}
-        lakehouse_raw_schema: ${resources.schemas.lakehouse_raw_schema.name}
-        lakehouse_base_schema: ${resources.schemas.lakehouse_base_schema.name}
+        catalogs: | 
+          {
+            "landing_catalog": "${resources.schemas.lakehouse_landing_schema.catalog_name}",
+            "raw_catalog": "${resources.schemas.lakehouse_raw_schema.catalog_name}",
+            "base_catalog": "${resources.schemas.lakehouse_base_schema.catalog_name}",
+            "enriched_catalog": "${resources.schemas.enriched_schema.catalog_name}",
+            "curated_catalog": "${resources.schemas.dimensions_schema.catalog_name}"
+          }
+        schemas: | 
+          {
+            "lakehouse_landing_schema": "${resources.schemas.lakehouse_landing_schema.name}",
+            "lakehouse_raw_schema": "${resources.schemas.lakehouse_raw_schema.name}",
+            "lakehouse_base_schema": "${resources.schemas.lakehouse_base_schema.name}",
 
-        review_landing_schema: ${resources.schemas.review_landing_schema.name}
-        review_raw_schema: ${resources.schemas.review_raw_schema.name}
-        review_base_schema: ${resources.schemas.review_base_schema.name}
+            "review_landing_schema": "${resources.schemas.review_landing_schema.name}",
+            "review_raw_schema": "${resources.schemas.review_raw_schema.name}",
+            "review_base_schema": "${resources.schemas.review_base_schema.name}",
 
-        enriched_schema: ${resources.schemas.enriched_schema.name}
+            "enriched_schema": "${resources.schemas.enriched_schema.name}",
 
-        dimensions_schema: ${resources.schemas.dimensions_schema.name}
-        facts_schema: ${resources.schemas.facts_schema.name}
-        
+            "dimensions_schema": "${resources.schemas.dimensions_schema.name}",
+            "facts_schema": "${resources.schemas.facts_schema.name}"
+          }
+          
+
       serverless: True

@@ -13,11 +13,17 @@ source_system_name = "bookings"
 
 environment = spark.conf.get("environment")
 
-source_catalog = spark.conf.get("landing_catalog")
-source_schema = spark.conf.get(f"{source_system_name}_landing_schema")
+catalogs = databricks_helper.get_pipeline_configurations(spark, "catalogs")
+schemas = databricks_helper.get_pipeline_configurations(spark, "schemas")
 
-target_catalog = spark.conf.get("raw_catalog")
-target_schema = spark.conf.get(f"{source_system_name}_raw_schema")
+logger.debug("Catalogs configuration: " + str(catalogs))
+logger.debug("Schemas configuration: " + str(schemas))
+
+source_catalog = catalogs.get("landing_catalog")
+source_schema = schemas.get(f"{source_system_name}_landing_schema")
+
+target_catalog = catalogs.get("raw_catalog")
+target_schema = schemas.get(f"{source_system_name}_raw_schema")
 
 validated_data_config = common.get_data_configuration(
     catalog="source_system", object=source_system_name

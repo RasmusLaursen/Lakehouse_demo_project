@@ -3,6 +3,7 @@ from src.helper import common
 from src.helper import databricks_helper
 from src.helper import read
 from pyspark.sql import DataFrame
+from pyspark import pipelines as dp
 from src.helper.config import DefaultTblProperties
 
 from src.helper import logging_helper
@@ -15,22 +16,22 @@ spark = databricks_helper.get_spark()
 
 def ldp_table(
     name: str,
-    source_catalog: str = None,
-    source_schema: str = None,
-    objectname: str = None,
-    source_dataframe: DataFrame = None,
+    source_catalog: Optional[str] = None,
+    source_schema: Optional[str] = None,
+    objectname: Optional[str] = None,
+    source_dataframe: Optional[DataFrame] = None,
     loadtype: str = "dataframe",
-    filetype: str = None,
-    comment: str = None,
-    spark_conf: dict = None,
-    table_properties: dict = None,
-    path: str = None,
-    partition_cols: list = None,
+    filetype: Optional[str] = None,
+    comment: Optional[str] = None,
+    spark_conf: Optional[dict] = None,
+    table_properties: Optional[dict] = None,
+    path: Optional[str] = None,
+    partition_cols: Optional[list] = None,
     cluster_by_auto: bool = True,
-    cluster_by: list = None,
-    schema: str = None,
-    row_filter: str = None,
-    exeptions: list[dict] = None,
+    cluster_by: Optional[list] = None,
+    schema: Optional[str] = None,
+    row_filter: Optional[str] = None,
+    exceptions: Optional[list[dict]] = None,
     private=False,
 ):
     """
@@ -81,7 +82,7 @@ def ldp_table(
         cluster_by=cluster_by,
         schema=schema,
         row_filter=row_filter,
-        private=private,
+        private=private, 
     )
     # @ldp_exeption(rules=exeptions)
     # @handle_exceptions(exeptions)
@@ -116,6 +117,10 @@ def ldp_table(
             )
         elif loadtype == "dataframe":
             return source_dataframe
+        else:
+            raise ValueError(
+                "loadtype must be either 'table', 'table_stream', 'volume_autoloader', or 'dataframe'."
+            )
 
 
 def handle_exceptions(exeptions):
@@ -153,7 +158,7 @@ def ldp_view(
     source_schema: str,
     source_object: str,
     source_dataframe: DataFrame,
-    comment: str = None,
+    comment: Optional[str] = None,
 ):
     """
     Creates a view in the Lakeflow declarative pipeline.
@@ -257,18 +262,18 @@ def ldp_change_data_capture(
 
 def ldp_create_streaming_table(
     name: str,
-    comment: str = None,
-    spark_conf: dict = None,
-    table_properties: dict = None,
-    path: str = None,
-    partition_cols: list = None,
+    comment: Optional[str] = None,
+    spark_conf: Optional[dict] = None,
+    table_properties: Optional[dict] = None,
+    path: Optional[str] = None,
+    partition_cols: Optional[list] = None,
     cluster_by_auto: bool = True,
-    cluster_by: list = None,
-    schema: str = None,
-    expect_all: dict = None,
-    expect_all_or_drop: dict = None,
-    expect_all_or_fail: dict = None,
-    row_filter: str = None,
+    cluster_by: Optional[list] = None,
+    schema: Optional[str] = None,
+    expect_all: Optional[dict] = None,
+    expect_all_or_drop: Optional[dict] = None,
+    expect_all_or_fail: Optional[dict] = None,
+    row_filter: Optional[str] = None,
 ):
     """
     Creates a streaming table in Delta Live Tables (DLT) using the specified parameters.

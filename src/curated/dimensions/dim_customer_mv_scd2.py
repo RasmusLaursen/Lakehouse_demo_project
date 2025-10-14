@@ -11,11 +11,17 @@ logger = logging_helper.get_logger(__name__)
 # Initialize Spark session
 spark = databricks_helper.get_spark()
 
-base_catalog = spark.conf.get("base_catalog")
-lakehouse_base_schema = spark.conf.get("lakehouse_base_schema")
+catalogs = databricks_helper.get_pipeline_configurations(spark, "catalogs")
+schemas = databricks_helper.get_pipeline_configurations(spark, "schemas")
 
-target_catalog = spark.conf.get("curated_catalog")
-target_schema = spark.conf.get("dimensions_schema")
+logger.debug("Catalogs configuration: " + str(catalogs))
+logger.debug("Schemas configuration: " + str(schemas))
+
+base_catalog = catalogs.get("base_catalog")
+lakehouse_base_schema = schemas.get("lakehouse_base_schema")
+
+target_catalog = catalogs.get("curated_catalog")
+target_schema = schemas.get("dimensions_schema")
 
 
 @dlt.table(
