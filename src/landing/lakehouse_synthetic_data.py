@@ -369,10 +369,10 @@ class LakehouseSyntheticData:
         if random_number_of_records:
             # Generate random number of customers between 100 and 50,000
             num_customers = fake.random.randint(100, 50000)
-            start_id = 1000
+            start_id = 1
             end_id = start_id + num_customers
         else:
-            start_id = 1000
+            start_id = 1
             end_id = 100001
 
         for i in range(start_id, end_id):

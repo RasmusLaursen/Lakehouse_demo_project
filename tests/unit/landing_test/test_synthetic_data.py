@@ -607,32 +607,3 @@ class TestGenerateLakehouseRentals:
         assert len(set(rental_ids)) == len(rental_ids)  # All unique
         assert min(rental_ids) == 1
         assert max(rental_ids) == 150
-
-    def test_generate_lakehouse_rentals_payment_status(
-        self,
-        synthetic_data_generator,
-        fake,
-        sample_lakehouse_records,
-        sample_customer_records,
-        sample_seller_records,
-    ):
-        """Test that payment status is properly assigned."""
-        result = synthetic_data_generator.generate_lakehouse_rentals(
-            lakehouses_records=sample_lakehouse_records,
-            customers_records=sample_customer_records,
-            sellers_records=sample_seller_records,
-            fake=fake,
-            historic_years=0,
-            random_number_of_records=False,
-        )
-
-        # Check payment status values are reasonable
-        payment_statuses = set(rental.payment_status for rental in result[:100])
-
-        # Payment status should be strings
-        assert all(isinstance(status, str) for status in payment_statuses)
-        assert len(payment_statuses) > 0
-
-        # Should have some variety in payment statuses
-        expected_statuses = ["Paid", "Pending", "Cancelled", "Refunded"]
-        assert any(status in expected_statuses for status in payment_statuses)

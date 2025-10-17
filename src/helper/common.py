@@ -7,10 +7,30 @@ import sys
 from pathlib import Path
 from src.helper.config import LayerConfig
 from pydantic import ValidationError
+from databricks.labs.dqx.engine import DQEngine
+from databricks.labs.dqx.config import FileChecksStorageConfig
 
 # Initialize logger
 logger = logging_helper.get_logger(__name__)
 
+
+def get_data_quality_configuration(catalog:str, object:str, dq_engine: DQEngine):
+
+    data_quality_path = ''
+
+    if catalog == "curated":
+        data_quality_path = Path(f"../../data_quality/{catalog}/{object}.yml")
+    else:
+        data_quality_path = Path(f"../data_quality/{catalog}/{object}.yml")
+
+    checks: list[dict] = dq_engine.load_checks(config=FileChecksStorageConfig(location=str(data_quality_path)))
+
+    status = DQEngine.validate_checks(checks)
+    if not status.has_errors:
+        logger.warning(f"Data quality checks failed. {status}")
+        return {}
+    else:
+        return checks
 
 def get_path_for_data_configuration(catalog: str, object: str) -> Path:
     """
@@ -23,7 +43,7 @@ def get_path_for_data_configuration(catalog: str, object: str) -> Path:
     Returns:
         Path: The constructed path to the data configuration file.
     """
-    
+
     if catalog == "curated":
         return Path(f"../../data_configuration/{catalog}/{object}.yml")
     else:

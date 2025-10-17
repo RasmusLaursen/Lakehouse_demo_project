@@ -5,6 +5,7 @@ from src.helper import read
 from pyspark.sql import DataFrame
 from pyspark import pipelines as dp
 from src.helper.config import DefaultTblProperties
+from typing import Optional
 
 from src.helper import logging_helper
 
@@ -82,7 +83,7 @@ def ldp_table(
         cluster_by=cluster_by,
         schema=schema,
         row_filter=row_filter,
-        private=private, 
+        private=private,
     )
     # @ldp_exeption(rules=exeptions)
     # @handle_exceptions(exeptions)

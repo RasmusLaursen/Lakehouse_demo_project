@@ -2,6 +2,7 @@ from pyspark.sql import SparkSession
 import json
 from typing import Any
 
+
 def get_spark() -> SparkSession:
     """
     Creates and returns a SparkSession object.
@@ -42,6 +43,7 @@ def get_dbutils(spark: SparkSession) -> DBUtils:
 # TODO
 # Find smarter way to parse all catalogs and schemas from configuration of pipeline
 
+
 def get_pipeline_configurations(spark, configuration_name: str) -> Any:
     """
     Retrieves pipeline configurations from Spark conf.
@@ -61,6 +63,7 @@ def get_pipeline_configurations(spark, configuration_name: str) -> Any:
         return parsed
     except (TypeError, json.JSONDecodeError):
         return {configuration_name: configuration}
+
 
 def get_pipeline_configurations_from_spark(
     spark, source_system_name: str = None
@@ -97,5 +100,3 @@ def get_pipeline_configurations_from_spark(
         value = spark.conf.get(key, None)
         configs[key] = value
     return configs
-
-

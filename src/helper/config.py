@@ -4,7 +4,6 @@ from typing import Optional, List, Dict
 from typing_extensions import Self
 
 
-
 class TableConfig(BaseModel):
     keys: List[str]
     sequence_column: str
@@ -14,6 +13,10 @@ class TableConfig(BaseModel):
     track_history_except_column_list: Optional[List[str]] = None
     column_list: Optional[List[str]] = None
     except_column_list: Optional[List[str]] = None
+    apply_as_deletes: Optional[str] = None
+    apply_as_truncates: Optional[str] = None
+    ignore_null_updates: Optional[bool] = False
+    data_quality: Optional[bool] = False
 
     @field_validator("stored_as_scd_type")
     def validate_scd_type(cls, v):
@@ -21,12 +24,18 @@ class TableConfig(BaseModel):
             raise ValueError("stored_as_scd_type must be 1 or 2")
         return v
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def validate_track_history_lists(self) -> Self:
-        if self.stored_as_scd_type == 1 and (self.track_history_column_list or self.track_history_except_column_list):
-            raise ValueError("track_history_column_list and track_history_except_column_list must be None when stored_as_scd_type is 1")
+        if self.stored_as_scd_type == 1 and (
+            self.track_history_column_list or self.track_history_except_column_list
+        ):
+            raise ValueError(
+                "track_history_column_list and track_history_except_column_list must be None when stored_as_scd_type is 1"
+            )
         if self.track_history_column_list and self.track_history_except_column_list:
-            raise ValueError("Only one of track_history_column_list or track_history_except_column_list can be set")
+            raise ValueError(
+                "Only one of track_history_column_list or track_history_except_column_list can be set"
+            )
         if self.column_list and self.except_column_list:
             raise ValueError("Only one of column_list or except_column_list can be set")
         return self

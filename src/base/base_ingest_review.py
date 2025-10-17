@@ -25,7 +25,7 @@ logger.debug("Schemas configuration: " + str(schemas))
 
 raw_catalog = catalogs.get("raw_catalog")
 target_raw_schema = schemas.get(f"{source_system_name}_raw_schema")
-target_catalog =  catalogs.get("base_catalog")
+target_catalog = catalogs.get("base_catalog")
 target_schema = schemas.get(f"{source_system_name}_base_schema")
 
 # Loop over objects in validated_lakehouse_config.tables and log their names

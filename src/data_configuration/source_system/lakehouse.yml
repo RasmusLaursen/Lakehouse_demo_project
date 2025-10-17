@@ -9,6 +9,7 @@ objects:
     stored_as_scd_type: 2
     track_history_except_column_list:
       - _metadata
+    data_quality: True
   lakehouse:
     keys:
       - lakehouse_id

@@ -27,9 +27,9 @@ class TestTableConfigModelValidator:
             sequence_column="updated_at",
             stored_as_scd_type=1,
             track_history_column_list=None,
-            track_history_except_column_list=None
+            track_history_except_column_list=None,
         )
-        
+
         assert config.stored_as_scd_type == 1
         assert config.track_history_column_list is None
         assert config.track_history_except_column_list is None
@@ -41,9 +41,9 @@ class TestTableConfigModelValidator:
             sequence_column="updated_at",
             stored_as_scd_type=2,
             track_history_column_list=["name", "email", "phone"],
-            track_history_except_column_list=None
+            track_history_except_column_list=None,
         )
-        
+
         assert config.stored_as_scd_type == 2
         assert config.track_history_column_list == ["name", "email", "phone"]
         assert config.track_history_except_column_list is None
@@ -55,9 +55,9 @@ class TestTableConfigModelValidator:
             sequence_column="updated_at",
             stored_as_scd_type=2,
             track_history_column_list=None,
-            track_history_except_column_list=["internal_id", "created_at"]
+            track_history_except_column_list=["internal_id", "created_at"],
         )
-        
+
         assert config.stored_as_scd_type == 2
         assert config.track_history_column_list is None
         assert config.track_history_except_column_list == ["internal_id", "created_at"]
@@ -69,9 +69,9 @@ class TestTableConfigModelValidator:
             sequence_column="created_at",
             stored_as_scd_type=2,
             track_history_column_list=None,
-            track_history_except_column_list=None
+            track_history_except_column_list=None,
         )
-        
+
         assert config.stored_as_scd_type == 2
         assert config.track_history_column_list is None
         assert config.track_history_except_column_list is None
@@ -83,9 +83,9 @@ class TestTableConfigModelValidator:
             sequence_column="modified_at",
             stored_as_scd_type=1,
             column_list=["name", "price", "description"],
-            except_column_list=None
+            except_column_list=None,
         )
-        
+
         assert config.column_list == ["name", "price", "description"]
         assert config.except_column_list is None
 
@@ -96,9 +96,9 @@ class TestTableConfigModelValidator:
             sequence_column="last_updated",
             stored_as_scd_type=1,
             column_list=None,
-            except_column_list=["password", "internal_notes"]
+            except_column_list=["password", "internal_notes"],
         )
-        
+
         assert config.column_list is None
         assert config.except_column_list == ["password", "internal_notes"]
 
@@ -111,9 +111,9 @@ class TestTableConfigModelValidator:
             column_list=None,
             except_column_list=None,
             track_history_column_list=None,
-            track_history_except_column_list=None
+            track_history_except_column_list=None,
         )
-        
+
         assert config.column_list is None
         assert config.except_column_list is None
         assert config.track_history_column_list is None
@@ -128,9 +128,9 @@ class TestTableConfigModelValidator:
             track_history_column_list=[],
             track_history_except_column_list=None,
             column_list=[],
-            except_column_list=None
+            except_column_list=None,
         )
-        
+
         assert config.track_history_column_list == []
         assert config.column_list == []
 
@@ -143,11 +143,14 @@ class TestTableConfigModelValidator:
                 keys=["customer_id"],
                 sequence_column="updated_at",
                 stored_as_scd_type=1,
-                track_history_column_list=["name", "email"]
+                track_history_column_list=["name", "email"],
             )
-        
+
         error_str = str(exc_info.value)
-        assert "track_history_column_list and track_history_except_column_list must be None when stored_as_scd_type is 1" in error_str
+        assert (
+            "track_history_column_list and track_history_except_column_list must be None when stored_as_scd_type is 1"
+            in error_str
+        )
 
     def test_scd_type_1_with_track_history_except_column_list_invalid(self):
         """Test SCD Type 1 with track_history_except_column_list - should fail."""
@@ -156,11 +159,14 @@ class TestTableConfigModelValidator:
                 keys=["customer_id"],
                 sequence_column="updated_at",
                 stored_as_scd_type=1,
-                track_history_except_column_list=["internal_id"]
+                track_history_except_column_list=["internal_id"],
             )
-        
+
         error_str = str(exc_info.value)
-        assert "track_history_column_list and track_history_except_column_list must be None when stored_as_scd_type is 1" in error_str
+        assert (
+            "track_history_column_list and track_history_except_column_list must be None when stored_as_scd_type is 1"
+            in error_str
+        )
 
     def test_scd_type_1_with_both_track_history_lists_invalid(self):
         """Test SCD Type 1 with both track history lists - should fail."""
@@ -170,11 +176,14 @@ class TestTableConfigModelValidator:
                 sequence_column="updated_at",
                 stored_as_scd_type=1,
                 track_history_column_list=["name"],
-                track_history_except_column_list=["id"]
+                track_history_except_column_list=["id"],
             )
-        
+
         error_str = str(exc_info.value)
-        assert "track_history_column_list and track_history_except_column_list must be None when stored_as_scd_type is 1" in error_str
+        assert (
+            "track_history_column_list and track_history_except_column_list must be None when stored_as_scd_type is 1"
+            in error_str
+        )
 
     def test_both_track_history_lists_set_invalid(self):
         """Test SCD Type 2 with both track history lists set - should fail."""
@@ -184,11 +193,14 @@ class TestTableConfigModelValidator:
                 sequence_column="created_at",
                 stored_as_scd_type=2,
                 track_history_column_list=["customer_name", "amount"],
-                track_history_except_column_list=["internal_notes"]
+                track_history_except_column_list=["internal_notes"],
             )
-        
+
         error_str = str(exc_info.value)
-        assert "Only one of track_history_column_list or track_history_except_column_list can be set" in error_str
+        assert (
+            "Only one of track_history_column_list or track_history_except_column_list can be set"
+            in error_str
+        )
 
     def test_both_column_lists_set_invalid(self):
         """Test with both column_list and except_column_list set - should fail."""
@@ -198,9 +210,9 @@ class TestTableConfigModelValidator:
                 sequence_column="modified_at",
                 stored_as_scd_type=1,
                 column_list=["name", "price"],
-                except_column_list=["internal_id"]
+                except_column_list=["internal_id"],
             )
-        
+
         error_str = str(exc_info.value)
         assert "Only one of column_list or except_column_list can be set" in error_str
 
@@ -214,12 +226,15 @@ class TestTableConfigModelValidator:
                 track_history_column_list=["name"],  # Should cause error 1
                 track_history_except_column_list=["id"],  # Should cause error 1
                 column_list=["col1"],  # Should cause error 3
-                except_column_list=["col2"]  # Should cause error 3
+                except_column_list=["col2"],  # Should cause error 3
             )
-        
+
         error_str = str(exc_info.value)
         # Should catch the first validation error
-        assert "track_history_column_list and track_history_except_column_list must be None when stored_as_scd_type is 1" in error_str
+        assert (
+            "track_history_column_list and track_history_except_column_list must be None when stored_as_scd_type is 1"
+            in error_str
+        )
 
     # ===== EDGE CASE TESTS =====
 
@@ -230,9 +245,9 @@ class TestTableConfigModelValidator:
             sequence_column="updated_at",
             stored_as_scd_type=1,
             track_history_column_list=[],  # Empty list is falsy in Python
-            track_history_except_column_list=None
+            track_history_except_column_list=None,
         )
-        
+
         assert config.stored_as_scd_type == 1
         assert config.track_history_column_list == []
 
@@ -244,24 +259,24 @@ class TestTableConfigModelValidator:
             stored_as_scd_type=2,
             track_history_column_list=["single_column"],
             column_list=None,
-            except_column_list=None
+            except_column_list=None,
         )
-        
+
         assert config.track_history_column_list == ["single_column"]
 
     def test_large_lists_valid(self):
         """Test with large lists - should be valid."""
         large_column_list = [f"column_{i}" for i in range(100)]
-        
+
         config = TableConfig(
             keys=["id"],
             sequence_column="updated_at",
             stored_as_scd_type=2,
             track_history_column_list=large_column_list,
             column_list=None,
-            except_column_list=None
+            except_column_list=None,
         )
-        
+
         assert len(config.track_history_column_list) == 100
         assert config.track_history_column_list[0] == "column_0"
         assert config.track_history_column_list[99] == "column_99"
@@ -280,9 +295,9 @@ class TestTableConfigIntegrationWithValidator:
             track_history_column_list=None,
             track_history_except_column_list=None,
             column_list=["name", "email", "phone"],
-            except_column_list=None
+            except_column_list=None,
         )
-        
+
         assert config.keys == ["customer_id", "account_id"]
         assert config.backfill == "2023-01-01"
         assert config.stored_as_scd_type == 1
@@ -298,13 +313,16 @@ class TestTableConfigIntegrationWithValidator:
             track_history_column_list=None,
             track_history_except_column_list=["created_by", "internal_notes"],
             column_list=None,
-            except_column_list=["sensitive_data"]
+            except_column_list=["sensitive_data"],
         )
-        
+
         assert config.keys == ["order_id"]
         assert config.backfill == "2022-06-01"
         assert config.stored_as_scd_type == 2
-        assert config.track_history_except_column_list == ["created_by", "internal_notes"]
+        assert config.track_history_except_column_list == [
+            "created_by",
+            "internal_notes",
+        ]
         assert config.except_column_list == ["sensitive_data"]
 
     def test_json_serialization_with_validation(self):
@@ -313,11 +331,11 @@ class TestTableConfigIntegrationWithValidator:
             keys=["id"],
             sequence_column="updated_at",
             stored_as_scd_type=2,
-            track_history_column_list=["col1", "col2"]
+            track_history_column_list=["col1", "col2"],
         )
-        
+
         json_data = config.model_dump()
-        
+
         # Verify JSON structure
         assert json_data["stored_as_scd_type"] == 2
         assert json_data["track_history_column_list"] == ["col1", "col2"]
@@ -406,6 +424,11 @@ class TestTableConfig:
             "except_column_list": None,
             "track_history_column_list": None,
             "track_history_except_column_list": None,
+            "apply_as_deletes": None,
+            "apply_as_truncates": None,
+            "ignore_null_updates": False,
+            "data_quality": False
+
         }
 
         assert json_data == expected
@@ -459,11 +482,9 @@ class TestLayerConfig:
         with pytest.raises(ValidationError) as exc_info:
             LayerConfig(
                 objects={
-                    "invalid_table": {
-                        "keys": ["id"],
-                        "sequence_column": "updated_at",
-                        "stored_as_scd_type": 5,  # Invalid SCD type
-                    }
+                    "invalid_table": TableConfig(
+                        keys=["id"], sequence_column="updated_at", stored_as_scd_type=5
+                    )
                 }
             )
 
@@ -580,7 +601,7 @@ class TestConfigIntegration:
             keys=["customer_id"],
             sequence_column="updated_at",
             stored_as_scd_type=2,
-            track_history_column_list=["name", "email", "phone"]
+            track_history_column_list=["name", "email", "phone"],
         )
 
         order_config = TableConfig(

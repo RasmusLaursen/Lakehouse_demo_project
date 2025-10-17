@@ -24,6 +24,7 @@ target_catalog = catalogs.get("curated_catalog")
 target_schema = schemas.get("facts_schema")
 curated_dimension_schema = schemas.get("dimensions_schema")
 
+
 @dlt.table(
     name=f"{target_catalog}.{target_schema}.fact_lakehouse_reviews",
     comment="Curated layer fact table for lakehouse reviews",

@@ -42,7 +42,6 @@ class TestCommonUtilities:
         assert result == expected_path
         assert isinstance(result, Path)
 
-
     @patch("src.helper.common.get_path_for_data_configuration")
     def test_get_data_configuration_file_not_found(self, mock_get_path):
         """Test data configuration when file doesn't exist."""
