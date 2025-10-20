@@ -1,7 +1,7 @@
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import struct, current_timestamp, lit
 import yaml
-from typing import Dict, Any
+from typing import Dict, Any, List
 from src.helper import logging_helper
 import sys
 from pathlib import Path
@@ -9,6 +9,8 @@ from src.helper.config import LayerConfig
 from pydantic import ValidationError
 from databricks.labs.dqx.engine import DQEngine
 from databricks.labs.dqx.config import FileChecksStorageConfig
+import glob
+import os
 
 # Initialize logger
 logger = logging_helper.get_logger(__name__)
@@ -151,6 +153,11 @@ def try_load_ingest_config(base_path: Path) -> Any:
     except (FileNotFoundError, yaml.YAMLError) as e:
         logger.warning(f"Failed to load base configuration: {e}")
         return {}
+
+def list_yml_files(catalog: str) -> List[str]:
+    yml_dir = Path(f"data_quality/{catalog}/*.yml")
+    yml_files = glob.glob(str(yml_dir))
+    return yml_files
 
 
 def parse_arguments(variable_name: str) -> Any:

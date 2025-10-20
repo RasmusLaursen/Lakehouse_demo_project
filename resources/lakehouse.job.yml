@@ -43,6 +43,12 @@ resources:
       performance_target: PERFORMANCE_OPTIMIZED
   
       tasks:
+        - task_key: synthetic_data_contracts
+          python_wheel_task:
+            package_name: lakehouse_demo_project
+            entry_point: synthetic_data_contracts
+          environment_key: default   
+
         - task_key: generate_synthetic_landing_data
           python_wheel_task:
             package_name: lakehouse_demo_project
@@ -63,12 +69,12 @@ resources:
         #     - task_key: generate_synthetic_landing_data        
         #   pipeline_task:
         #     pipeline_id: ${resources.pipelines.pipeline_rahl_lakeflow_connect_sql_demo.id}
-        - task_key: lakehouse_model_pipelines
-          depends_on: 
-            # - task_key: refresh_pipeline
-            - task_key: generate_synthetic_landing_data
-          pipeline_task:
-            pipeline_id: ${resources.pipelines.lakehouse_demo_project_pipeline.id}
+        # - task_key: lakehouse_model_pipelines
+        #   depends_on: 
+        #     # - task_key: refresh_pipeline
+        #     - task_key: generate_synthetic_landing_data
+        #   pipeline_task:
+        #     pipeline_id: ${resources.pipelines.lakehouse_demo_project_pipeline.id}
         # - task_key: lakehouse_metric
         #   depends_on: 
         #     - task_key: lakehouse_model_pipelines

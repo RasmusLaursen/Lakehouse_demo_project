@@ -1,0 +1,104 @@
+dataContractSpecification: 1.2.0
+id: "lakehouse-review-data-v1"
+info:
+  title: "Lakehouse Review Data Contract"
+  version: "1.0.0"
+  description: "Data contract for customer reviews of lakehouse rental experiences"
+  owner: "Data Engineering Team"
+  contact:
+    name: "Rasmus Holm Laursen"
+    email: "rasmus@twoday.com"
+  created: "2024-10-17"
+  updated: "2024-10-17"
+
+servers:
+  production:
+    type: "databricks"
+    environment: "production"
+    catalog: "curated"
+    schema: "reviews"
+    table: "lakehouse_reviews"
+  
+models:
+  review:
+    description: "Customer reviews for lakehouse rental experiences"
+    type: "table"
+    
+    fields:
+      rental_id:
+        description: "Reference to the rental booking that was reviewed"
+        type: "integer"
+        required: true
+        minimum: 1
+        foreignKey: "lakehouse_rental.rental_id"
+        tags:
+          - "identifier"
+          - "foreign_key"
+          - "reference"
+        classification: "internal"
+      
+      review_date:
+        description: "Date when the review was submitted"
+        type: "date"
+        required: true
+        format: "YYYY-MM-DD"
+        minimum: "2020-01-01"
+        maximum: "2030-12-31"
+        example: "2024-10-20"
+        tags:
+          - "temporal"
+          - "submission"
+        classification: "internal"
+      
+      rating:
+        description: "Numerical rating given by customer (1-5 stars)"
+        type: "integer"
+        required: true
+        minimum: 1
+        maximum: 5
+        example: 4
+        tags:
+          - "rating"
+          - "satisfaction"
+          - "metrics"
+        classification: "public"
+      
+      review_text:
+        description: "Detailed customer review text content"
+        type: "string"
+        required: true
+        minLength: 10
+        maxLength: 2000
+        example: "Had an amazing stay at this lakehouse. The view was spectacular and the amenities were top-notch."
+        tags:
+          - "content"
+          - "feedback"
+          - "text_analysis"
+        classification: "public"
+      
+      review_title:
+        description: "Short title or headline for the review"
+        type: "string"
+        required: true
+        minLength: 5
+        maxLength: 100
+        example: "Spectacular Lake View and Amazing Amenities"
+        tags:
+          - "title"
+          - "summary"
+          - "headline"
+        classification: "public"
+      
+      helpful_votes:
+        description: "Number of helpful votes received from other users"
+        type: "integer"
+        required: true
+        minimum: 0
+        maximum: 10000
+        default: 0
+        example: 15
+        tags:
+          - "engagement"
+          - "community"
+          - "metrics"
+        classification: "internal"

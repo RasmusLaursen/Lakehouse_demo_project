@@ -1,0 +1,141 @@
+dataContractSpecification: 1.2.0
+id: "synthetic-lakehouse-rental-data-v1"
+info:
+  title: "Synthetic Lakehouse Rental Data Contract"
+  version: "1.0.0"
+  description: "Data contract for synthetic data generation in lakehouse rental system"
+  owner: "Data Engineering Team"
+  created: "2024-10-17"
+
+servers:
+  development:
+    type: "local"
+    environment: "development"
+    format: parquet
+
+models:
+  lakehouses:
+    description: "Lakehouse name reference data"
+    fields:
+      lakehouse_name_id: { type: "integer", required: true, primaryKey: true }
+      lakehouse_name: { type: "string", required: true, maxLength: 100 }
+
+  regions:
+    description: "Regional location reference data"
+    fields:
+      region_name_id: { type: "integer", required: true, primaryKey: true }
+      region_name: { type: "string", required: true, maxLength: 50 }
+
+  loyalty_tier:
+    description: "Customer loyalty tier levels"
+    fields:
+      loyalty_tier_id: { type: "integer", required: true, primaryKey: true }
+      loyalty_tier: { type: "string", required: true, maxLength: 30 }
+
+  payment_method:
+    description: "Available payment methods"
+    fields:
+      payment_method_id: { type: "integer", required: true, primaryKey: true }
+      payment_method: { type: "string", required: true, maxLength: 50 }
+
+  customer:
+    description: "Customer information and preferences"
+    fields:
+      customer_id: { type: "integer", required: true, primaryKey: true }
+      name: { type: "string", required: true, maxLength: 100 }
+      email: { type: "string", required: true, format: "email" }
+      phone_number: { type: "string", required: true, maxLength: 20 }
+      birth_date: { type: "date", required: true }
+      gender: { type: "string", required: true, enum: ["Male", "Female", "Other"] }
+      address: { type: "string", required: true, maxLength: 255 }
+      city: { type: "string", required: true, maxLength: 100 }
+      postal_code: { type: "string", required: true, maxLength: 20 }
+      country: { type: "string", required: true, length: 2 }
+      loyalty_tier_id: { type: "integer", required: true, foreignKey: "loyalty_tier.loyalty_tier_id" }
+      preferred_payment_method_id: { type: "integer", required: true, foreignKey: "payment_method.payment_method_id" }
+      account_manager: { type: "string", required: true, maxLength: 100 }
+      is_subscribed_to_newsletter: { type: "boolean", required: true }
+      last_purchase_date: { type: "date", required: true }
+      total_spend: { type: "float", required: true, minimum: 0 }
+      number_of_purchases: { type: "integer", required: true, minimum: 0 }
+
+  lakehouse:
+    description: "Lakehouse property details and amenities"
+    fields:
+      lakehouse_id: { type: "integer", required: true, primaryKey: true }
+      lakehouse_name_id: { type: "integer", required: true, foreignKey: "lakehouses.lakehouse_name_id" }
+      location: { type: "string", required: true, maxLength: 100 }
+      region_name_id: { type: "integer", required: true, foreignKey: "regions.region_name_id" }
+      address: { type: "string", required: true, maxLength: 255 }
+      postal_code: { type: "string", required: true, maxLength: 20 }
+      country: { type: "string", required: true, length: 2 }
+      bedrooms: { type: "integer", required: true, minimum: 1, maximum: 10 }
+      bathrooms: { type: "integer", required: true, minimum: 1, maximum: 8 }
+      max_guests: { type: "integer", required: true, minimum: 1, maximum: 20 }
+      nightly_rate: { type: "float", required: true, minimum: 50, maximum: 2000 }
+      is_pet_friendly: { type: "boolean", required: true }
+      has_sauna: { type: "boolean", required: true }
+      has_hot_tub: { type: "boolean", required: true }
+      has_lake_view: { type: "boolean", required: true }
+      amenities: { type: "array", required: true }
+      owner_name: { type: "string", required: true, maxLength: 100 }
+      owner_email: { type: "string", required: true, format: "email" }
+      listing_date: { type: "date", required: true }
+      rating: { type: "float", required: true, minimum: 1.0, maximum: 5.0 }
+      is_active: { type: "boolean", required: true }
+
+  seller:
+    description: "Sales representative information and performance"
+    fields:
+      seller_id: { type: "integer", required: true, primaryKey: true }
+      name: { type: "string", required: true, maxLength: 100 }
+      email: { type: "string", required: true, format: "email" }
+      phone_number: { type: "string", required: true, maxLength: 20 }
+      hire_date: { type: "date", required: true }
+      region_name_id: { type: "integer", required: true, foreignKey: "regions.region_name_id" }
+      assigned_lakehouses: { type: "array", required: true }
+      total_sales: { type: "float", required: true, minimum: 0 }
+      number_of_bookings: { type: "integer", required: true, minimum: 0 }
+      commission_rate: { type: "float", required: true, minimum: 0, maximum: 1 }
+      monthly_target: { type: "float", required: true, minimum: 0 }
+      is_active: { type: "boolean", required: true }
+      last_booking_date: { type: "date", required: true }
+      performance_rating: { type: "float", required: true, minimum: 1.0, maximum: 5.0 }
+      manager_name: { type: "string", required: true, maxLength: 100 }
+      preferred_contact_method: { type: "string", required: true, enum: ["Email", "Phone", "SMS"] }
+
+  lakehouse_rental:
+    description: "Complete rental transaction records"
+    fields:
+      rental_id: { type: "integer", required: true, primaryKey: true }
+      seller_id: { type: "integer", required: true, foreignKey: "seller_profile.seller_id" }
+      customer_id: { type: "integer", required: true, foreignKey: "customer_profile.customer_id" }
+      lakehouse_id: { type: "integer", required: true, foreignKey: "lakehouse_profile.lakehouse_id" }
+      customer_name: { type: "string", required: true, maxLength: 100 }
+      email: { type: "string", required: true, format: "email" }
+      check_in_date: { type: "date", required: true }
+      check_out_date: { type: "date", required: true }
+      lakehouse_name_id: { type: "integer", required: true, foreignKey: "lakehouses.lakehouse_name_id" }
+      location: { type: "string", required: true, maxLength: 100 }
+      bedrooms: { type: "integer", required: true, minimum: 1 }
+      nightly_rate: { type: "float", required: true, minimum: 0 }
+      total_cost: { type: "float", required: true, minimum: 0 }
+      is_pet_friendly: { type: "boolean", required: true }
+      rating: { type: "float", required: true, minimum: 1.0, maximum: 5.0 }
+      order_date: { type: "date", required: true }
+      seller_name: { type: "string", required: true, maxLength: 100 }
+      seller_email: { type: "string", required: true, format: "email" }
+      account_manager: { type: "string", required: true, maxLength: 100 }
+      payment_method: { type: "string", required: true, maxLength: 50 }
+      transaction_id: { type: "string", required: true, maxLength: 50 }
+      discount_code: { type: "string", required: false, maxLength: 20 }
+      booking_channel: { type: "string", required: true, maxLength: 50 }
+      currency: { type: "string", required: true, length: 3 }
+      tax_amount: { type: "float", required: true, minimum: 0 }
+      total_cost_with_tax: { type: "float", required: true, minimum: 0 }
+
+stakeholders:
+    - name: "Data Engineering Team"
+      role: "maintainer"
+    - name: "Analytics Team" 
+      role: "consumer"
