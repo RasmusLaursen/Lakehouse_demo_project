@@ -2,7 +2,7 @@ targets:
   prd:
     # mode: production
     workspace:
-      host: https://dbc-7514d648-ff2a.cloud.databricks.com
+      host: https://dbc-e3d11267-f1e6.cloud.databricks.com
       # We explicitly deploy to /Workspace/Users/rahl@kapacity.dk to make sure we only have a single copy.
       # root_path: /Workspace/Users/rahl@kapacity.dk/.bundle/${bundle.name}/${bundle.target}
       root_path: /Shared/.bundle/${bundle.name}/${bundle.target}

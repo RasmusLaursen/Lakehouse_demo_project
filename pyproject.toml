@@ -14,10 +14,11 @@ dependencies = [
     "databricks-sdk",
     "setuptools",
     "faker == 37.6.0",
-    "databricks.labs.dqx == 0.9.1",
+    "databricks.labs.dqx == 0.11.1",
     "pydantic",
     "pyyaml",
-    "datacontract-cli"
+    "datacontract-cli",
+    "python-dotenv"
 ]
 
 [project.scripts]

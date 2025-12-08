@@ -1,6 +1,5 @@
 import os
 import io
-import toml
 import streamlit as st
 from databricks.sdk import WorkspaceClient
 import datetime
@@ -9,12 +8,25 @@ from databricks.sdk.core import Config
 from databricks import sql
 import pandas as pd
 
-config_path = "config.toml"
-if not os.path.exists(config_path):
-    st.error("Configuration file not found. Please create a config.toml file.")
-    st.stop()
+# Get configuration from environment variables
+environment = os.getenv("ENVIRONMENT", "development")
+landing_catalog = os.getenv("LANDING_CATALOG", "landing_dev")
+landing_schema = os.getenv("BOOKINGS_LANDING_SCHEMA", "dev_rahl_bookings")
+base_catalog = os.getenv("BASE_CATALOG", "base_dev")
+base_schema = os.getenv("BOOKINGS_BASE_SCHEMA", "dev_rahl_bookings")
+warehouse_name = os.getenv("WAREHOUSE_NAME", "Serverless Starter Warehouse")
+warehouse_id = os.getenv("WAREHOUSE_ID")
 
-config = toml.load(config_path)
+app_title = os.getenv("APP_TITLE", f"Booking App - {environment}")
+app_header = os.getenv("APP_HEADER", f"Upload a booking to volume in ({environment})")
+
+# ...existing code...
+
+databricks_host = os.getenv("DATABRICKS_HOST") or os.getenv("DATABRICKS_HOSTNAME")
+w = WorkspaceClient()
+
+st.header(body=app_title, divider=True)
+st.subheader(app_header)
 
 
 def table_exists(table_name: str) -> bool:
@@ -26,6 +38,7 @@ def table_exists(table_name: str) -> bool:
     except Exception as e:
         st.error(f"Error checking table existence: {e}", icon="🚨")
         return False
+
 
 
 def create_table_if_not_exists(table_name: str, conn):

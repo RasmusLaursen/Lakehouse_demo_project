@@ -5,6 +5,8 @@ targets:
     # - Any job schedules and triggers are paused by default.
     # See also https://docs.databricks.com/dev-tools/bundles/deployment-modes.html.
     mode: development    
+    workspace:
+     host: https://dbc-e3d11267-f1e6.cloud.databricks.com 
     variables:
       environment: dev
       raw_catalog: raw_dev

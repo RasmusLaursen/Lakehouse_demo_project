@@ -1,7 +1,7 @@
 targets:
   dev:
     workspace:
-     host: https://dbc-7514d648-ff2a.cloud.databricks.com
+     host: https://dbc-e3d11267-f1e6.cloud.databricks.com
     variables:
       environment: dev
       raw_catalog: raw_dev

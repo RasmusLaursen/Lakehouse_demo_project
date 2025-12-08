@@ -11,7 +11,7 @@ resources:
       grants:
       - principal: ${resources.apps.bookings_app.service_principal_client_id}
         privileges: 
-          - USE_SCHEMA      
+          - USE_SCHEMA
     bookings_raw_schema:
       name: ${var.source_system_bookings}
       catalog_name: ${var.raw_catalog}

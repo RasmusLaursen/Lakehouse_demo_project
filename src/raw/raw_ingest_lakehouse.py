@@ -3,6 +3,9 @@ from src.helper import lakeflow_declarative_pipeline
 from src.helper import logging_helper
 from src.helper import common
 from src.helper import read
+from src.helper.config import TableConfig
+
+from src.helper import data_contract_helper
 import dlt
 
 # Initialize logger
@@ -27,55 +30,79 @@ source_schema = schemas.get(f"{source_system_name}_landing_schema")
 target_catalog = catalogs.get("raw_catalog")
 target_schema = schemas.get(f"{source_system_name}_raw_schema")
 
-validated_data_config = common.get_data_configuration(
-    catalog="source_system", object=source_system_name
+data_contract_specification = data_contract_helper.get_data_contract(
+    catalog="source_system", object_name=source_system_name
 )
+
+# Find the server configuration for the current environment
+server_config = None
+for server in data_contract_specification.servers: # type: ignore
+    if server.server == environment:
+        server_config = server
+        break
 
 filetype = (
-    validated_data_config.file_type
-    if hasattr(validated_data_config, "file_type")
-    else "json"
+    server_config.format
+    if server_config and hasattr(server_config, "format")
+    else "toast"
 )
-loadtype = (
-    validated_data_config.load_type
-    if hasattr(validated_data_config, "load_type")
-    else "volume_autoloader"
-)
+loadtype = "volume_autoloader"
+if server_config and hasattr(server_config, "customProperties") and server_config.customProperties:
+    for prop in server_config.customProperties:
+        if hasattr(prop, 'key') and prop.key == "loadtype":
+            loadtype = prop.value
+            break
 
-for object_name, object_config in validated_data_config.objects.items():
+for schema in data_contract_specification.schema_: # type: ignore
+    model_name = schema.name
+
+    # Convert ODCS schema to TableConfig
+    config_dict = data_contract_helper.schema_to_table_config(schema)
+    
+    # Validate the configuration
     try:
-        logger.info(f"Processing object: {object_name}")
-        lakeflow_declarative_pipeline.ldp_table(
-            name=f"{target_catalog}.{target_schema}.{object_name}",
-            source_catalog=source_catalog,
-            source_schema=source_schema,
-            objectname=object_name,
-            loadtype=loadtype,
-            filetype=filetype,
-            comment=f"Raw layer table for {object_name} volume",
-        )
+        validated_data_config = TableConfig(**config_dict)
     except Exception as e:
-        logger.error(f"Error processing object {object_name}: {e}")
+        logger.error(f"Validation failed for model: {model_name}. Error: {e}")
         continue
 
-    backfill = object_config.backfill if hasattr(object_config, "backfill") else None
+    # if not validated_data_config:
+    #     logger.error(f"Validation failed for model: {model_name}. Skipping...")
+    #     continue
 
-    logger.info(f"Backfill setting for {object_name}: {backfill}")
+    try:
+        logger.info(f"Processing model: {model_name}")
+        lakeflow_declarative_pipeline.ldp_table(
+            name=f"{target_catalog}.{target_schema}.{model_name}",
+            source_catalog=source_catalog,
+            source_schema=source_schema,
+            objectname=f"{model_name}_contract",
+            loadtype=loadtype, # type: ignore
+            filetype=filetype,
+            comment=f"Raw layer table for {model_name} volume",
+        )
+    except Exception as e:
+        logger.error(f"Error processing model {model_name}: {e}")
+        continue
+
+    backfill = validated_data_config.backfill if hasattr(validated_data_config, "backfill") else None
+
+    logger.info(f"Backfill setting for {model_name}: {backfill}")
 
     if backfill is not None:
-        logger.info(f"Backfilling table: {object_name} with historic data.")
+        logger.info(f"Backfilling table: {model_name} with historic data.")
         try:
 
             @dlt.append_flow(
-                target=f"{target_catalog}.{target_schema}.{object_name}",
+                target=f"{target_catalog}.{target_schema}.{model_name}",
                 once=True,
-                name=f"{object_name}_backfill",
-                comment=f"Backfill {object_name} Raw registration events",
+                name=f"{model_name}_backfill",
+                comment=f"Backfill {model_name} Raw registration events",
             )
             def _backfill(
                 source_catalog=source_catalog,
                 source_schema=source_schema,
-                object_name=object_name,
+                object_name=model_name,
             ):
                 return read.read_volume(
                     source_catalog,
@@ -85,5 +112,5 @@ for object_name, object_config in validated_data_config.objects.items():
                 )
 
         except Exception as e:
-            logger.error(f"Error during backfill of table {object_name}_backfill: {e}")
+            logger.error(f"Error during backfill of table {model_name}_backfill: {e}")
             continue

@@ -1,71 +1,71 @@
-dataContractSpecification: 1.2.0
-id: "lakehouse-review-data-v1"
-info:
-  title: "Lakehouse Review Data Contract"
-  version: "1.0.0"
-  description: "Data contract for customer reviews of lakehouse rental experiences"
-  owner: "Data Engineering Team"
-  contact:
-    name: "Rasmus Holm Laursen"
-    email: "rasmus@twoday.com"
-  created: "2024-10-17"
-  updated: "2024-10-17"
+kind: DataContract
+apiVersion: v3.0.0
+id: "urn:datacontract:lakehouse:review-data"
+status: active
+
+name: "Lakehouse Review Data Contract"
+version: "1.0.0"
+description:
+  purpose: "Data contract for customer reviews of lakehouse rental experiences"
+  limitations: "Customer review data must be handled according to privacy guidelines"
+  usage: "Data can be used for analytics, sentiment analysis, and customer feedback"
 
 servers:
-  production:
+  - server: dev
     type: "databricks"
-    environment: "production"
-    catalog: "curated"
-    schema: "reviews"
-    table: "lakehouse_reviews"
-  
-models:
-  review:
+    environment: "development"
+    format: "parquet"
+
+schema:
+  - name: reviews
     description: "Customer reviews for lakehouse rental experiences"
-    type: "table"
-    
-    fields:
-      rental_id:
+    type: table
+    customProperties:
+      - property: scd_type
+        value: 1
+      - property: keys
+        value: ["rental_id"]
+      - property: sequence_column
+        value: "_metadata_ldp.ingest_timestamp"
+      - property: loadtype
+        value: "volume_autoloader"
+    properties:
+      - name: rental_id
         description: "Reference to the rental booking that was reviewed"
-        type: "integer"
+        type: integer
         required: true
         minimum: 1
-        foreignKey: "lakehouse_rental.rental_id"
         tags:
           - "identifier"
           - "foreign_key"
           - "reference"
         classification: "internal"
       
-      review_date:
+      - name: review_date
         description: "Date when the review was submitted"
-        type: "date"
+        type: date
         required: true
-        format: "YYYY-MM-DD"
-        minimum: "2020-01-01"
-        maximum: "2030-12-31"
-        example: "2024-10-20"
         tags:
           - "temporal"
           - "submission"
         classification: "internal"
       
-      rating:
+      - name: rating
         description: "Numerical rating given by customer (1-5 stars)"
-        type: "integer"
+        type: integer
         required: true
         minimum: 1
         maximum: 5
-        example: 4
+        example: "4"
         tags:
           - "rating"
           - "satisfaction"
           - "metrics"
         classification: "public"
       
-      review_text:
+      - name: review_text
         description: "Detailed customer review text content"
-        type: "string"
+        type: string
         required: true
         minLength: 10
         maxLength: 2000
@@ -76,9 +76,9 @@ models:
           - "text_analysis"
         classification: "public"
       
-      review_title:
+      - name: review_title
         description: "Short title or headline for the review"
-        type: "string"
+        type: string
         required: true
         minLength: 5
         maxLength: 100
@@ -89,16 +89,24 @@ models:
           - "headline"
         classification: "public"
       
-      helpful_votes:
+      - name: helpful_votes
         description: "Number of helpful votes received from other users"
-        type: "integer"
+        type: integer
         required: true
         minimum: 0
         maximum: 10000
         default: 0
-        example: 15
+        example: "15"
         tags:
           - "engagement"
           - "community"
           - "metrics"
         classification: "internal"
+
+# stakeholders:
+#   - name: "Data Engineering Team"
+#     role: "maintainer"
+#   - name: "Analytics Team"
+#     role: "consumer"
+#   - name: "Customer Experience Team"
+#     role: "consumer"

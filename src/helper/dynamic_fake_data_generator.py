@@ -1,15 +1,17 @@
-from datacontract.data_contract import DataContract
+from open_data_contract_standard.model import OpenDataContractStandard, SchemaObject
 from faker import Faker
 import random
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List, Optional
 import uuid
+from pathlib import Path
 from src.helper import logging_helper
+from src.helper import data_contract_helper
 
 logger = logging_helper.get_logger(__name__)
 
 class DynamicFakeDataGenerator:
-    """Generate fake data dynamically based on data contract specifications."""
+    """Generate fake data dynamically based on ODCS data contract specifications."""
     
     def __init__(self, data_contract_file: str, locale: str = 'en_US'):
         """
@@ -20,8 +22,8 @@ class DynamicFakeDataGenerator:
             locale: Faker locale for generating localized data
         """
         self.faker = Faker(locale)
-        self.data_contract = DataContract(data_contract_file=data_contract_file)
-        self.spec = self.data_contract.get_data_contract_specification()
+        self.data_contract = data_contract_helper.load_data_contract(Path(data_contract_file))
+        self.schemas = data_contract_helper.get_all_schemas(self.data_contract)
         self.generated_ids = {}  # Track generated IDs for foreign keys
         
     def generate_value_for_field(self, field_name: str, field_spec: Any) -> Any:
@@ -204,7 +206,7 @@ class DynamicFakeDataGenerator:
     def _generate_datetime(self, field_name: str, field_spec: Any) -> datetime:
         """Generate datetime value."""
         date_val = self._generate_date(field_name, field_spec)
-        time_val = self.faker.time()
+        time_val = datetime.strptime(self.faker.time(), "%H:%M:%S").time()
         return datetime.combine(date_val, time_val)
     
     def _generate_float(self, field_name: str, field_spec: Any) -> float:
@@ -254,7 +256,7 @@ class DynamicFakeDataGenerator:
         pattern = pattern.replace(r'[a-z]', '?')
         return pattern
     
-    def generate_record(self, model_name: str, relationships: Dict[str, Any] = None) -> Dict[str, Any]:
+    def generate_record(self, model_name: str, relationships: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Generate a single fake record for the specified model.
         
@@ -265,10 +267,16 @@ class DynamicFakeDataGenerator:
         Returns:
             Dictionary containing the generated fake data
         """
-        if model_name not in self.spec.models:
+        # Find the schema by name
+        schema = None
+        for s in self.schemas:
+            if s.name == model_name:
+                schema = s
+                break
+        
+        if schema is None:
             raise ValueError(f"Model '{model_name}' not found in data contract")
         
-        model = self.spec.models[model_name]
         record = {}
         
         # Handle relationships first
@@ -276,13 +284,13 @@ class DynamicFakeDataGenerator:
             record.update(relationships)
         
         # Generate values for each field
-        for field_name, field_spec in model.fields.items():
-            if field_name in record:  # Skip if already provided in relationships
-                continue
-
-            logger.info(f"Generating field '{field_name}' for model '{model_name}' with spec: {field_spec}")
-                
-            record[field_name] = self.generate_value_for_field(field_name, field_spec)
+        if schema.properties:
+            for field_spec in schema.properties:
+                field_name = field_spec.name
+                if not field_name or field_name in record:  # Skip if no name or already provided
+                    continue
+                    
+                record[field_name] = self.generate_value_for_field(field_name, field_spec)
         
         # Post-process for business logic
         record = self._apply_business_logic(model_name, record)
@@ -326,7 +334,7 @@ class DynamicFakeDataGenerator:
         return record
     
     def generate_dataset(self, model_name: str, count: int, 
-                        related_data: Dict[str, List[Dict]] = None) -> List[Dict[str, Any]]:
+                        related_data: Optional[Dict[str, List[Dict]]] = None) -> List[Dict[str, Any]]:
         """
         Generate multiple fake records for the specified model.
         
@@ -345,21 +353,28 @@ class DynamicFakeDataGenerator:
             
             # Handle foreign key relationships
             if related_data:
-                model = self.spec.models[model_name]
-                for field_name, field_spec in model.fields.items():
-                    foreign_key = getattr(field_spec, 'foreignKey', None)
-                    if foreign_key and '.' in foreign_key:
-                        table_name, key_field = foreign_key.split('.')
-                        if table_name in related_data and related_data[table_name]:
-                            related_record = random.choice(related_data[table_name])
-                            relationships[field_name] = related_record.get(key_field)
+                # Find the schema
+                schema = None
+                for s in self.schemas:
+                    if s.name == model_name:
+                        schema = s
+                        break
+                
+                if schema and schema.properties:
+                    for field_spec in schema.properties:
+                        foreign_key = getattr(field_spec, 'foreignKey', None)
+                        if foreign_key and '.' in foreign_key:
+                            table_name, key_field = foreign_key.split('.')
+                            if table_name in related_data and related_data[table_name]:
+                                related_record = random.choice(related_data[table_name])
+                                relationships[field_spec.name] = related_record.get(key_field)
             
             record = self.generate_record(model_name, relationships)
             records.append(record)
         
         return records
-    
-    def generate_all_models(self, counts: Dict[str, int] = None) -> Dict[str, List[Dict]]:
+
+    def generate_all_models(self, counts: Optional[Dict[str, int]] = None) -> Dict[str, List[Dict]]:
         """
         Generate fake data for all models in the data contract.
         
@@ -370,7 +385,7 @@ class DynamicFakeDataGenerator:
             Dictionary with model names as keys and lists of generated records as values
         """
         if counts is None:
-            counts = {model_name: 10 for model_name in self.spec.models.keys()}
+            counts = {schema.name: 10 for schema in self.schemas if schema.name}
         
         all_data = {}
         
@@ -378,11 +393,17 @@ class DynamicFakeDataGenerator:
         reference_models = []
         dependent_models = []
         
-        for model_name, model in self.spec.models.items():
-            has_foreign_keys = any(
-                getattr(field_spec, 'foreignKey', None) 
-                for field_spec in model.fields.values()
-            )
+        for schema in self.schemas:
+            model_name = schema.name
+            if not model_name:
+                continue
+                
+            has_foreign_keys = False
+            if schema.properties:
+                has_foreign_keys = any(
+                    getattr(field_spec, 'foreignKey', None) 
+                    for field_spec in schema.properties
+                )
             
             if has_foreign_keys:
                 dependent_models.append(model_name)

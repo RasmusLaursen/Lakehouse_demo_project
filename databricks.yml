@@ -32,8 +32,8 @@ artifacts:
 
 include:
   - resources/*.yml
-  # - resources/unity_catalog/app/*.yml # excluding apps for now as there is a limit of 1 app pr workspace
-  # - resources/app/*.yml # excluding apps for now as there is a limit of 1 app pr workspace
+  - resources/unity_catalog/app/*.yml # excluding apps for now as there is a limit of 1 app pr workspace
+  - resources/app/*.yml # excluding apps for now as there is a limit of 1 app pr workspace
   - resources/environments/*.yml
   - resources/jobs/*.yml
   - resources/pipelines/*.yml
@@ -43,3 +43,5 @@ include:
 sync:
   exclude:
     - src/dashboards/*.lvdash.json
+  include:
+    - src/**

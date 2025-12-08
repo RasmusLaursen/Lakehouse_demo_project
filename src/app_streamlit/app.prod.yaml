@@ -2,7 +2,7 @@ command: ["streamlit", "run", "app.py"]
 
 env:
   - name: ENVIRONMENT
-    valueFrom: ${var.environment}
+    value: prod
   - name: LANDING_CATALOG
     value: ${var.landing_catalog}
   - name: BASE_CATALOG

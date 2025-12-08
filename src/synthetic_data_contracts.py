@@ -19,7 +19,7 @@ def save_list_to_volume(landing_catalog, landing_schema, entity_name, entity_rec
     write.write_volume(
         target_catalog=landing_catalog,
         target_schema=landing_schema,
-        target_name=f"{entity_name}_contact",
+        target_name=f"{entity_name}_contract",
         source_dataframe=df_entity,
         mode="overwrite",
         file_format="parquet",
@@ -28,24 +28,23 @@ def save_list_to_volume(landing_catalog, landing_schema, entity_name, entity_rec
 
 
 def main():
-    print("lets go")
     logger.info("Starting synthetic data generation based on data contracts...")
     landing_catalog = common.parse_arguments("landing_catalog")
     data_contracts = common.list_yml_files(catalog="source_system")
     logger.info(f"Data contracts to process: {data_contracts}")
 
     for contract in data_contracts:
-        print(contract)
-        logger.info(f"Processing data contract: {contract}")
-        contract_name = contract.split("/")[-1].replace(".yml", "")
+        contract_name = contract.name
+        logger.info(f"Processing data contract: {contract_name}")
+        contract_name = contract_name.split("/")[-1].replace(".yml", "")
         landing_schema = common.parse_arguments(f"{contract_name}_landing_schema")        
-        generator = DynamicFakeDataGenerator(contract)
+        generator = DynamicFakeDataGenerator(str(contract))
 
         all_data = generator.generate_all_models()
         
         # Save to parquet files
         for model_name, records in all_data.items():
-            print(model_name)
+            logger.info("Saving data for model: " + model_name)
             save_list_to_volume(
                 landing_catalog=landing_catalog,
                 landing_schema=landing_schema,
@@ -53,7 +52,7 @@ def main():
                 entity_records=records
             )
             logger.info(f"{model_name.capitalize()} data written successfully.")
-
+        logger.info("Completed processing for data contract: " + contract_name)
 if __name__ == "__main__":
     logger.info("Starting synthetic data generation...")
     main()

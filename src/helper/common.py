@@ -1,20 +1,25 @@
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import struct, current_timestamp, lit
-import yaml
-from typing import Dict, Any, List
+from typing import Dict, Any, Generator, List
 from src.helper import logging_helper
 import sys
+import yaml
 from pathlib import Path
-from src.helper.config import LayerConfig
+from src.helper.config import LayerConfig, TableConfig
 from pydantic import ValidationError
+from databricks.sdk import WorkspaceClient
 from databricks.labs.dqx.engine import DQEngine
 from databricks.labs.dqx.config import FileChecksStorageConfig
-import glob
-import os
+
+from open_data_contract_standard.model import OpenDataContractStandard
+from src.helper import data_contract_helper
 
 # Initialize logger
 logger = logging_helper.get_logger(__name__)
 
+def get_dq_engine() -> DQEngine:
+    dq_engine = DQEngine(WorkspaceClient(profile="privat-free"))
+    return dq_engine
 
 def get_data_quality_configuration(catalog:str, object:str, dq_engine: DQEngine):
 
@@ -25,10 +30,14 @@ def get_data_quality_configuration(catalog:str, object:str, dq_engine: DQEngine)
     else:
         data_quality_path = Path(f"../data_quality/{catalog}/{object}.yml")
 
+    if not data_quality_path.is_file():
+        logger.warning(f"Data quality configuration file not found: {data_quality_path}")
+        return None
+
     checks: list[dict] = dq_engine.load_checks(config=FileChecksStorageConfig(location=str(data_quality_path)))
 
     status = DQEngine.validate_checks(checks)
-    if not status.has_errors:
+    if status.has_errors:
         logger.warning(f"Data quality checks failed. {status}")
         return {}
     else:
@@ -43,13 +52,27 @@ def get_path_for_data_configuration(catalog: str, object: str) -> Path:
         object (str): The name of the object.
 
     Returns:
-        Path: The constructed path to the data configuration file.
+        LayerConfig: The validated LayerConfig instance.
     """
 
     if catalog == "curated":
         return Path(f"../../data_configuration/{catalog}/{object}.yml")
     else:
         return Path(f"../data_configuration/{catalog}/{object}.yml")
+    
+def get_validate_data_configuration_contract(config: Dict[str, Any]) -> TableConfig:
+    """
+    Validates the provided data configuration dictionary against the TableConfig schema.
+
+    Args:
+        config (Dict[str, Any]): The data configuration dictionary to validate.
+
+    Returns:
+        TableConfig: The validated TableConfig instance.
+    """
+    validated_data_config = TableConfig(**config)
+
+    return validated_data_config
 
 
 def get_data_configuration(catalog: str, object: str) -> LayerConfig:
@@ -104,30 +127,6 @@ def add_audit_columns(df: DataFrame) -> DataFrame:
     return df
 
 
-def _load_yaml_file(file_path) -> Any:
-    """
-    Load a YAML file and return its contents.
-
-    Args:
-        file_path (str): The path to the YAML file to be loaded.
-
-    Returns:
-        dict: The contents of the YAML file as a dictionary.
-
-    Raises:
-        FileNotFoundError: If the specified file does not exist.
-        ValueError: If there is an error parsing the YAML file.
-    """
-    try:
-        with open(file_path, "r") as file:
-            data = yaml.safe_load(file)
-            return data
-    except FileNotFoundError:
-        raise FileNotFoundError(f"The file at {file_path} was not found.")
-    except yaml.YAMLError as e:
-        raise ValueError(f"Error parsing YAML file: {e}")
-
-
 def try_load_ingest_config(base_path: Path) -> Any:
     """
     Try to load the base configuration file from the specified path.
@@ -145,22 +144,25 @@ def try_load_ingest_config(base_path: Path) -> Any:
         Dict[str, Any]: The loaded configuration as a dictionary, or an
         empty dictionary if loading fails.
     """
-    # base_path = os.path.join(os.path.dirname(__file__), filename)
     try:
-        config = _load_yaml_file(base_path)
+        config = data_contract_helper.load_yaml_file(base_path)
         logger.info(f"Loaded base configuration from {base_path}")
         return config
-    except (FileNotFoundError, yaml.YAMLError) as e:
+    except (FileNotFoundError, ValueError) as e:
         logger.warning(f"Failed to load base configuration: {e}")
         return {}
 
-def list_yml_files(catalog: str) -> List[str]:
-    yml_dir = Path(f"data_quality/{catalog}/*.yml")
-    yml_files = glob.glob(str(yml_dir))
+def list_yml_files(catalog: str) -> Generator[Path, None, None]:
+    # yml_dir = "src/data_contracts/source_system"
+    # yml_dir = Path(f"/data_contracts/{catalog}/")
+    # print(Path().cwd())
+    # print(yml_dir.absolute())
+    yml_dir = f"/Workspace/Users/rasmuslaursen@live.dk/.bundle/lakehouse_demo_project/developer/files/src/data_contracts/{catalog}/"
+    yml_files = Path(yml_dir).glob("*.yml")
     return yml_files
 
 
-def parse_arguments(variable_name: str) -> Any:
+def parse_arguments(variable_name: str, default: Any = None) -> Any:
     """
     Parses command line arguments to find the value associated with a given variable name.
 
@@ -170,25 +172,23 @@ def parse_arguments(variable_name: str) -> Any:
 
     Args:
         variable_name (str): The name of the variable to search for in the command line arguments.
+        default (Any): Default value to return if variable is not found.
 
     Returns:
-        Any: The value associated with the variable name if found, otherwise None.
+        Any: The value associated with the variable name if found, otherwise default.
     """
     logger.debug(f"Command line arguments: {sys.argv[1:]}")
-    for variable in sys.argv[
-        1:
-    ]:  # Now we're going to iterate over argv[1:] (argv[0] is the program name)
-        if (
-            "=" not in variable
-        ):  # Then skip this value because it doesn't have the varname=value format
+    for variable in sys.argv[1:]:
+        if "=" not in variable:
             continue
-        varname = variable.split("=")[0]  # Get what's left of the '='
+        varname = variable.split("=")[0]
         if varname.replace("--", "") == variable_name:
-            varvalue = variable.split("=")[1]  # Get what's right of the '='
+            varvalue = variable.split("=")[1]
             logger.debug(f"{varname} value: {varvalue}")
             return varvalue
-    logger.debug(f"{variable_name} not found in command line arguments.")
-    return None
+    
+    logger.debug(f"{variable_name} not found in command line arguments. Using default: {default}")
+    return default
 
 
 def list_volumes_in_schema(
@@ -198,7 +198,6 @@ def list_volumes_in_schema(
     Fetches a list of distinct volume names from a specified schema in the source catalog.
 
     Args:
-        logger: A logging object used to log errors.
         spark: A SparkSession object used to execute SQL queries.
         source_catalog (str): The name of the source catalog to query.
         source_schema (str): The name of the schema within the source catalog to query.
@@ -245,18 +244,17 @@ def list_tables_in_schema(logger, spark, source_catalog, source_schema):
         list: A list of distinct table names in the specified schema.
               Returns an empty list if an error occurs during the fetch operation.
     """
-    try:
-        # Fetch distinct volume names
-        table_list = spark.sql(
-            f"""
-        SELECT DISTINCT table_name
-        FROM {source_catalog}.information_schema.tables
-        WHERE table_catalog = '{source_catalog}'
-        AND table_schema = '{source_schema}'
-        AND table_type != 'MANAGED'
-        """
-        ).collect()
-    except Exception as e:
-        logger.error(f"Error fetching table list: {e}")
-        table_list = []
+    # Fetch distinct volume names
+    # Fetch distinct table names
+    table_list = spark.sql(
+        f"""
+    SELECT DISTINCT table_name
+    FROM {source_catalog}.information_schema.tables
+    WHERE table_catalog = '{source_catalog}'
+    AND table_schema = '{source_schema}'
+    AND table_type != 'MANAGED'
+    """
+    ).collect()
+    logger.error(f"Error fetching table list: {e}")
+    table_list = []
     return table_list

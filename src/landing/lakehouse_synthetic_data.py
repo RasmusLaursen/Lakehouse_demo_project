@@ -373,7 +373,7 @@ class LakehouseSyntheticData:
             end_id = start_id + num_customers
         else:
             start_id = 1
-            end_id = 100001
+            end_id = 11
 
         for i in range(start_id, end_id):
             birth_date = fake.date_of_birth(minimum_age=18, maximum_age=75)
@@ -579,7 +579,7 @@ class LakehouseSyntheticData:
             # Generate random number of rentals between 500 and 10,000 per period
             num_rentals = fake.random.randint(500, 10000)
         else:
-            num_rentals = 4999  # Original range was 1 to 5000, so 4999 records
+            num_rentals = 10  # Original range was 1 to 5000, so 4999 records
 
         def generate_for_period(start_date, end_date, id_offset=0):
 
