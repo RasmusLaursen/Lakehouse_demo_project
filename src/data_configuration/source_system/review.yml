@@ -1,9 +1,0 @@
-source_system_name: review
-load_type: volume_autoloader
-file_type: parquet
-objects:
-  reviews:
-    keys:
-      - rental_id
-    sequence_column: _metadata_ldp["ingest_timestamp"]
-    stored_as_scd_type: 1

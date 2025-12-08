@@ -8,7 +8,7 @@ class TableConfig(BaseModel):
     keys: List[str]
     sequence_column: str
     stored_as_scd_type: int
-    backfill: Optional[str] = None
+    backfill: Optional[bool] = None
     track_history_column_list: Optional[List[str]] = None
     track_history_except_column_list: Optional[List[str]] = None
     column_list: Optional[List[str]] = None

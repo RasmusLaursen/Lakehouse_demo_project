@@ -370,8 +370,8 @@ schema:
         value: "_metadata_ldp.ingest_timestamp"
       - property: loadtype
         value: "volume_autoloader"
-      - property: backfill
-        value: true
+      # - property: backfill
+      #   value: true
     properties:
       - name: rental_id
         type: integer

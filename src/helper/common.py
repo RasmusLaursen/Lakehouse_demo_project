@@ -1,3 +1,5 @@
+
+
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import struct, current_timestamp, lit
 from typing import Dict, Any, Generator, List
@@ -7,41 +9,10 @@ import yaml
 from pathlib import Path
 from src.helper.config import LayerConfig, TableConfig
 from pydantic import ValidationError
-from databricks.sdk import WorkspaceClient
-from databricks.labs.dqx.engine import DQEngine
-from databricks.labs.dqx.config import FileChecksStorageConfig
-
-from open_data_contract_standard.model import OpenDataContractStandard
 from src.helper import data_contract_helper
 
 # Initialize logger
 logger = logging_helper.get_logger(__name__)
-
-def get_dq_engine() -> DQEngine:
-    dq_engine = DQEngine(WorkspaceClient(profile="privat-free"))
-    return dq_engine
-
-def get_data_quality_configuration(catalog:str, object:str, dq_engine: DQEngine):
-
-    data_quality_path = ''
-
-    if catalog == "curated":
-        data_quality_path = Path(f"../../data_quality/{catalog}/{object}.yml")
-    else:
-        data_quality_path = Path(f"../data_quality/{catalog}/{object}.yml")
-
-    if not data_quality_path.is_file():
-        logger.warning(f"Data quality configuration file not found: {data_quality_path}")
-        return None
-
-    checks: list[dict] = dq_engine.load_checks(config=FileChecksStorageConfig(location=str(data_quality_path)))
-
-    status = DQEngine.validate_checks(checks)
-    if status.has_errors:
-        logger.warning(f"Data quality checks failed. {status}")
-        return {}
-    else:
-        return checks
 
 def get_path_for_data_configuration(catalog: str, object: str) -> Path:
     """
@@ -70,8 +41,11 @@ def get_validate_data_configuration_contract(config: Dict[str, Any]) -> TableCon
     Returns:
         TableConfig: The validated TableConfig instance.
     """
-    validated_data_config = TableConfig(**config)
-
+    try:
+        validated_data_config = TableConfig(**config)
+    except ValidationError as e:
+        logger.error(f"TableConfig validation error: {e}")
+        raise   
     return validated_data_config
 
 
@@ -153,11 +127,7 @@ def try_load_ingest_config(base_path: Path) -> Any:
         return {}
 
 def list_yml_files(catalog: str) -> Generator[Path, None, None]:
-    # yml_dir = "src/data_contracts/source_system"
-    # yml_dir = Path(f"/data_contracts/{catalog}/")
-    # print(Path().cwd())
-    # print(yml_dir.absolute())
-    yml_dir = f"/Workspace/Users/rasmuslaursen@live.dk/.bundle/lakehouse_demo_project/developer/files/src/data_contracts/{catalog}/"
+    yml_dir = f"/Workspace/Users/rasmuslaursen@live.dk/.bundle/lakehouse_demo_project/developer/files/data_contracts/{catalog}/"
     yml_files = Path(yml_dir).glob("*.yml")
     return yml_files
 

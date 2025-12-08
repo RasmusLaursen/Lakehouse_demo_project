@@ -17,16 +17,14 @@ resources:
       catalog: ${resources.schemas.lakehouse_landing_schema.catalog_name}
       schema: ${resources.schemas.lakehouse_landing_schema.name} 
       libraries:
-        # - glob:
-        #     include: ../src/raw/raw_ingest_backfill.py
         - glob:
-            include: ../src/raw/raw_ingest_lakehouse.py
-        # - glob:
-        #     include: ../src/raw/raw_ingest_review.py
-        # - glob:
-        #     include: ../src/base/base_ingest_lakehouse.py      
-        # - glob:
-        #     include: ../src/base/base_ingest_review.py
+            include: ../../src/raw/raw_ingest_lakehouse.py
+        - glob:
+            include: ../../src/raw/raw_ingest_review.py
+        - glob:
+            include: ../../src/base/base_ingest_lakehouse.py
+        - glob:
+            include: ../../src/base/base_ingest_review.py
         # - glob:
         #     include: ../src/enriched/enriched_calendar.py
         # - glob:
@@ -53,7 +51,7 @@ resources:
 
       environment:
         dependencies:
-          - ../dist/*.whl
+          - ../../dist/*.whl
 
       configuration:
         bundle.sourcePath: ${workspace.file_path}/src

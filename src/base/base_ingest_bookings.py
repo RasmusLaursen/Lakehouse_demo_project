@@ -1,8 +1,15 @@
 import dlt
-from src.helper import data_contract_helper, databricks_helper, lakeflow_declarative_pipeline, logging_helper, common
+from src.helper import (
+    data_contract_helper, 
+    databricks_helper, 
+    lakeflow_declarative_pipeline, 
+    logging_helper, 
+    common, 
+    dqx_helper
+)
 
-# Initialize data quality engine
-dq_engine = common.get_dq_engine()
+ws = dqx_helper.get_ws_client()
+dq_engine = dqx_helper.get_dq_engine(ws)
 
 # Initialize logger
 logger = logging_helper.get_logger(__name__)
@@ -18,12 +25,12 @@ data_contract_specification = data_contract_helper.get_data_contract(
     catalog="source_system", object_name=source_system_name
 )
 
-validated_data_quality = common.get_data_quality_configuration(
+validated_data_quality = dqx_helper.get_data_quality_configuration(
     catalog="source_system", 
     object=source_system_name,
-    dq_engine=dq_engine
+    spark=spark
 )
-
+    
 catalogs = databricks_helper.get_pipeline_configurations(spark, "catalogs")
 schemas = databricks_helper.get_pipeline_configurations(spark, "schemas")
 
@@ -35,15 +42,20 @@ target_raw_schema = schemas.get(f"{source_system_name}_raw_schema")
 target_catalog = catalogs.get("base_catalog")
 target_schema = schemas.get(f"{source_system_name}_base_schema")
 
-# Loop over objects in validated_data_config.tables and log their names
-for model_name, model in data_contract_specification:
-    validated_data_config = common.get_validate_data_configuration_contract(model.config)
-
-    if not validated_data_config:
-        logger.error(f"Validation failed for model: {model_name}. Skipping...")
+# Loop over schemas in data contract and process each one
+for schema in data_contract_specification.schema_: # type: ignore
+    
+    model_name = schema.name
+    
+    if not model_name:
+        logger.warning(f"Schema with no name found, skipping...")
         continue
-
-    source=f"{raw_catalog}.{target_raw_schema}.{model_name}"
+    
+    # Convert ODCS schema to TableConfig
+    config_dict = data_contract_helper.schema_to_table_config(schema)
+    validated_data_config = common.get_validate_data_configuration_contract(config_dict)    
+    
+    source = f"{raw_catalog}.{target_raw_schema}.{model_name}"
     logger.info(f"Validated table config found for: {model_name}")
 
     keys = validated_data_config.keys
@@ -54,7 +66,7 @@ for model_name, model in data_contract_specification:
         f"Processing table: {model_name} with parameters: keys {keys}, sequence_column {sequence_column}, stored_as_scd_type {stored_as_scd_type}"
     )
 
-    if validated_data_config.data_quality:
+    if validated_data_quality:
         source = f"{target_catalog}.{target_schema}.{model_name}_dq"
         @dlt.table(
             name=source,
@@ -67,18 +79,22 @@ for model_name, model in data_contract_specification:
             target_raw_schema=target_raw_schema,
             validated_data_quality=validated_data_quality
         ):
-            try:
-                data_quality_checks = validated_data_quality.get(object_name)
-            except KeyError:
+            data_quality_checks = []
+            
+            # validated_data_quality is a list of dicts
+            if validated_data_quality:
+                for check in validated_data_quality:
+                    if check.get("table") == object_name:
+                        data_quality_checks.append(check)
+            
+            if not data_quality_checks:
                 logger.warning(f"No data quality checks found for {object_name}")
-                logger.warning(f"Proceeding without data quality checks. {validated_data_quality}")
-                data_quality_checks = {}
             
             logger.info(f"Applying data quality for {object_name}")
-            source = f"{raw_catalog}.{target_raw_schema}.{object_name}"
-            df = spark.readStream.table(source)
+            source_table = f"{raw_catalog}.{target_raw_schema}.{object_name}"
+            df = spark.readStream.table(source_table)
 
-            dq_results = dq_engine.apply_checks_by_metadata(df, data_quality_checks) # type: ignore
+            dq_results = dq_engine.apply_checks_by_metadata(df, data_quality_checks)
 
             return dq_results
 

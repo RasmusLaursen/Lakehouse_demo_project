@@ -1,10 +1,15 @@
 import dlt
-from src.helper import data_contract_helper, databricks_helper, lakeflow_declarative_pipeline, logging_helper, common
-from src.helper.config import TableConfig
-from databricks.labs.dqx.engine import DQEngine
-from databricks.sdk import WorkspaceClient
+from src.helper import (
+    data_contract_helper, 
+    databricks_helper, 
+    lakeflow_declarative_pipeline, 
+    logging_helper, 
+    common, 
+    dqx_helper
+)
 
-dq_engine = DQEngine(WorkspaceClient())
+ws = dqx_helper.get_ws_client()
+dq_engine = dqx_helper.get_dq_engine(ws)
 
 # Initialize logger
 logger = logging_helper.get_logger(__name__)
@@ -19,10 +24,10 @@ data_contract_specification = data_contract_helper.get_data_contract(
     catalog="source_system", object_name=source_system_name
 )
 
-validated_data_quality = common.get_data_quality_configuration(
+validated_data_quality = dqx_helper.get_data_quality_configuration(
     catalog="source_system", 
     object=source_system_name,
-    dq_engine=dq_engine
+    spark=spark
 )
 
 catalogs = databricks_helper.get_pipeline_configurations(spark, "catalogs")
@@ -47,13 +52,7 @@ for schema in data_contract_specification.schema_: # type: ignore
     
     # Convert ODCS schema to TableConfig
     config_dict = data_contract_helper.schema_to_table_config(schema)
-    
-    # Validate the configuration
-    try:
-        validated_data_config = TableConfig(**config_dict)
-    except Exception as e:
-        logger.error(f"Validation failed for model: {model_name}. Error: {e}")
-        continue
+    validated_data_config = common.get_validate_data_configuration_contract(config_dict)   
     
     source = f"{raw_catalog}.{target_raw_schema}.{model_name}"
     logger.info(f"Validated table config found for: {model_name}")
@@ -66,7 +65,7 @@ for schema in data_contract_specification.schema_: # type: ignore
         f"Processing table: {model_name} with parameters: keys {keys}, sequence_column {sequence_column}, stored_as_scd_type {stored_as_scd_type}"
     )
 
-    if validated_data_config.data_quality and validated_data_quality:
+    if validated_data_quality:
         source = f"{target_catalog}.{target_schema}.{model_name}_dq"
         @dlt.table(
             name=source,

@@ -39,7 +39,7 @@ resources:
           spec:
             environment_version: "3"
             dependencies:
-              - ../dist/*.whl     
+              - ../../dist/*.whl     
       performance_target: PERFORMANCE_OPTIMIZED
   
       tasks:

@@ -1,7 +1,0 @@
-source_system_name: dimensions
-objects:
-  customer_cdc_scd1:
-    keys:
-      - customer_key
-    sequence_column: validfrom
-    stored_as_scd_type: 1

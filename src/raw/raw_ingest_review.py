@@ -1,11 +1,14 @@
-from src.helper import databricks_helper
-from src.helper import lakeflow_declarative_pipeline
-from src.helper import logging_helper
-from src.helper import common
-from src.helper import read
-from src.helper import data_contract_helper
-from src.helper.config import TableConfig
+from src.helper import (
+    databricks_helper,
+    lakeflow_declarative_pipeline,
+    logging_helper,
+    common,
+    read,
+    data_contract_helper
+)
+
 import dlt
+
 
 # Initialize logger
 logger = logging_helper.get_logger(__name__)
@@ -57,13 +60,8 @@ for schema in data_contract_specification.schema_: # type: ignore
 
     # Convert ODCS schema to TableConfig
     config_dict = data_contract_helper.schema_to_table_config(schema)
-    
-    # Validate the configuration
-    try:
-        validated_data_config = TableConfig(**config_dict)
-    except Exception as e:
-        logger.error(f"Validation failed for model: {model_name}. Error: {e}")
-        continue
+    validated_data_config = common.get_validate_data_configuration_contract(config_dict)    
+
 
     # if not validated_data_config:
     #     logger.error(f"Validation failed for model: {model_name}. Skipping...")
