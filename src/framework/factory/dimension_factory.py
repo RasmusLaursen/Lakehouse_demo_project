@@ -9,7 +9,7 @@ except ImportError:
     dlt = None  # type: ignore
 
 from src.framework.helper import logging_helper
-from src.framework.pipelines.config import PipelineConfig
+from src.framework.factory.config import PipelineConfig
 
 logger = logging_helper.get_logger(__name__)
 

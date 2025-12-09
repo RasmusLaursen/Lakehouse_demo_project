@@ -9,7 +9,7 @@ except ImportError:
     dlt = None  # type: ignore
 
 from src.framework.helper import databricks_helper, logging_helper, dw
-from src.framework.pipelines.config import PipelineConfig
+from src.framework.factory.config import PipelineConfig
 
 logger = logging_helper.get_logger(__name__)
 

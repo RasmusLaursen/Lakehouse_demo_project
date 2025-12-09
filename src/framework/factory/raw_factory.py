@@ -15,7 +15,7 @@ from src.framework.helper import (
     read,
     data_contract_helper
 )
-from src.framework.pipelines.config import PipelineConfig
+from src.framework.factory.config import PipelineConfig
 
 logger = logging_helper.get_logger(__name__)
 
