@@ -18,35 +18,35 @@ resources:
       schema: ${resources.schemas.lakehouse_landing_schema.name} 
       libraries:
         - glob:
-            include: ../../src/raw/raw_ingest_lakehouse.py
+            include: ../../src/solution/raw/raw_ingest_lakehouse.py
         - glob:
-            include: ../../src/raw/raw_ingest_review.py
+            include: ../../src/solution/raw/raw_ingest_review.py
         - glob:
-            include: ../../src/base/base_ingest_lakehouse.py
+            include: ../../src/solution/base/base_ingest_lakehouse.py
         - glob:
-            include: ../../src/base/base_ingest_review.py
+            include: ../../src/solution/base/base_ingest_review.py
+        - glob:
+            include: ../../src/solution/enriched/enriched_calendar.py
+        - glob:
+            include: ../../src/solution/curated/dimensions/dim_calendar.py
+        - glob:
+            include: ../../src/solution/curated/dimensions/dim_customer.py 
         # - glob:
-        #     include: ../src/enriched/enriched_calendar.py
+        #     include: ../../src/solution/curated/dimensions/dim_customer_mv_scd1.py
         # - glob:
-        #     include: ../src/curated/dimensions/dim_calendar.py
+        #     include: ../../src/solution/curated/dimensions/dim_customer_mv_scd2.py
         # - glob:
-        #     include: ../src/curated/dimensions/dim_customer.py 
+        #     include: ../../src/solution/curated/dimensions/dim_customer_cdc_scd2.py
         # - glob:
-        #     include: ../src/curated/dimensions/dim_customer_mv_scd1.py
-        # - glob:
-        #     include: ../src/curated/dimensions/dim_customer_mv_scd2.py
-        # - glob:
-        #     include: ../src/curated/dimensions/dim_customer_cdc_scd2.py
-        # - glob:
-        #     include: ../src/curated/dimensions/dim_customer_cdc_scd1.py
-        # - glob:
-        #     include: ../src/curated/dimensions/dim_seller.py
-        # - glob:
-        #     include: ../src/curated/dimensions/dim_lakehouse.py 
-        # - glob:
-        #     include: ../src/curated/facts/fact_lakehouse_rentals.py
-        # - glob:
-        #     include: ../src/curated/facts/fact_lakehouse_reviews.py
+        #     include: ../../src/solution/curated/dimensions/dim_customer_cdc_scd1.py
+        - glob:
+            include: ../../src/solution/curated/dimensions/dim_seller.py
+        - glob:
+            include: ../../src/solution/curated/dimensions/dim_lakehouse.py 
+        - glob:
+            include: ../../src/solution/curated/facts/fact_lakehouse_rentals.py
+        - glob:
+            include: ../../src/solution/curated/facts/fact_lakehouse_reviews.py
 
 
       environment:

@@ -16,7 +16,7 @@ with patch.dict(
         "src.helper.logging_helper": Mock(),
     },
 ):
-    from src.helper.common import (
+    from src.framework.helper.common import (
         get_path_for_data_configuration,
         get_data_configuration,
         add_audit_columns,

@@ -15,9 +15,9 @@ from faker import Faker
 from typing import List
 
 # Import the classes and functions to test
-from src.landing.lakehouse_synthetic_data import LakehouseSyntheticData
+from src.solution.landing.lakehouse_synthetic_data import LakehouseSyntheticData
 
-from src.helper.synthetic_data_config import (
+from src.framework.helper.synthetic_data_config import (
     CustomerProfile,
     LakehouseProfile,
     SellerProfile,

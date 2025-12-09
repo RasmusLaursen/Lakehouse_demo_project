@@ -7,7 +7,7 @@ from pydantic import ValidationError
 project_root = Path(__file__).parents[3]
 sys.path.insert(0, str(project_root))
 
-from src.helper.config import (
+from src.framework.helper.config import (
     TableConfig,
     LayerConfig,
     DefaultTblProperties,

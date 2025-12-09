@@ -1,8 +1,8 @@
-from src.helper.dynamic_fake_data_generator import DynamicFakeDataGenerator
-from src.helper import databricks_helper
-from src.helper import logging_helper
-from src.helper import common
-from src.helper import write
+from src.framework.helper.dynamic_fake_data_generator import DynamicFakeDataGenerator
+from src.framework.helper import databricks_helper
+from src.framework.helper import logging_helper
+from src.framework.helper import common
+from src.framework.helper import write
 
 # Configure logging
 logger = logging_helper.get_logger(__name__)

@@ -2,5 +2,5 @@ resources:
   dashboards:
     lakehouse_demo_project_dashboard:
       display_name: "Lakehouse Dashboard"
-      file_path: ../src/dashboards/Lakehouse-dashboard.lvdash.json
+      file_path: ../src/solution/dashboards/Lakehouse-dashboard.lvdash.json
       warehouse_id: ${var.warehouse_id}

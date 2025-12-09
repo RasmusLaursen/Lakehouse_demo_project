@@ -2,7 +2,7 @@
 import os
 import datetime
 from behave import given, when, then  # type: ignore
-from src.helper import logging_helper
+from src.framework.helper import logging_helper
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import jobs
 

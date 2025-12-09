@@ -1,9 +1,9 @@
-from src.landing.lakehouse_synthetic_data import LakehouseSyntheticData
-from src.landing import review_synthetic_data
-from src.helper import databricks_helper
-from src.helper import logging_helper
-from src.helper import common
-from src.helper import write
+from src.solution.landing.lakehouse_synthetic_data import LakehouseSyntheticData
+from src.solution.landing import review_synthetic_data
+from src.framework.helper import databricks_helper
+from src.framework.helper import logging_helper
+from src.framework.helper import common
+from src.framework.helper import write
 import sys
 
 # Configure logging

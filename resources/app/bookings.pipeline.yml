@@ -17,9 +17,9 @@ resources:
       schema: ${resources.schemas.bookings_landing_schema.name} 
       libraries:
         - glob:
-            include: ../src/raw/raw_ingest_bookings.py
+            include: ../src/solution/raw/raw_ingest_bookings.py
         - glob:
-            include: ../src/base/base_ingest_bookings.py
+            include: ../src/solution/base/base_ingest_bookings.py
             
       environment:
         dependencies:
