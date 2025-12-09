@@ -39,7 +39,7 @@ class LakehouseReviews:
         reviews = []
         for rental in self.lakehouse_rentals:
             # Extract visit ID and rental date
-            rental_date = rental.check_out_date
+            rental_date = rental.check_out_date # type: ignore
 
             # Generate a review date (1-7 days after the rental date)
             review_date = rental_date + timedelta(days=random.randint(1, 7))
@@ -57,7 +57,7 @@ class LakehouseReviews:
             # Create a Review object and add it to the list
             reviews.append(
                 Review(
-                    rental_id=rental.rental_id,
+                    rental_id=rental.rental_id, # type: ignore
                     review_date=review_date,
                     rating=rating,
                     review_text=review_text,

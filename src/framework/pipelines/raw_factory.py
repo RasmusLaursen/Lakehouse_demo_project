@@ -107,23 +107,28 @@ class RawPipelineFactory:
         self._create_backfill_if_needed(model_name, validated_data_config, config)
     
     def _create_raw_table(self, model_name: str, config: PipelineConfig) -> None:
-        """Create raw layer DLT table.
+        """Create raw layer DLT table using connector framework.
+        
+        Dynamically creates connector based on data contract configuration.
+        Factory is completely agnostic to connector types - all logic delegated to connectors.
         
         Args:
             model_name: Name of the model/table
             config: Pipeline configuration
         """
         try:
+            # Get connector with auto-merged config (catalog/schema/volume for volume sources)
+            connector = config.get_connector(model_name)
+            
+            logger.info(f"Created {config.connector_type} connector for {model_name}: {type(connector).__name__}")
+            
+            # Use connector-based API
             lakeflow_declarative_pipeline.ldp_table(
                 name=f"{config.raw_catalog}.{config.raw_schema}.{model_name}",
-                source_catalog=config.landing_catalog,
-                source_schema=config.landing_schema,
-                objectname=f"{model_name}_contract",
-                loadtype=config.loadtype,  # type: ignore
-                filetype=config.filetype,
-                comment=f"Raw layer table for {model_name} volume",
+                connector=connector,
+                comment=f"Raw layer table for {model_name} using {config.connector_type} connector",
             )
-            logger.info(f"Created raw table: {model_name}")
+            logger.info(f"Created raw table: {model_name} using {config.connector_type} connector")
         except Exception as e:
             logger.error(f"Error creating raw table {model_name}: {e}")
             raise

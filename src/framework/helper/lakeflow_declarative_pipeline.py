@@ -17,12 +17,7 @@ spark = databricks_helper.get_spark()
 
 def ldp_table(
     name: str,
-    source_catalog: Optional[str] = None,
-    source_schema: Optional[str] = None,
-    objectname: Optional[str] = None,
-    source_dataframe: Optional[DataFrame] = None,
-    loadtype: str = "dataframe",
-    filetype: Optional[str] = None,
+    connector,  # BaseConnector instance
     comment: Optional[str] = None,
     spark_conf: Optional[dict] = None,
     table_properties: Optional[dict] = None,
@@ -33,50 +28,66 @@ def ldp_table(
     schema: Optional[str] = None,
     row_filter: Optional[str] = None,
     exceptions: Optional[list[dict]] = None,
-    private=False,
+    private: bool = False,
 ):
     """
-    Creates a Delta Live Table (DLT) for data ingestion and transformation.
-
-    Parameters:
-    - name (str): The name of the DLT table.
-    - source_catalog (str, optional): The source catalog from which to read data.
-    - source_schema (str, optional): The source schema from which to read data.
-    - objectname (str, optional): The name of the object to read from the source.
-    - source_dataframe (DataFrame, optional): A DataFrame to be used as the source.
-    - loadtype (str, optional): The type of loading mechanism ('table', 'table_stream', 'volume', 'dataframe').
-    - filetype (str, optional): The type of file to read when loadtype is 'volume'.
-    - comment (str, optional): A comment for the DLT table.
-    - spark_conf (dict, optional): Spark configuration settings for the DLT table.
-    - table_properties (dict, optional): Properties for the DLT table.
-    - path (str, optional): The path where the DLT table will be stored.
-    - partition_cols (list, optional): Columns to partition the DLT table by.
-    - cluster_by_auto (bool, optional): Whether to automatically cluster the DLT table.
-    - cluster_by (list, optional): Columns to cluster the DLT table by.
-    - schema (str, optional): The schema of the DLT table.
-    - row_filter (str, optional): A filter to apply to the rows of the DLT table.
-    - exceptions (list[dict], optional): Exception handling rules for the DLT table.
-    - private (bool, optional): Whether the DLT table is private.
-
+    Creates a Delta Live Table (DLT) using a connector for data ingestion.
+    
+    This is the new, preferred API for creating DLT tables with extensible
+    data source support via the connector framework.
+    
+    Args:
+        name (str): Fully qualified table name (catalog.schema.table)
+        connector (BaseConnector): Connector instance that handles data reading
+        comment (str, optional): Table description
+        spark_conf (dict, optional): Spark configuration overrides
+        table_properties (dict, optional): Delta table properties
+        path (str, optional): Storage location
+        partition_cols (list, optional): Partitioning columns
+        cluster_by_auto (bool, optional): Enable liquid clustering (default: True)
+        cluster_by (list, optional): Manual clustering columns
+        schema (str, optional): Explicit schema definition
+        row_filter (str, optional): Row-level filter
+        exceptions (list[dict], optional): Data quality expectations
+        private (bool, optional): Whether table is private to pipeline (default: False)
+        
     Returns:
-    DataFrame: The resulting DataFrame from the specified load type.
+        None: Registers DLT table in pipeline
+        
+    Example:
+        >>> from src.framework.connectors import AutoLoaderConnector
+        >>> connector = AutoLoaderConnector({
+        ...     "source_type": "volume",
+        ...     "catalog": "landing",
+        ...     "schema": "lakehouse",
+        ...     "volume": "customer_contract",
+        ...     "format": "parquet"
+        ... })
+        >>> ldp_table(
+        ...     name="raw.lakehouse.customer",
+        ...     connector=connector,
+        ...     comment="Raw customer data"
+        ... )
     """
-
-    # Merge table_properties with additional metadata
-    table_properties = {
+    # Add connector metadata to table properties
+    connector_metadata = {
+        "metadata.connector-type": type(connector).__name__,
+        "metadata.connector-version": "2.0",
+    }
+    
+    merged_properties = {
         **(table_properties or {}),
         **(DefaultTblProperties().as_dict() or {}),
-        "metadata.load-pattern": f"{loadtype}" if loadtype else "N/A",
-        "metadata.file-type": f"{filetype}" if filetype else "N/A",
+        **connector_metadata,
     }
-
-    logger.info(f"using table properties: {table_properties}")
-
+    
+    logger.info(f"Creating DLT table {name} using {type(connector).__name__}")
+    
     @dlt.table(
         name=name,
         comment=comment,
         spark_conf=spark_conf,
-        table_properties=table_properties,
+        table_properties=merged_properties,
         path=path,
         partition_cols=partition_cols,
         cluster_by_auto=cluster_by_auto,
@@ -85,74 +96,10 @@ def ldp_table(
         row_filter=row_filter,
         private=private,
     )
-    # @ldp_exeption(rules=exeptions)
-    # @handle_exceptions(exeptions)
-    def table_creation(
-        loadtype=loadtype,
-        source_catalog=source_catalog,
-        source_schema=source_schema,
-        objectname=objectname,
-        filetype=filetype,
-        source_dataframe=source_dataframe,
-    ) -> DataFrame:
-        if loadtype == "table":
-            df = read.read_dataframe(
-                source_catalog=source_catalog,
-                source_schema=source_schema,
-                objectname=objectname,
-            )
-            return df
-        elif loadtype == "table_stream":
-            df = spark.readStream.table(
-                f"{source_catalog}.{source_schema}.{objectname}"
-            )
-            df = common.add_audit_columns(df=df)
-            return df
-        elif loadtype == "volume_autoloader":
-            return read.read_volume_autoloader(
-                source_catalog=source_catalog,
-                source_schema=source_schema,
-                objectname=objectname,
-                filetype=filetype,
-                add_audit_column=True,
-            )
-        elif loadtype == "dataframe":
-            return source_dataframe
-        else:
-            raise ValueError(
-                "loadtype must be either 'table', 'table_stream', 'volume_autoloader', or 'dataframe'."
-            )
-
-
-def handle_exceptions(exeptions):
-    for expection in exeptions:
-        description, constraint, ldp_exeption_type = expection.values()
-        dlt.expect(description, constraint)
-
-
-def ldp_exeption(exeptions):
-    for expection in exeptions:
-        description, constraint, ldp_exeption_type = expection.values()
-        return dlt.expect(description, constraint)
-        # list_of_exeptions = []
-        # for expection in exeptions:
-        #     description, constraint, ldp_exeption_type = expection.values()
-        #     if ldp_exeption_type == "expect":
-        #         list_of_exeptions.append(dlt.expect(description, constraint))
-        #     elif ldp_exeption_type == "expect_or_drop":
-        #         list_of_exeptions.append(dlt.expect_or_drop(description, constraint))
-        #     elif ldp_exeption_type == "expect_or_fail":
-        #         list_of_exeptions.append(dlt.expect_or_fail(description, constraint))
-        #     elif ldp_exeption_type == "expect_all":
-        #         list_of_exeptions.append(dlt.expect_all({description: constraint}))
-        #     elif ldp_exeption_type == "expect_all_or_drop":
-        #         list_of_exeptions.append(dlt.expect_all_or_drop({description: constraint}))
-        #     elif ldp_exeption_type == "expect_all_or_fail":
-        #         list_of_exeptions.append(dlt.expect_all_or_fail({description: constraint}))
-        #     else:
-        #         raise ValueError("ldp_exeption_type must be either 'expect', 'expect_or_drop', 'expect_or_fail', 'expect_all', 'expect_all_or_drop', or 'expect_all_or_fail'.")
-        # return list_of_exeptions
-
+    def table_creation() -> DataFrame:
+        """Inner function that reads data via connector."""
+        logger.info(f"Reading data using {type(connector).__name__}")
+        return connector.read_stream(spark)
 
 def ldp_view(
     source_catalog: str,

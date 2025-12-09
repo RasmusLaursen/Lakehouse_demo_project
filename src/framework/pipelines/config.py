@@ -38,6 +38,10 @@ class PipelineConfig:
     filetype: str
     loadtype: str
     
+    # Connector configuration (for extensible data sources)
+    connector_type: str = "volume"  # Default to volume for backward compatibility
+    connector_config: Optional[Dict[str, Any]] = None  # Connector-specific configuration
+    
     @classmethod
     def from_spark(cls, spark: SparkSession, source_system_name: str = "lakehouse") -> 'PipelineConfig':
         """Create PipelineConfig from Spark configuration.
@@ -98,7 +102,11 @@ class PipelineConfig:
             
             # Default server config - will be overridden by data contract
             filetype="parquet",
-            loadtype="volume_autoloader"
+            loadtype="volume_autoloader",
+            
+            # Default connector config
+            connector_type="volume",
+            connector_config={}
         )
     
     def update_from_server_config(self, server_config: Any) -> None:
@@ -113,9 +121,20 @@ class PipelineConfig:
             
             if hasattr(server_config, "customProperties") and server_config.customProperties:
                 for prop in server_config.customProperties:
-                    if hasattr(prop, 'key') and prop.key == "loadtype":
-                        self.loadtype = prop.value
-                        break
+                    if hasattr(prop, 'property'):
+                        # Handle both old-style (key) and new-style (property) attributes
+                        prop_name = getattr(prop, 'property', getattr(prop, 'key', None))
+                        prop_value = getattr(prop, 'value', None)
+                        
+                        if prop_name == "loadtype":
+                            self.loadtype = prop_value
+                        elif prop_name == "connector_type":
+                            self.connector_type = prop_value
+                            logger.info(f"Set connector type to: {prop_value}")
+                        elif prop_name == "connector_config":
+                            # connector_config should be a dictionary in YAML
+                            self.connector_config = prop_value if isinstance(prop_value, dict) else {}
+                            logger.info(f"Set connector config: {self.connector_config}")
     
     # Helper methods for table paths
     
@@ -163,6 +182,41 @@ class PipelineConfig:
             'dev_curated.facts.fact_sales'
         """
         return f"{self.curated_catalog}.{self.facts_schema}.{fact_name}"
+    
+    def get_connector(self, model_name: str):
+        """Create a connector instance with config merged from data contract and context.
+        
+        This method intelligently merges connector configuration:
+        - Base config from data contract (connector_type, connector_config)
+        - Context-specific parameters (catalog, schema, volume) for volume sources
+        - Model-specific naming (volume name based on model_name)
+        
+        Args:
+            model_name: Name of the model/table (used for volume naming)
+            
+        Returns:
+            Configured connector instance ready to read data
+            
+        Example:
+            >>> connector = config.get_connector("customer")
+            >>> df = connector.read_stream(spark)
+        """
+        from src.framework.connectors import ConnectorFactory
+        
+        # Start with connector config from data contract
+        connector_config = (self.connector_config or {}).copy()
+        
+        # For volume-based connectors, merge in catalog/schema/volume
+        source_type = connector_config.get("source_type", "volume")
+        if source_type == "volume":
+            connector_config.setdefault("catalog", self.landing_catalog)
+            connector_config.setdefault("schema", self.landing_schema)
+            connector_config.setdefault("volume", f"{model_name}_contract")
+            connector_config.setdefault("format", self.filetype)
+        
+        logger.info(f"Creating {self.connector_type} connector for {model_name} with config: {connector_config}")
+        
+        return ConnectorFactory.create(self.connector_type, connector_config)
     
     def validate(self) -> bool:
         """Validate that all required configuration is present.

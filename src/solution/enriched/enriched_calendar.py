@@ -1,6 +1,7 @@
 from src.framework.helper import databricks_helper
 from src.framework.helper import lakeflow_declarative_pipeline
 from src.framework.helper import logging_helper
+from src.framework.connectors import DataFrameConnector
 from pyspark.sql.functions import (
     col,
     year,
@@ -58,8 +59,12 @@ date_df = (
     )
 )
 
+# Create connector from DataFrame
+connector = DataFrameConnector(date_df)
+
+# Use new connector-based API
 lakeflow_declarative_pipeline.ldp_table(
     name=f"{target_catalog}.{target_schema}.calendar",
-    source_dataframe=date_df,
+    connector=connector,
     comment=f"Enriched layer table for calendar",
 )

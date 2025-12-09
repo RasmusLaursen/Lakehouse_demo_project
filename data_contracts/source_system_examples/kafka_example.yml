@@ -1,0 +1,67 @@
+kind: DataContract
+apiVersion: v3.0.0
+id: "urn:datacontract:kafka:order-events"
+status: active
+
+name: "Kafka Order Events Data Contract"
+version: "1.0.0"
+description:
+  purpose: "Data contract for real-time order events from Kafka"
+  usage: "Example showing Kafka streaming ingestion using AutoLoaderConnector"
+
+servers:
+  - server: dev
+    type: "kafka"
+    environment: "development"
+    customProperties:
+      - property: loadtype
+        value: "volume_autoloader"
+      - property: connector_type
+        value: "autoloader"
+      - property: connector_config
+        value:
+          source_type: "kafka"
+          kafka_bootstrap_servers: "kafka-broker-1:9092,kafka-broker-2:9092"
+          topics: ["order-created", "order-updated", "order-completed"]
+          add_audit_columns: true
+          options:
+            startingOffsets: "latest"
+            kafka.security.protocol: "SASL_SSL"
+            kafka.sasl.mechanism: "PLAIN"
+            kafka.sasl.jaas.config: "${secrets.kafka_sasl_config}"
+            maxOffsetsPerTrigger: "10000"
+
+schema:
+  - name: order_events
+    description: "Real-time order events from Kafka"
+    type: table
+    customProperties:
+      - property: scd_type
+        value: 1
+      - property: keys
+        value: ["order_id", "event_timestamp"]
+      - property: sequence_column
+        value: "event_timestamp"
+    properties:
+      - name: key
+        type: binary
+        description: "Kafka message key"
+      - name: value
+        type: binary
+        description: "Kafka message value (JSON payload)"
+        required: true
+      - name: topic
+        type: string
+        description: "Kafka topic name"
+      - name: partition
+        type: integer
+        description: "Kafka partition number"
+      - name: offset
+        type: long
+        description: "Kafka message offset"
+      - name: timestamp
+        type: timestamp
+        description: "Kafka message timestamp"
+      - name: timestampType
+        type: integer
+        description: "Kafka timestamp type"

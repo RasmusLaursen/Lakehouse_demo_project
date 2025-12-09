@@ -18,6 +18,12 @@ servers:
     customProperties:
       - property: loadtype
         value: "volume_autoloader"
+      - property: connector_type
+        value: "autoloader"
+      - property: connector_config
+        value:
+          source_type: "volume"  # Can also be: s3, adls, gcs, kafka, eventhub
+          add_audit_columns: true
 
 schema:
   - name: meta_lakehouses

@@ -15,6 +15,14 @@ servers:
     type: "databricks"
     environment: "development"
     format: "parquet"
+    customProperties:
+      - property: loadtype
+        value: "volume_autoloader"
+      - property: connector_type
+        value: "volume"
+      - property: connector_config
+        value:
+          add_audit_columns: true
 
 schema:
   - name: reviews

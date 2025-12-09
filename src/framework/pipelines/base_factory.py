@@ -148,8 +148,6 @@ class BasePipelineFactory:
     ) -> str:
         """Create data quality validation table.
         
-        This method creates a proper closure to avoid variable capture bugs.
-        
         Args:
             model_name: Name of the model/table
             config: Pipeline configuration
@@ -160,14 +158,6 @@ class BasePipelineFactory:
         """
         dq_table_name = f"{config.base_catalog}.{config.base_schema}.{model_name}_dq"
         
-        # Capture variables in local scope to avoid closure issues
-        raw_catalog = config.raw_catalog
-        raw_schema = config.raw_schema
-        source_system_name = config.source_system_name
-        object_name = model_name
-        spark = self.spark
-        dq_engine = self.dq_engine
-        
         # Filter DQ checks for this specific table
         data_quality_checks = [
             check for check in validated_data_quality
@@ -177,6 +167,14 @@ class BasePipelineFactory:
         if not data_quality_checks:
             logger.warning(f"No data quality checks found for {model_name}")
         
+        # Capture variables in local scope for closure
+        source_table = f"{config.raw_catalog}.{config.raw_schema}.{model_name}"
+        source_system_name = config.source_system_name
+        object_name = model_name
+        spark = self.spark
+        dq_engine = self.dq_engine
+        dq_checks = data_quality_checks
+        
         @dlt.table(
             name=dq_table_name,
             comment=f"Base layer table for {model_name} from {source_system_name} with DQ applied",
@@ -185,10 +183,8 @@ class BasePipelineFactory:
         def _dq_table():
             """DQ table function with properly captured variables."""
             logger.info(f"Applying data quality for {object_name}")
-            source_table = f"{raw_catalog}.{raw_schema}.{object_name}"
             df = spark.readStream.table(source_table)
-            dq_results = dq_engine.apply_checks_by_metadata(df, data_quality_checks)
-            return dq_results
+            return dq_engine.apply_checks_by_metadata(df, dq_checks)
         
         logger.info(f"Created DQ table: {dq_table_name}")
         return dq_table_name
