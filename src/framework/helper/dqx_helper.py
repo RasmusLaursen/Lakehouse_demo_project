@@ -1,15 +1,14 @@
-from src.framework.helper import databricks_helper, logging_helper
+from src.framework.helper import databricks_helper, logging_helper, common
 from databricks.sdk import WorkspaceClient
 from databricks.labs.dqx.engine import DQEngine
 from databricks.labs.dqx.config import FileChecksStorageConfig
 from databricks.labs.dqx.profiler.generator import DQGenerator
 from pyspark.sql import SparkSession
 from pathlib import Path
+from typing import Optional, List, Dict, Any
 
 # Initialize logger
 logger = logging_helper.get_logger(__name__)
-
-spark = databricks_helper.get_spark()
 
 def get_ws_client() -> WorkspaceClient:
     ws = WorkspaceClient()
@@ -20,27 +19,26 @@ def get_dq_engine(ws: WorkspaceClient) -> DQEngine:
     return dq_engine
 
 def get_dqx_generator(ws : WorkspaceClient, spark: SparkSession) -> DQGenerator:
-    generator = DQGenerator(workspace_client=ws, spark=spark)
+    generator = DQGenerator(workspace_client=ws)
     return generator
 
-def get_data_quality_configuration(catalog:str, object:str, spark: SparkSession):
+def get_data_quality_configuration(catalog: str, object: str, spark: SparkSession) -> Optional[List[Dict[str, Any]]]:
+    """Get data quality configuration from data contract.
+    
+    Args:
+        catalog: The catalog name (e.g., 'source_system', 'curated')
+        object: The object/contract name
+        spark: Active SparkSession
+        
+    Returns:
+        List of data quality checks if found and valid, None otherwise
+    """
     ws = get_ws_client()
     dq_engine = get_dq_engine(ws)
     generator = get_dqx_generator(ws, spark)
 
-    # Try multiple paths to find data contract file
-    possible_paths = [
-        Path(f"data_contracts/{catalog}/{object}.yml"),           # From project root
-        Path(f"../data_contracts/{catalog}/{object}.yml"),        # From src/
-        Path(f"../../data_contracts/{catalog}/{object}.yml"),     # From src/framework/
-        Path(f"../../../data_contracts/{catalog}/{object}.yml"),  # From src/framework/helper/
-    ]
-    
-    data_quality_path = None
-    for path in possible_paths:
-        if path.is_file():
-            data_quality_path = path
-            break
+    # Use centralized path resolution
+    data_quality_path = common.find_data_contract_path(catalog, object)
 
     if not data_quality_path:
         logger.warning(f"Data quality configuration file not found: {object}.yml in catalog '{catalog}'")

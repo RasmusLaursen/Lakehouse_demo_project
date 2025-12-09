@@ -12,8 +12,6 @@ from src.framework.helper import logging_helper
 # Initialize logger
 logger = logging_helper.get_logger(__name__)
 
-spark = databricks_helper.get_spark()
-
 
 def ldp_table(
     name: str,
@@ -99,6 +97,7 @@ def ldp_table(
     def table_creation() -> DataFrame:
         """Inner function that reads data via connector."""
         logger.info(f"Reading data using {type(connector).__name__}")
+        spark = databricks_helper.get_spark()
         return connector.read_stream(spark)
 
 def ldp_view(

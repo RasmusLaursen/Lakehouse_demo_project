@@ -2,7 +2,7 @@
 
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import struct, current_timestamp, lit
-from typing import Dict, Any, Generator, List
+from typing import Dict, Any, Generator, List, Optional
 from src.framework.helper import logging_helper
 import sys
 import yaml
@@ -13,6 +13,36 @@ from src.framework.helper import data_contract_helper
 
 # Initialize logger
 logger = logging_helper.get_logger(__name__)
+
+
+def find_data_contract_path(catalog: str, object_name: str) -> Optional[Path]:
+    """
+    Find a data contract file by searching multiple possible paths.
+    
+    This utility centralizes path resolution logic used across multiple modules.
+    
+    Args:
+        catalog (str): The name of the catalog (e.g., 'source_system', 'curated').
+        object_name (str): The name of the object/contract.
+    
+    Returns:
+        Optional[Path]: The path to the contract file if found, None otherwise.
+    """
+    possible_paths = [
+        Path(f"data_contracts/{catalog}/{object_name}.yml"),      # From project root
+        Path(f"../data_contracts/{catalog}/{object_name}.yml"),   # From src/ level
+        Path(f"../../data_contracts/{catalog}/{object_name}.yml"), # From src/framework/
+        Path(f"../../../data_contracts/{catalog}/{object_name}.yml"), # From src/framework/helper/
+        Path(__file__).parent.parent.parent.parent / "data_contracts" / catalog / f"{object_name}.yml"  # Absolute from this file
+    ]
+    
+    for path in possible_paths:
+        if path.is_file():
+            logger.debug(f"Found data contract at: {path}")
+            return path
+    
+    return None
+
 
 def get_path_for_data_configuration(catalog: str, object: str) -> Path:
     """
@@ -80,7 +110,7 @@ def get_data_configuration(catalog: str, object: str) -> LayerConfig:
         raise
 
 
-def add_audit_columns(df: DataFrame) -> DataFrame:
+def add_audit_columns(df: DataFrame, source_system: str = "unknown") -> DataFrame:
     """
     Adds audit columns to the given DataFrame.
 
@@ -89,12 +119,13 @@ def add_audit_columns(df: DataFrame) -> DataFrame:
 
     Parameters:
     df (DataFrame): The input DataFrame to which audit columns will be added.
+    source_system (str, optional): The name of the source system. Defaults to "unknown".
 
     Returns:
     DataFrame: A new DataFrame with the added audit columns.
     """
     metadata = struct(
-        lit("lakehouse_dummy_data").alias("SourceSystem"),
+        lit(source_system).alias("SourceSystem"),
         current_timestamp().alias("ingest_timestamp"),
     )
     df = df.withColumn("_metadata_ldp", metadata)

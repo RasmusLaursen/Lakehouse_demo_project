@@ -12,7 +12,7 @@ from open_data_contract_standard.model import SchemaObject
 from open_data_contract_standard.model import CustomProperty
 import yaml
 
-from src.framework.helper import logging_helper
+from src.framework.helper import logging_helper, common
 
 # Initialize logger
 logger = logging_helper.get_logger(__name__)
@@ -52,26 +52,18 @@ def get_data_contract_path(catalog: str, object_name: str) -> Path:
 
     Returns:
         Path: The constructed path to the data contract file.
+        
+    Raises:
+        FileNotFoundError: If the contract file cannot be found.
     """
-    # Try multiple possible paths relative to different execution contexts
-    possible_paths = [
-        Path(f"data_contracts/{catalog}/{object_name}.yml"),      # From project root
-        Path(f"../data_contracts/{catalog}/{object_name}.yml"),   # From src/ level
-        Path(f"../../data_contracts/{catalog}/{object_name}.yml"), # From src/framework/
-        Path(f"../../../data_contracts/{catalog}/{object_name}.yml"), # From src/framework/helper/
-        Path(__file__).parent.parent.parent.parent / "data_contracts" / catalog / f"{object_name}.yml"  # Absolute from this file
-    ]
+    data_contract_path = common.find_data_contract_path(catalog, object_name)
     
-    for data_contract_path in possible_paths:
-        if data_contract_path.is_file():
-            logger.debug(f"Found data contract at: {data_contract_path}")
-            return data_contract_path
+    if data_contract_path is None:
+        raise FileNotFoundError(
+            f"Data contract file not found: {object_name}.yml in catalog '{catalog}'."
+        )
     
-    # If not found, provide helpful error message
-    raise FileNotFoundError(
-        f"Data contract file not found: {object_name}.yml in catalog '{catalog}'. "
-        f"Searched paths: {[str(p) for p in possible_paths]}"
-    )
+    return data_contract_path
 
 
 def load_data_contract(contract_path: Path) -> OpenDataContractStandard:
