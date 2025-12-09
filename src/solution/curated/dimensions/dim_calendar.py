@@ -6,7 +6,7 @@ Calendar dimension reads from enriched layer and has special key handling.
 from pyspark import pipelines as sdp # type: ignore[attr-defined]
 from pyspark.sql.functions import col, monotonically_increasing_id
 from src.framework.helper import databricks_helper, logging_helper
-from src.framework.pipelines.config import PipelineConfig
+from src.framework.factory.config import PipelineConfig
 
 logger = logging_helper.get_logger(__name__)
 spark = databricks_helper.get_spark()

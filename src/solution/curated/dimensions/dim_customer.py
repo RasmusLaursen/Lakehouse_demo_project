@@ -3,7 +3,7 @@
 This module uses the factory pattern to create DLT dimension tables.
 All logic has been consolidated into the CuratedDimensionFactory.
 """
-from src.framework.pipelines.dimension_factory import CuratedDimensionFactory
+from src.framework.factory.dimension_factory import CuratedDimensionFactory
 from src.framework.helper import databricks_helper
 
 # Create the dimension table for customer

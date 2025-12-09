@@ -4,7 +4,7 @@ This module uses the factory pattern for generic dimension logic,
 while keeping custom transformation logic (joins) in this file.
 """
 from pyspark.sql import DataFrame
-from src.framework.pipelines.dimension_factory import CuratedDimensionFactory
+from src.framework.factory.dimension_factory import CuratedDimensionFactory
 from src.framework.helper import databricks_helper
 
 def custom_lakehouse_transform(df: DataFrame) -> DataFrame:
@@ -19,7 +19,7 @@ def custom_lakehouse_transform(df: DataFrame) -> DataFrame:
         DataFrame with meta_lakehouses joined
     """
     spark = databricks_helper.get_spark()
-    from src.framework.pipelines.config import PipelineConfig
+    from src.framework.factory.config import PipelineConfig
     config = PipelineConfig.from_spark(spark)
     
     # Read lookup table

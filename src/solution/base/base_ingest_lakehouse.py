@@ -10,7 +10,7 @@ The factory properly handles:
 - Change Data Capture (CDC) processing
 - Proper closure variable capture for DLT decorators
 """
-from src.framework.pipelines.base_factory import create_base_pipeline
+from src.framework.factory.base_factory import create_base_pipeline
 
 # Create the base pipeline for lakehouse source system
 create_base_pipeline("lakehouse")

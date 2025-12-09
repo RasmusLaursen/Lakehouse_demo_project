@@ -25,7 +25,7 @@ from src.framework.connectors import (
     TableConnector,
     DataFrameConnector
 )
-from src.framework.pipelines.config import PipelineConfig
+from src.framework.factory.config import PipelineConfig
 
 
 def test_connector_registration():

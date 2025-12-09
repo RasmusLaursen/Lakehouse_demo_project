@@ -3,7 +3,7 @@
 This module uses the factory pattern to create DLT fact tables.
 All logic has been consolidated into the CuratedFactFactory.
 """
-from src.framework.pipelines.fact_factory import CuratedFactFactory
+from src.framework.factory.fact_factory import CuratedFactFactory
 from src.framework.helper import databricks_helper
 
 # Create the fact table for lakehouse rentals
