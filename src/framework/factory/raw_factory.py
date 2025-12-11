@@ -101,12 +101,12 @@ class RawPipelineFactory:
         validated_data_config = common.get_validate_data_configuration_contract(config_dict)
         
         # Create raw layer table
-        self._create_raw_table(model_name, config)
+        self._create_raw_table(model_name, schema, config)
         
         # Create backfill if configured
         self._create_backfill_if_needed(model_name, validated_data_config, config)
     
-    def _create_raw_table(self, model_name: str, config: PipelineConfig) -> None:
+    def _create_raw_table(self, model_name: str, schema: Any, config: PipelineConfig) -> None:
         """Create raw layer DLT table using connector framework.
         
         Dynamically creates connector based on data contract configuration.
@@ -114,11 +114,12 @@ class RawPipelineFactory:
         
         Args:
             model_name: Name of the model/table
+            schema: Schema object from data contract
             config: Pipeline configuration
         """
         try:
             # Get connector with auto-merged config (catalog/schema/volume for volume sources)
-            connector = config.get_connector(model_name)
+            connector = config.get_connector(model_name, schema)
             
             logger.info(f"Created {config.connector_type} connector for {model_name}: {type(connector).__name__}")
             

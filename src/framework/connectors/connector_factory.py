@@ -5,8 +5,11 @@ This module provides a registry pattern for creating connector instances
 based on connector type strings from data contracts.
 """
 
-from typing import Dict, Any, Type
+from typing import Dict, Any, Type, Optional, TYPE_CHECKING
 from src.framework.connectors.base_connector import BaseConnector
+
+if TYPE_CHECKING:
+    from pyspark.sql import SparkSession
 
 
 class ConnectorFactory:
@@ -86,3 +89,34 @@ class ConnectorFactory:
             True if the connector type is registered, False otherwise
         """
         return connector_type.lower() in cls._connectors
+    
+    @classmethod
+    def register_datasources(cls, spark: "SparkSession") -> None:
+        """
+        Register PySpark DataSource connectors with Spark.
+        
+        This enables usage via spark.read.format("connector_name").load()
+        Only works with Spark 4.0+ and connectors that extend BasePySparkDataSource.
+        
+        Args:
+            spark: Active SparkSession
+            
+        Example:
+            ConnectorFactory.register_datasources(spark)
+            df = spark.read.format("autoloader").option("path", "/data").load()
+        """
+        try:
+            from pyspark.sql.datasource import DataSource
+            
+            # Register each connector that extends BasePySparkDataSource
+            for connector_type, connector_class in cls._connectors.items():
+                # Check if it's a DataSource subclass (PySpark 4.0+)
+                if hasattr(connector_class, '__mro__'):
+                    if DataSource in connector_class.__mro__:
+                        try:
+                            spark.dataSource.register(connector_class)
+                            print(f"Registered PySpark DataSource: {connector_type}")
+                        except Exception as e:
+                            print(f"Warning: Could not register {connector_type} as DataSource: {e}")
+        except ImportError:
+            print("PySpark DataSource API not available (requires Spark 4.0+). Skipping registration.")

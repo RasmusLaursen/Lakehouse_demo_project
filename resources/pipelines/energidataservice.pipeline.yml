@@ -1,0 +1,43 @@
+variables:
+  environment:
+    default: dev
+
+resources:
+  pipelines:
+    energidataservice_pipeline:
+      name: energidataservice_pipeline_${var.environment}
+      catalog: ${resources.schemas.energidataservice_raw_schema.catalog_name}
+      schema: ${resources.schemas.energidataservice_raw_schema.name}
+      
+      libraries:
+        - glob:
+            include: ../../src/solution/raw/raw_ingest_energidataservice.py
+        - glob:
+            include: ../../src/solution/base/base_ingest_energidataservice.py
+
+      environment:
+        dependencies:
+          - ../../dist/*.whl
+
+      configuration:
+        bundle.sourcePath: ${workspace.file_path}/src
+        environment: ${var.environment}
+
+        catalogs: | 
+          {
+            "raw_catalog": "${resources.schemas.energidataservice_raw_schema.catalog_name}",
+            "base_catalog": "${resources.schemas.energidataservice_base_schema.catalog_name}"
+          }
+        
+        schemas: | 
+          {
+            "energidataservice_raw_schema": "${resources.schemas.energidataservice_raw_schema.name}",
+            "energidataservice_base_schema": "${resources.schemas.energidataservice_base_schema.name}"
+          }
+
+      serverless: true
+      channel: CURRENT
+      photon: false
+      continuous: false
+      
+      development: true

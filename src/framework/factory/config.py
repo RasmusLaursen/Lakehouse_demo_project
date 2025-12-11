@@ -183,30 +183,55 @@ class PipelineConfig:
         """
         return f"{self.curated_catalog}.{self.facts_schema}.{fact_name}"
     
-    def get_connector(self, model_name: str):
+    def get_connector(self, model_name: str, schema: Any = None):
         """Create a connector instance with config merged from data contract and context.
         
         This method intelligently merges connector configuration:
-        - Base config from data contract (connector_type, connector_config)
-        - Context-specific parameters (catalog, schema, volume) for volume sources
+        - Base config from data contract server (connector_type, connector_config)
+        - Schema-level overrides (pagination_config, etc.)
+        - Context-specific parameters (catalog, schema, volume) ONLY for volume sources
         - Model-specific naming (volume name based on model_name)
         
         Args:
             model_name: Name of the model/table (used for volume naming)
+            schema: Optional schema object for schema-level config overrides
             
         Returns:
             Configured connector instance ready to read data
             
         Example:
-            >>> connector = config.get_connector("customer")
+            >>> connector = config.get_connector("customer", schema)
             >>> df = connector.read_stream(spark)
         """
         from src.framework.connectors import ConnectorFactory
+        from src.framework.helper import data_contract_helper
         
-        # Start with connector config from data contract
+        # Start with connector config from data contract server - use only what's defined
         connector_config = (self.connector_config or {}).copy()
         
-        # For volume-based connectors, merge in catalog/schema/volume
+        # Merge schema-level properties (like pagination_config) if schema provided
+        if schema and hasattr(schema, 'customProperties') and schema.customProperties:
+            for prop in schema.customProperties:
+                prop_name = getattr(prop, 'property', getattr(prop, 'key', None))
+                prop_value = getattr(prop, 'value', None)
+                
+                if prop_name == "pagination_config":
+                    # Merge schema-level pagination_config with server-level
+                    connector_config["pagination_config"] = prop_value
+                    logger.info(f"Applied schema-level pagination_config for {model_name}: {prop_value}")
+                elif prop_name == "params":
+                    # Merge schema-level params with server-level (schema-level takes precedence)
+                    server_params = connector_config.get("params", {})
+                    if isinstance(server_params, dict) and isinstance(prop_value, dict):
+                        merged_params = {**server_params, **prop_value}
+                        connector_config["params"] = merged_params
+                        logger.info(f"Merged schema-level params for {model_name}: {merged_params}")
+                    else:
+                        connector_config["params"] = prop_value
+                        logger.info(f"Applied schema-level params for {model_name}: {prop_value}")
+        
+        # For volume-based connectors ONLY, merge in catalog/schema/volume
+        # Other connector types (REST API, JDBC, etc.) should use only their defined config
         source_type = connector_config.get("source_type", "volume")
         if source_type == "volume":
             connector_config.setdefault("catalog", self.landing_catalog)
@@ -214,7 +239,11 @@ class PipelineConfig:
             connector_config.setdefault("volume", f"{model_name}_contract")
             connector_config.setdefault("format", self.filetype)
         
-        logger.info(f"Creating {self.connector_type} connector for {model_name} with config: {connector_config}")
+        # For REST API connectors, add table_name for endpoint construction
+        if self.connector_type in ["rest_api", "rest_api_ds"]:
+            connector_config.setdefault("table_name", model_name)
+        
+        logger.info(f"Creating {self.connector_type} connector for {model_name} with config keys: {list(connector_config.keys())}")
         
         return ConnectorFactory.create(self.connector_type, connector_config)
     

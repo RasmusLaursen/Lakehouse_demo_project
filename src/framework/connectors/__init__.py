@@ -20,6 +20,22 @@ from src.framework.connectors.rest_api_connector import RestApiConnector
 from src.framework.connectors.jdbc_connector import JdbcConnector
 from src.framework.connectors.table_connector import TableConnector
 from src.framework.connectors.dataframe_connector import DataFrameConnector
+from src.framework.connectors.pyspark_datasource_adapter import (
+    BasePySparkDataSource,
+    BaseDataSourceReader,
+    BaseDataSourceStreamReader,
+    SimpleInputPartition,
+)
+from src.framework.connectors.partition_strategies import (
+    RangeInputPartition,
+    FileInputPartition,
+    OffsetInputPartition,
+    PageInputPartition,
+    TablePartition,
+    HashInputPartition,
+)
+# PySpark DataSource implementations (Spark 4.0+) for non-Databricks sources
+from src.framework.connectors.rest_api_datasource import RestApiDataSource
 
 # Auto-register all connectors
 ConnectorFactory.register("autoloader", AutoLoaderConnector)
@@ -33,6 +49,8 @@ ConnectorFactory.register("eventhub", AutoLoaderConnector)
 ConnectorFactory.register("rest_api", RestApiConnector)
 ConnectorFactory.register("http", RestApiConnector)  # Alias
 ConnectorFactory.register("https", RestApiConnector)  # Alias
+# PySpark DataSource version for REST API (non-Databricks native)
+ConnectorFactory.register("rest_api_ds", RestApiDataSource)
 ConnectorFactory.register("jdbc", JdbcConnector)
 ConnectorFactory.register("database", JdbcConnector)  # Alias
 ConnectorFactory.register("table", TableConnector)
@@ -43,12 +61,28 @@ ConnectorFactory.register("dataframe", DataFrameConnector)
 VolumeConnector = AutoLoaderConnector
 
 __all__ = [
+    # Base classes
     "BaseConnector",
     "ConnectorFactory",
+    # Legacy connectors
     "AutoLoaderConnector",
     "VolumeConnector",  # Backward compatibility
     "RestApiConnector",
     "JdbcConnector",
     "TableConnector",
     "DataFrameConnector",
+    # PySpark DataSource API (Spark 4.0+)
+    "BasePySparkDataSource",
+    "BaseDataSourceReader",
+    "BaseDataSourceStreamReader",
+    "SimpleInputPartition",
+    # Partition strategies
+    "RangeInputPartition",
+    "FileInputPartition",
+    "OffsetInputPartition",
+    "PageInputPartition",
+    "TablePartition",
+    "HashInputPartition",
+    # PySpark DataSource implementations (non-Databricks native)
+    "RestApiDataSource",
 ]
