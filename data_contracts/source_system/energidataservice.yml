@@ -43,6 +43,14 @@ schema:
         value: "HourUTC"
       - property: loadtype
         value: "rest_api_ds"
+      - property: mode
+        value: "streaming"
+      - property: timestamp_field
+        value: "HourUTC"
+      - property: timestamp_param
+        value: "start"
+      - property: initial_timestamp
+        value: "2025-11-01T00:00:00"
       - property: pagination_config
         value:
           limit: 10000
@@ -135,6 +143,14 @@ schema:
         value: "HourUTC"
       - property: loadtype
         value: "rest_api_ds"
+      - property: mode
+        value: "streaming"
+      - property: timestamp_field
+        value: "HourUTC"
+      - property: timestamp_param
+        value: "start"
+      - property: initial_timestamp
+        value: "2025-11-01T00:00:00"
       - property: pagination_config
         value:
           limit: 10000
@@ -377,6 +393,14 @@ schema:
         value: "Minutes5UTC"
       - property: loadtype
         value: "rest_api_ds"
+      - property: mode
+        value: "streaming"
+      - property: timestamp_field
+        value: "Minutes5UTC"
+      - property: timestamp_param
+        value: "start"
+      - property: initial_timestamp
+        value: "2025-11-01T00:00:00"
       - property: pagination_config
         value:
           limit: 10000
@@ -574,6 +598,14 @@ schema:
         value: "Minutes5UTC"
       - property: loadtype
         value: "rest_api_ds"
+      - property: mode
+        value: "streaming"
+      - property: timestamp_field
+        value: "Minutes5UTC"
+      - property: timestamp_param
+        value: "start"
+      - property: initial_timestamp
+        value: "2025-11-01T00:00:00"
       - property: pagination_config
         value:
           limit: 10000
@@ -710,6 +742,14 @@ schema:
         value: "TimeUTC"
       - property: loadtype
         value: "rest_api_ds"
+      - property: mode
+        value: "streaming"
+      - property: timestamp_field
+        value: "TimeUTC"
+      - property: timestamp_param
+        value: "start"
+      - property: initial_timestamp
+        value: "2025-11-01T00:00:00"
       - property: pagination_config
         value:
           limit: 10000

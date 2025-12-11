@@ -99,16 +99,27 @@ def ldp_table(
         logger.info(f"Reading data using {type(connector).__name__}")
         spark = databricks_helper.get_spark()
         
-        # Check if connector has a preference for batch vs streaming
-        # REST API connectors typically work better in batch mode for full refreshes
-        use_batch = getattr(connector, 'prefer_batch', False)
+        # Check for explicit mode configuration in connector config
+        connector_mode = getattr(connector, 'config', {}).get('mode', 'batch')
         
-        if use_batch:
-            logger.info(f"Using batch read for {type(connector).__name__}")
+        # Check if connector has a preference for batch vs streaming
+        # Explicit mode config overrides connector preference
+        if connector_mode == 'streaming':
+            logger.info(f"Using streaming read for {name} (mode=streaming)")
+            return connector.read_stream(spark)
+        elif connector_mode == 'batch':
+            logger.info(f"Using batch read for {name} (mode=batch)")
             return connector.read_batch(spark)
         else:
-            logger.info(f"Using streaming read for {type(connector).__name__}")
-            return connector.read_stream(spark)
+            # Fallback to connector preference
+            use_batch = getattr(connector, 'prefer_batch', False)
+            
+            if use_batch:
+                logger.info(f"Using batch read for {type(connector).__name__} (prefer_batch=True)")
+                return connector.read_batch(spark)
+            else:
+                logger.info(f"Using streaming read for {type(connector).__name__} (prefer_batch=False)")
+                return connector.read_stream(spark)
 
 def ldp_view(
     source_catalog: str,

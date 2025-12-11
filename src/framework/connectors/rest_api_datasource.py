@@ -41,8 +41,8 @@ class RestApiDataSource(BasePySparkDataSource):
     - Incremental loading via streaming
     """
     
-    # Prefer batch mode for REST APIs (full refresh pattern)
-    prefer_batch = True
+    # Default to streaming for incremental loading (override with mode='batch' in config)
+    prefer_batch = False
     
     @classmethod
     def name(cls) -> str:
@@ -534,6 +534,7 @@ class RestApiDataSourceReader(BaseDataSourceReader):
                 if attempt > 0:
                     logger.warning(f"Retry attempt {attempt} with reduced limit: {retry_limit} (original: {limit})")
                 
+                logger.info(f"API Call [read_partition]: {method} {endpoint} with params: {base_params}")
                 logger.debug(f"Making API request: {method} {endpoint} with params: {base_params}")
                 
                 timeout = RestApiDataSource._parse_numeric_config(self.config.get("timeout", 30), 30.0, "timeout")
@@ -546,6 +547,7 @@ class RestApiDataSourceReader(BaseDataSourceReader):
                     timeout=timeout
                 )
                 response.raise_for_status()
+                logger.info(f"API Response [read_partition]: {response.status_code} from {response.url}")
                 data = response.json()
                 
                 # Extract data using data_path
@@ -637,6 +639,7 @@ class RestApiDataSourceReader(BaseDataSourceReader):
             limit_param = pagination_config.get("limit_param", "limit")
             params[limit_param] = 1  # Only fetch 1 record to get metadata
             
+            logger.info(f"API Call [get_total_records]: GET {endpoint} with params: {params}")
             response = requests.get(
                 endpoint,
                 headers=headers,
@@ -644,6 +647,7 @@ class RestApiDataSourceReader(BaseDataSourceReader):
                 timeout=timeout
             )
             response.raise_for_status()
+            logger.info(f"API Response [get_total_records]: {response.status_code} from {response.url}")
             data = response.json()
             
             # Try common metadata fields for total count
@@ -671,35 +675,55 @@ class RestApiDataSourceStreamReader(BaseDataSourceStreamReader):
     
     def get_initial_offset(self) -> dict:
         """
-        Return the initial offset for streaming.
+        Return the initial offset for streaming based on timestamp.
+        
+        Uses timestamp_field from config to track incremental progress.
+        On first run (no checkpoint), uses initial_timestamp or defaults to 30 days back.
         
         Returns:
-            Dictionary with initial timestamp or ID
+            Dictionary with last_timestamp (ISO format string)
         """
-        offset_type = self.config.get("offset_type", "timestamp")
+        import datetime
         
-        if offset_type == "timestamp":
-            import datetime
-            initial_time = self.config.get("start_time", datetime.datetime.now().isoformat())
-            return {"timestamp": initial_time, "last_id": None}
+        # Get initial timestamp from config or default to 30 days back
+        initial_timestamp = self.config.get("initial_timestamp")
+        if not initial_timestamp:
+            # Default to 30 days back from now
+            default_start = datetime.datetime.now() - datetime.timedelta(days=30)
+            initial_timestamp = default_start.isoformat()
+            logger.info(f"No initial_timestamp configured, defaulting to 30 days back: {initial_timestamp}")
         else:
-            initial_id = self.config.get("start_id", 0)
-            return {"timestamp": None, "last_id": initial_id}
+            logger.info(f"Using configured initial_timestamp: {initial_timestamp}")
+        
+        return {"last_timestamp": initial_timestamp}
     
     def get_latest_offset(self) -> dict:
         """
-        Get the latest available offset by querying the API.
+        Get the latest available offset by querying the API for most recent data.
+        
+        Queries API sorted by timestamp DESC to get the most recent record's timestamp.
+        This becomes the new checkpoint for the next streaming batch.
         
         Returns:
-            Dictionary with latest timestamp or ID
+            Dictionary with last_timestamp (ISO format string)
         """
-        # Make a request to get latest data
         try:
             endpoint = self._build_endpoint()
             headers = self._build_headers()
             timeout = RestApiDataSource._parse_numeric_config(self.config.get("timeout", 30), 30.0, "timeout")
-            params = RestApiDataSource._parse_dict_config(self.config.get("params", {}), "params")
+            params = RestApiDataSource._parse_dict_config(self.config.get("params", {}), "params").copy()
             
+            # Get timestamp field from config
+            timestamp_field = self.config.get("timestamp_field")
+            if not timestamp_field:
+                logger.warning("timestamp_field not configured, cannot determine latest offset")
+                return self.get_initial_offset()
+            
+            # Query for most recent record by sorting DESC and limiting to 1
+            params["sort"] = f"{timestamp_field} DESC"
+            params["limit"] = 1
+            
+            logger.info(f"API Call [get_latest_offset]: GET {endpoint} with params: {params}")
             response = requests.get(
                 endpoint,
                 headers=headers,
@@ -707,85 +731,204 @@ class RestApiDataSourceStreamReader(BaseDataSourceStreamReader):
                 timeout=timeout
             )
             response.raise_for_status()
+            logger.info(f"API Response [get_latest_offset]: {response.status_code} from {response.url}")
             data = response.json()
             
             records = RestApiDataSource._extract_data_from_response(data, self.config.get("data_path"))
-            if records:
-                last_record = records[-1]
-                timestamp_field = self.config.get("timestamp_field", "timestamp")
-                id_field = self.config.get("id_field", "id")
-                
-                return {
-                    "timestamp": last_record.get(timestamp_field),
-                    "last_id": last_record.get(id_field)
-                }
+            if records and len(records) > 0:
+                latest_record = records[0]
+                latest_timestamp = latest_record.get(timestamp_field)
+                if latest_timestamp:
+                    logger.info(f"Latest timestamp from API: {latest_timestamp}")
+                    return {"last_timestamp": latest_timestamp}
+            
+            logger.warning("Could not find latest timestamp in API response")
         except Exception as e:
-            logger.warning(f"Could not get latest offset: {e}")
+            logger.warning(f"Error querying latest offset: {e}")
         
+        # Fallback to initial offset if we can't determine latest
         return self.get_initial_offset()
     
     def create_stream_partitions(self, start: dict, end: dict) -> Sequence[InputPartition]:
         """
-        Create partitions for the offset range.
+        Create partitions for the timestamp range between start and end offsets.
+        
+        For now, creates a single partition for the entire time range.
+        Future enhancement: Could split large time ranges into multiple partitions
+        for parallel processing (e.g., partition by day/week/month).
         
         Args:
-            start: Start offset
-            end: End offset
+            start: Start offset with last_timestamp
+            end: End offset with last_timestamp
             
         Returns:
             Sequence of offset partitions
         """
-        return [OffsetInputPartition(start_offset=start, end_offset=end)]
+        start_ts = start.get("last_timestamp")
+        end_ts = end.get("last_timestamp")
+        
+        logger.info(f"Creating stream partition for timestamp range: {start_ts} to {end_ts}")
+        
+        # Single partition for the entire time range
+        return [OffsetInputPartition(
+            start_offset=start,
+            end_offset=end,
+            partition_id=f"ts_{start_ts}_to_{end_ts}"
+        )]
     
     def read_stream_partition(self, partition: InputPartition) -> Iterator[Row]:
         """
-        Read new data from the API for the offset range.
+        Read new data from the API for the timestamp range with pagination.
+        
+        Strategy: 
+        1. If API supports timestamp filtering (timestamp_param configured),
+           add start date filter to reduce server-side data
+        2. Fetch data sorted DESC (newest first) to only get recent records
+        3. Filter client-side and reverse to chronological order
         
         Args:
-            partition: The partition with offset range
+            partition: The partition with timestamp offset range
             
         Yields:
-            Row objects with new data
+            Row objects with new data in chronological order
         """
         if not isinstance(partition, OffsetInputPartition):
             return
         
         endpoint = self._build_endpoint()
         headers = self._build_headers()
-        params = RestApiDataSource._parse_dict_config(self.config.get("params", {}), "params")
+        base_params = RestApiDataSource._parse_dict_config(self.config.get("params", {}), "params").copy()
         
-        # Add offset parameters
-        timestamp_param = self.config.get("timestamp_param", "since")
-        id_param = self.config.get("id_param", "after_id")
+        # Get timestamp field for filtering
+        timestamp_field = self.config.get("timestamp_field")
+        if not timestamp_field:
+            logger.error("timestamp_field not configured for streaming")
+            return
         
-        if partition.start_offset.get("timestamp"):
-            params[timestamp_param] = partition.start_offset["timestamp"]
-        elif partition.start_offset.get("last_id"):
-            params[id_param] = partition.start_offset["last_id"]
+        start_ts = partition.start_offset.get("last_timestamp")
+        end_ts = partition.end_offset.get("last_timestamp")
         
-        # Make API request
-        try:
-            timeout = RestApiDataSource._parse_numeric_config(self.config.get("timeout", 30), 30.0, "timeout")
+        logger.info(f"Fetching incremental data: timestamp > {start_ts} and <= {end_ts}")
+        
+        # If API supports timestamp filtering, add start date parameter
+        # This reduces server-side data processing before sorting/pagination
+        timestamp_param = self.config.get("timestamp_param")
+        if timestamp_param and start_ts:
+            # Convert ISO 8601 format to API-accepted format
+            # API expects: yyyy-MM-dd or yyyy-MM-ddTHH:mm (no seconds)
+            # From: 2025-11-01T00:00:00 -> To: 2025-11-01T00:00
+            if 'T' in start_ts:
+                # Remove seconds portion: 2025-11-01T00:00:00 -> 2025-11-01T00:00
+                formatted_ts = start_ts.rsplit(':', 1)[0]
+            else:
+                formatted_ts = start_ts
+            base_params[timestamp_param] = formatted_ts
+            logger.info(f"Added API filter: {timestamp_param}={formatted_ts}")
+        
+        # Sort by timestamp DESC to get newest records first
+        # This way we only fetch recent data, not all historical records
+        if "sort" in base_params:
+            del base_params["sort"]
+        base_params["sort"] = f"{timestamp_field} DESC"
+        
+        # Handle pagination
+        pagination_config = RestApiDataSource._parse_dict_config(
+            self.config.get("pagination_config", {}), 
+            "pagination_config"
+        )
+        limit = int(RestApiDataSource._parse_numeric_config(
+            pagination_config.get("limit", 10000), 10000, "limit"
+        ))
+        offset = 0
+        total_records_fetched = 0
+        records_in_window = []  # Buffer to reverse at the end
+        reached_start_boundary = False
+        
+        while True:
+            try:
+                # Add pagination params
+                params = base_params.copy()
+                offset_param = pagination_config.get("offset_param", "offset")
+                limit_param = pagination_config.get("limit_param", "limit")
+                params[offset_param] = offset
+                params[limit_param] = limit
+                
+                logger.info(f"API Call [read_stream_partition]: GET {endpoint} with params: {params}")
+                logger.debug(f"Streaming API request: offset={offset}, limit={limit}, sort=DESC")
+                
+                timeout = RestApiDataSource._parse_numeric_config(self.config.get("timeout", 30), 30.0, "timeout")
+                
+                response = requests.get(
+                    endpoint,
+                    headers=headers,
+                    params=params,
+                    timeout=timeout
+                )
+                response.raise_for_status()
+                data = response.json()
+                logger.info(f"API Response [read_stream_partition]: {response.status_code} from {response.url}")
+                
+                records = RestApiDataSource._extract_data_from_response(data, self.config.get("data_path"))
+                
+                if not records or len(records) == 0:
+                    logger.info(f"No more records available. Total in window: {len(records_in_window)}")
+                    break
+                
+                logger.info(f"Fetched {len(records)} records at offset {offset}")
+                total_records_fetched += len(records)
+                
+                # Process records (they're in DESC order, newest first)
+                for record in records:
+                    if not isinstance(record, dict):
+                        continue
+                    
+                    record_ts = record.get(timestamp_field)
+                    if not record_ts:
+                        logger.warning(f"Record missing {timestamp_field}, skipping")
+                        continue
+                    
+                    # If record is after end_ts, skip it (too new)
+                    if record_ts > end_ts:
+                        continue
+                    
+                    # If we've reached records at or before start_ts, we're done
+                    if record_ts <= start_ts:
+                        reached_start_boundary = True
+                        logger.info(f"Reached start boundary {start_ts}. Records in window: {len(records_in_window)}")
+                        break
+                    
+                    # Record is within window (start_ts < record_ts <= end_ts)
+                    records_in_window.append(record)
+                
+                # Stop if we've reached the start boundary
+                if reached_start_boundary:
+                    break
+                
+                # If we got fewer records than limit, we've reached the end of available data
+                if len(records) < limit:
+                    logger.info(f"Reached end of available data. Total fetched: {total_records_fetched}, in window: {len(records_in_window)}")
+                    break
+                
+                # Move to next page
+                offset += limit
+                
+                # Apply rate limiting between requests
+                if "rate_limit_delay" in self.config:
+                    delay = RestApiDataSource._parse_numeric_config(
+                        self.config["rate_limit_delay"], 0.1, "rate_limit_delay"
+                    )
+                    time.sleep(delay)
             
-            response = requests.get(
-                endpoint,
-                headers=headers,
-                params=params,
-                timeout=timeout
-            )
-            response.raise_for_status()
-            data = response.json()
-            
-            records = RestApiDataSource._extract_data_from_response(data, self.config.get("data_path"))
-            for record in records:
-                if isinstance(record, dict):
-                    yield Row(**record)
-                else:
-                    yield Row(data=str(record))
+            except Exception as e:
+                logger.error(f"Stream API request failed at offset {offset}: {e}")
+                raise
         
-        except Exception as e:
-            logger.error(f"Stream API request failed: {e}")
-            raise
+        # Reverse records to chronological order (oldest first) and yield
+        logger.info(f"Yielding {len(records_in_window)} records in chronological order")
+        for record in reversed(records_in_window):
+            yield Row(**record)
+        
+        logger.info(f"Streaming complete. Fetched {total_records_fetched} total, yielded {len(records_in_window)} new records")
     
     def _build_endpoint(self) -> str:
         """Build full endpoint URL, appending table_name if provided."""

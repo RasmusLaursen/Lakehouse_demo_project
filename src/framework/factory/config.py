@@ -229,6 +229,10 @@ class PipelineConfig:
                     else:
                         connector_config["params"] = prop_value
                         logger.info(f"Applied schema-level params for {model_name}: {prop_value}")
+                elif prop_name in ["mode", "timestamp_field", "timestamp_param", "initial_timestamp"]:
+                    # Pass streaming-related config directly to connector
+                    connector_config[prop_name] = prop_value
+                    logger.info(f"Applied schema-level {prop_name} for {model_name}: {prop_value}")
         
         # For volume-based connectors ONLY, merge in catalog/schema/volume
         # Other connector types (REST API, JDBC, etc.) should use only their defined config
