@@ -5,7 +5,7 @@ This module provides a native Spark DataSource implementation for reading
 from REST APIs with built-in pagination, authentication, and rate limiting.
 """
 
-from typing import Dict, Any, Union, Iterator, Sequence, List, TYPE_CHECKING
+from typing import Dict, Any, Union, Iterator, Sequence, List, Optional, TYPE_CHECKING
 import json
 import ast
 import time
@@ -229,22 +229,67 @@ class RestApiDataSource(BasePySparkDataSource):
         
         return base_endpoint
     
+    def _get_access_token_from_refresh(self, refresh_token: str) -> str:
+        """Exchange refresh token for access token.
+        
+        Used for OAuth2 refresh token flow (e.g., Eloverblik API).
+        
+        Args:
+            refresh_token: The refresh token
+            
+        Returns:
+            Access token
+            
+        Raises:
+            requests.HTTPError: If token exchange fails
+        """
+        token_endpoint = self.config.get("token_endpoint")
+        if not token_endpoint:
+            raise ValueError("token_endpoint must be configured for oauth2_refresh auth type")
+        
+        token_method = self.config.get("token_method", "GET").upper()
+        token_response_path = self.config.get("token_response_path", "result")
+        
+        logger.info(f"Exchanging refresh token for access token at: {token_endpoint}")
+        
+        try:
+            response = requests.request(
+                method=token_method,
+                url=token_endpoint,
+                headers={"Authorization": f"Bearer {refresh_token}"},
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            # Extract access token using response path
+            access_token = data
+            for key in token_response_path.split("."):
+                access_token = access_token.get(key)
+            
+            if not access_token:
+                raise ValueError(f"Could not extract access token from response using path: {token_response_path}")
+            
+            logger.info("Successfully obtained access token")
+            return access_token
+            
+        except requests.HTTPError as e:
+            logger.error(f"Failed to exchange refresh token: {e}")
+            raise
+    
     def _build_headers(self) -> Dict[str, str]:
-        """Build HTTP headers including authentication."""
+        """Build HTTP headers including static headers only.
+        
+        NOTE: Secret resolution happens during data read phase (in RestApiDataSourceReader._build_headers())
+        when dbutils is guaranteed to be available. This method only parses static headers.
+        
+        Returns:
+            Dict of HTTP headers (without authentication secrets)
+        """
+        # Only parse static headers - secret resolution happens at read time
         headers = RestApiDataSource._parse_dict_config(self.config.get("headers", {}), "headers")
-        
-        auth_type = self.config.get("auth_type", "none").lower()
-        
-        if auth_type == "bearer":
-            token = self.config.get("auth_token")
-            if token:
-                headers["Authorization"] = f"Bearer {token}"
-        elif auth_type == "api_key":
-            token = self.config.get("auth_token")
-            header_name = self.config.get("auth_header", "X-API-Key")
-            if token:
-                headers[header_name] = token
-        
+        logger.debug("Built static headers. Authentication secrets will be resolved during data read phase.")
         return headers
     
     def create_reader(self, schema: StructType) -> "RestApiDataSourceReader":
@@ -398,7 +443,22 @@ class RestApiDataSourceReader(BaseDataSourceReader):
     Batch reader for REST APIs with pagination-aware partitioning.
     
     Creates one partition per page/offset for parallel API requests.
+    
+    Access tokens for OAuth2 are cached per reader instance to avoid
+    repeated token exchanges and hitting rate limits.
     """
+    
+    # Class-level cache for access tokens (scope: refresh_token -> access_token)
+    # This prevents multiple token exchanges for the same refresh token
+    _token_cache: Dict[str, str] = {}
+    _token_cache_lock = None  # Will be initialized as threading.Lock in __init__
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Initialize class-level lock if not already done
+        if RestApiDataSourceReader._token_cache_lock is None:
+            import threading
+            RestApiDataSourceReader._token_cache_lock = threading.Lock()
     
     def create_partitions(self) -> Sequence[InputPartition]:
         """
@@ -594,8 +654,110 @@ class RestApiDataSourceReader(BaseDataSourceReader):
         
         return base_endpoint
     
+    def _get_cached_access_token(self, refresh_token: str) -> Optional[str]:
+        """Get cached access token for a given refresh token.
+        
+        Args:
+            refresh_token: The refresh token to look up
+            
+        Returns:
+            Cached access token or None if not in cache
+        """
+        import hashlib
+        # Use hash of refresh token as cache key to avoid storing sensitive values
+        cache_key = hashlib.sha256(refresh_token.encode()).hexdigest()
+        if RestApiDataSourceReader._token_cache_lock:
+            with RestApiDataSourceReader._token_cache_lock:
+                return RestApiDataSourceReader._token_cache.get(cache_key)
+        return RestApiDataSourceReader._token_cache.get(cache_key)
+    
+    def _cache_access_token(self, refresh_token: str, access_token: str) -> None:
+        """Cache an access token for a given refresh token.
+        
+        Args:
+            refresh_token: The refresh token
+            access_token: The access token to cache
+        """
+        import hashlib
+        # Use hash of refresh token as cache key to avoid storing sensitive values
+        cache_key = hashlib.sha256(refresh_token.encode()).hexdigest()
+        if RestApiDataSourceReader._token_cache_lock:
+            with RestApiDataSourceReader._token_cache_lock:
+                RestApiDataSourceReader._token_cache[cache_key] = access_token
+                logger.debug(f"Cached access token for refresh token (cache size: {len(RestApiDataSourceReader._token_cache)})")
+        else:
+            RestApiDataSourceReader._token_cache[cache_key] = access_token
+    
+    def _get_access_token_from_refresh(self, refresh_token: str) -> str:
+        """Exchange refresh token for access token.
+        
+        Used for OAuth2 refresh token flow (e.g., Eloverblik API).
+        
+        Args:
+            refresh_token: The refresh token
+            
+        Returns:
+            Access token
+            
+        Raises:
+            requests.HTTPError: If token exchange fails
+        """
+        token_endpoint = self.config.get("token_endpoint")
+        if not token_endpoint:
+            raise ValueError("token_endpoint must be configured for oauth2_refresh auth type")
+        
+        token_method = self.config.get("token_method", "GET").upper()
+        token_response_path = self.config.get("token_response_path", "result")
+        
+        logger.info(f"Exchanging refresh token for access token at: {token_endpoint}")
+        
+        try:
+            response = requests.request(
+                method=token_method,
+                url=token_endpoint,
+                headers={"Authorization": f"Bearer {refresh_token}"},
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            # Extract access token using response path
+            access_token = data
+            for key in token_response_path.split("."):
+                access_token = access_token.get(key)
+            
+            if not access_token:
+                raise ValueError(f"Could not extract access token from response using path: {token_response_path}")
+            
+            logger.info("Successfully obtained access token")
+            return access_token
+            
+        except requests.HTTPError as e:
+            logger.error(f"Failed to exchange refresh token: {e}")
+            raise
+    
     def _build_headers(self) -> Dict[str, str]:
-        """Build HTTP headers including authentication (delegates to RestApiDataSource)."""
+        """Build HTTP headers including authentication with secrets resolved at read time.
+        
+        This method is called during read_partition (data read phase) when dbutils is guaranteed
+        to be available. It resolves secret references and exchanges tokens if needed.
+        
+        Automatically resolves secret references in the format:
+        - secret://scope/key
+        - {{secrets/scope/key}}
+        
+        Supports auth types:
+        - bearer: Direct bearer token
+        - api_key: API key in custom header
+        - oauth2_refresh: Exchange refresh token for access token
+        
+        Returns:
+            Dict of HTTP headers including authentication
+        """
+        logger.info(f"_build_headers() called. Config keys: {list(self.config.keys())}")
+        logger.info(f"auth_type: {self.config.get('auth_type')}, auth_token: {self.config.get('auth_token')}, auth_token_key: {self.config.get('auth_token_key')}")
+        
         headers = RestApiDataSource._parse_dict_config(self.config.get("headers", {}), "headers")
         
         auth_type = self.config.get("auth_type", "none").lower()
@@ -603,14 +765,164 @@ class RestApiDataSourceReader(BaseDataSourceReader):
         if auth_type == "bearer":
             token = self.config.get("auth_token")
             if token:
-                headers["Authorization"] = f"Bearer {token}"
+                # Resolve secret reference if needed
+                logger.debug(f"Resolving bearer token: {token[:30]}..." if len(str(token)) > 30 else f"Resolving bearer token: {token}")
+                try:
+                    resolved_token = self._resolve_secret(token)
+                    if resolved_token:
+                        headers["Authorization"] = f"Bearer {resolved_token}"
+                        logger.debug(f"Bearer token resolved successfully")
+                    else:
+                        logger.error(f"Bearer token resolved to None or empty")
+                        raise ValueError("Bearer token could not be resolved")
+                except Exception as e:
+                    logger.error(f"Failed to resolve bearer token: {e}")
+                    raise
+                
         elif auth_type == "api_key":
             token = self.config.get("auth_token")
             header_name = self.config.get("auth_header", "X-API-Key")
             if token:
-                headers[header_name] = token
+                # Resolve secret reference if needed
+                logger.debug(f"Resolving api_key token: {token[:30]}..." if len(str(token)) > 30 else f"Resolving api_key token: {token}")
+                try:
+                    resolved_token = self._resolve_secret(token)
+                    if resolved_token:
+                        headers[header_name] = resolved_token
+                        logger.debug(f"API key token resolved successfully")
+                    else:
+                        logger.error(f"API key token resolved to None or empty")
+                        raise ValueError("API key token could not be resolved")
+                except Exception as e:
+                    logger.error(f"Failed to resolve api_key token: {e}")
+                    raise
+                
+        elif auth_type == "oauth2_refresh":
+            refresh_token = self.config.get("auth_token")
+            auth_token_key = self.config.get("auth_token_key")  # e.g., "eloverblik-api-token"
+            
+            # If no auth_token specified, try to get from Spark config using auth_token_key
+            # This is the preferred approach for DLT pipelines
+            if not refresh_token and auth_token_key:
+                logger.debug(f"No auth_token specified, getting refresh token from Spark config using key: {auth_token_key}")
+                refresh_token = self._resolve_secret(f"{{{{spark.{auth_token_key}}}}}")
+                if refresh_token:
+                    logger.debug(f"Successfully retrieved refresh token from Spark config: {auth_token_key}")
+            
+            # Alternative: If auth_token is specified, try to resolve it first
+            if refresh_token:
+                # Resolve secret reference for refresh token if needed
+                logger.debug(f"Resolving oauth2_refresh token: {refresh_token[:30]}..." if len(str(refresh_token)) > 30 else f"Resolving oauth2_refresh token: {refresh_token}")
+                try:
+                    resolved_refresh_token = self._resolve_secret(refresh_token)
+                    if not resolved_refresh_token:
+                        raise ValueError("OAuth2 refresh token could not be resolved")
+                    
+                    logger.debug(f"OAuth2 refresh token resolved successfully")
+                    
+                    # Check token cache first to avoid repeated token exchanges
+                    access_token = self._get_cached_access_token(resolved_refresh_token)
+                    if not access_token:
+                        # Token not in cache, exchange for new access token
+                        logger.debug(f"Exchanging refresh token for access token (cache miss)")
+                        access_token = self._get_access_token_from_refresh(resolved_refresh_token)
+                        # Cache the token
+                        self._cache_access_token(resolved_refresh_token, access_token)
+                    else:
+                        logger.debug(f"Using cached access token")
+                    
+                    headers["Authorization"] = f"Bearer {access_token}"
+                except Exception as e:
+                    logger.error(f"Failed to resolve oauth2_refresh token or exchange for access token: {e}")
+                    raise
+            else:
+                logger.error(f"No refresh token could be obtained for oauth2_refresh auth")
+                raise ValueError(f"OAuth2 refresh requires either auth_token or auth_token_key to be configured")
         
         return headers
+    
+    def _resolve_secret(self, reference: str) -> Optional[str]:
+        """Resolve a secret reference to its actual value.
+        
+        Supports formats:
+        - secret://scope/key (uses dbutils.secrets.get - requires dbutils in global)
+        - {{secrets/scope/key}} (uses dbutils.secrets.get - requires dbutils in global)
+        - {{spark.config-key}} (uses spark.conf.get - tries at runtime if needed)
+        - Plain string (returns as-is)
+        
+        NOTE: {{spark.*}} references are preferentially resolved at schema inference time,
+        but can also be resolved at runtime if they weren't resolved earlier.
+        
+        Args:
+            reference: Secret reference or plain value
+            
+        Returns:
+            Resolved secret value or None
+        """
+        if not reference or not isinstance(reference, str):
+            return reference
+        
+        # Handle "{{spark.config-key}}" format (fallback if not resolved at schema time)
+        if reference.startswith("{{spark.") and reference.endswith("}}"):
+            config_key = reference[8:-2]  # Remove {{spark. and }}
+            logger.info(f"Resolving {{{{spark.{config_key}}}}} at runtime")
+            try:
+                from pyspark.sql import SparkSession
+                spark = SparkSession.getActiveSession()
+                logger.debug(f"SparkSession.getActiveSession() returned: {spark}")
+                if not spark:
+                    logger.debug("Trying SparkSession.builder.getOrCreate()")
+                    spark = SparkSession.builder.getOrCreate()
+                    logger.debug(f"SparkSession.builder.getOrCreate() returned: {spark}")
+                
+                if spark:
+                    # Try both with and without spark. prefix
+                    spark_config_key_with_prefix = f"spark.{config_key}"
+                    spark_config_key_without_prefix = config_key
+                    
+                    value = spark.conf.get(spark_config_key_with_prefix, None)
+                    logger.debug(f"spark.conf.get('{spark_config_key_with_prefix}') returned: {value}")
+                    
+                    if not value:
+                        # Try without prefix
+                        value = spark.conf.get(spark_config_key_without_prefix, None)
+                        logger.debug(f"spark.conf.get('{spark_config_key_without_prefix}') returned: {value}")
+                    
+                    if value:
+                        logger.info(f"Resolved {{{{spark.{config_key}}}}} at runtime: {value[:30]}...")
+                        return value
+                    else:
+                        logger.debug(f"Spark config values are None or empty")
+            except Exception as e:
+                logger.error(f"Exception resolving {{{{spark.{config_key}}}}} at runtime: {e}", exc_info=True)
+            
+            logger.error(f"Could not resolve {{{{spark.{config_key}}}}} - value not found in spark.conf")
+            raise ValueError(f"Could not resolve {{{{spark.{config_key}}}}} - key '{config_key}' not found in Spark config")        # Handle "secret://scope/key" format
+        if reference.startswith("secret://"):
+            path = reference.replace("secret://", "")
+            if "/" in path:
+                scope, key = path.split("/", 1)
+                try:
+                    logger.debug(f"Resolving secret reference: scope='{scope}', key='{key}'")
+                    return get_secret_direct(scope, key)
+                except Exception as e:
+                    logger.error(f"Failed to resolve secret {scope}/{key}: {e}")
+                    raise
+        
+        # Handle "{{secrets/scope/key}}" format
+        elif reference.startswith("{{secrets/") and reference.endswith("}}"):
+            path = reference[10:-2]  # Remove {{secrets/ and }}
+            if "/" in path:
+                scope, key = path.split("/", 1)
+                try:
+                    logger.debug(f"Resolving secret reference: scope='{scope}', key='{key}'")
+                    return get_secret_direct(scope, key)
+                except Exception as e:
+                    logger.error(f"Failed to resolve secret {scope}/{key}: {e}")
+                    raise
+        
+        # Not a secret reference, return as-is
+        return reference
     
     def _apply_rate_limit(self) -> None:
         """Apply rate limiting delay if configured."""

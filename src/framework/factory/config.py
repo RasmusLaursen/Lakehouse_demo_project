@@ -61,6 +61,10 @@ class PipelineConfig:
             'dimensions'
         """
         environment = spark.conf.get("environment", "dev")
+
+        rest_api_token = spark.conf.get("spark.eloverblik-api-token")
+
+        logger.info(f"Rest API Token from Spark Config: {rest_api_token}")
         
         catalogs = databricks_helper.get_pipeline_configurations(spark, "catalogs")
         schemas = databricks_helper.get_pipeline_configurations(spark, "schemas")
@@ -229,8 +233,8 @@ class PipelineConfig:
                     else:
                         connector_config["params"] = prop_value
                         logger.info(f"Applied schema-level params for {model_name}: {prop_value}")
-                elif prop_name in ["mode", "timestamp_field", "timestamp_param", "initial_timestamp"]:
-                    # Pass streaming-related config directly to connector
+                elif prop_name in ["mode", "timestamp_field", "timestamp_param", "initial_timestamp", "table_name"]:
+                    # Pass streaming-related config and table_name directly to connector
                     connector_config[prop_name] = prop_value
                     logger.info(f"Applied schema-level {prop_name} for {model_name}: {prop_value}")
         
@@ -250,6 +254,76 @@ class PipelineConfig:
         logger.info(f"Creating {self.connector_type} connector for {model_name} with config keys: {list(connector_config.keys())}")
         
         return ConnectorFactory.create(self.connector_type, connector_config)
+    
+    def get_secret_from_spark_config(self, key: str) -> Optional[str]:
+        """Get a secret value from Spark configuration.
+        
+        In DLT pipelines, secrets can be passed via Spark configuration:
+        spark.{key}: "{{secrets/scope/key}}"
+        
+        Databricks automatically interpolates {{secrets/*}} at pipeline startup,
+        so we just need to read the pre-interpolated value from spark.conf.
+        
+        Args:
+            key: Configuration key name (without 'spark.' prefix)
+            
+        Returns:
+            Secret value from Spark config, or None if not found
+            
+        Example:
+            Pipeline config: spark.eloverblik-api-token: "{{secrets/scope-demo-dev/eloverblik-api-token}}"
+            Call: config.get_secret_from_spark_config("eloverblik-api-token")
+        """
+        try:
+            spark_key = f"spark.{key}"
+            spark = databricks_helper.get_spark()
+            secret_value = spark.conf.get(spark_key, None)
+            
+            if secret_value:
+                logger.debug(f"Retrieved secret from Spark config: {key}")
+                return secret_value
+            else:
+                logger.debug(f"Secret not found in Spark config: {key}")
+                return None
+                
+        except Exception as e:
+            logger.warning(f"Error retrieving secret from Spark config ({key}): {e}")
+            return None
+    
+    def get_secrets_from_config(self, secret_keys: Dict[str, str]) -> Dict[str, Optional[str]]:
+        """Get multiple secrets from configuration.
+        
+        Resolves all provided secrets from Spark config in a single call.
+        Useful for connectors that need multiple secrets (API keys, tokens, etc).
+        
+        Args:
+            secret_keys: Dictionary mapping secret names to config key names
+                        Example: {"api_token": "eloverblik-api-token", "refresh_token": "eloverblik-refresh"}
+            
+        Returns:
+            Dictionary mapping secret names to their resolved values (or None if not found)
+            
+        Example:
+            ```python
+            secrets = config.get_secrets_from_config({
+                "api_token": "eloverblik-api-token",
+                "refresh_token": "eloverblik-refresh"
+            })
+            api_token = secrets.get("api_token")
+            ```
+        """
+        resolved_secrets = {}
+        
+        for secret_name, config_key in secret_keys.items():
+            try:
+                value = self.get_secret_from_spark_config(config_key)
+                resolved_secrets[secret_name] = value
+                logger.debug(f"Resolved secret '{secret_name}' from config key '{config_key}': {'found' if value else 'not found'}")
+            except Exception as e:
+                logger.warning(f"Error resolving secret '{secret_name}' from config key '{config_key}': {e}")
+                resolved_secrets[secret_name] = None
+        
+        return resolved_secrets
     
     def validate(self) -> bool:
         """Validate that all required configuration is present.

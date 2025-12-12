@@ -1,0 +1,25 @@
+variables:
+  environment:
+    default: dev
+
+resources:
+  schemas:
+    eloverblik_raw_schema:
+      catalog_name: ${var.raw_catalog}
+      name: eloverblik
+      comment: "Raw layer for Eloverblik (Danish electricity consumption) data - append-only source data"
+      properties:
+        layer: "raw"
+        source_system: "eloverblik"
+        data_classification: "confidential"
+        owner: "data_engineering"
+
+    eloverblik_base_schema:
+      catalog_name: ${var.base_catalog}
+      name: eloverblik
+      comment: "Base layer for Eloverblik data - cleaned and standardized electricity consumption data"
+      properties:
+        layer: "base"
+        source_system: "eloverblik"
+        data_classification: "confidential"
+        owner: "data_engineering"

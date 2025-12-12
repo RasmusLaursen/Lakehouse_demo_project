@@ -45,6 +45,8 @@ schema:
         value: "rest_api_ds"
       - property: mode
         value: "streaming"
+      - property: table_name
+        value: "ReCoverageMunicipality"
       - property: timestamp_field
         value: "HourUTC"
       - property: timestamp_param
@@ -145,6 +147,8 @@ schema:
         value: "rest_api_ds"
       - property: mode
         value: "streaming"
+      - property: table_name
+        value: "ReCoverageMunicipality"
       - property: timestamp_field
         value: "HourUTC"
       - property: timestamp_param
@@ -600,6 +604,8 @@ schema:
         value: "rest_api_ds"
       - property: mode
         value: "streaming"
+      - property: table_name
+        value: "Forecasts_5Min"
       - property: timestamp_field
         value: "Minutes5UTC"
       - property: timestamp_param
@@ -744,6 +750,8 @@ schema:
         value: "rest_api_ds"
       - property: mode
         value: "streaming"
+      - property: table_name
+        value: "GenerationProdTypeExchange"
       - property: timestamp_field
         value: "TimeUTC"
       - property: timestamp_param

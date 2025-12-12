@@ -24,20 +24,30 @@ def get_spark() -> SparkSession:
 from pyspark.dbutils import DBUtils
 
 
-def get_dbutils(spark: SparkSession) -> DBUtils:
+def get_dbutils(spark: SparkSession = None):
     """
     Retrieves the DBUtils object for the given Spark session.
 
-    This function creates and returns a DBUtils instance that can be used
-    to interact with Databricks utilities within the provided Spark session.
+    In Databricks runtime, dbutils is available in the global namespace.
+    This function attempts to access it from there first before falling back
+    to creating a DBUtils instance.
 
     Args:
-        spark (SparkSession): The Spark session from which to create the DBUtils.
+        spark (SparkSession): Optional Spark session (not used if dbutils is in globals)
 
     Returns:
-        DBUtils: An instance of DBUtils associated with the provided Spark session.
+        DBUtils or dbutils object from global namespace
     """
-    return DBUtils(spark)
+    try:
+        # Try to get dbutils from globals (Databricks runtime)
+        return globals()['dbutils']
+    except KeyError:
+        # Fall back to creating DBUtils if not in Databricks runtime
+        # Note: This may fail with permission errors if not in proper Databricks context
+        if spark is None:
+            spark = get_spark()
+        from pyspark.dbutils import DBUtils
+        return DBUtils(spark)
 
 
 # TODO
