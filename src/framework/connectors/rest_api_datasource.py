@@ -8,13 +8,21 @@ from REST APIs with built-in pagination, authentication, and rate limiting.
 from typing import Dict, Any, Union, Iterator, Sequence, List, Optional, TYPE_CHECKING
 import json
 import ast
+import datetime
 import time
-import threading
-import hashlib
 import requests
+import datetime
 from pyspark.sql import Row
-from pyspark.sql.types import StructType, StructField, StringType
 from pyspark.sql.datasource import InputPartition
+from pyspark.sql.types import (
+    StructType,
+    StructField,
+    StringType,
+    LongType,
+    DoubleType,
+    BooleanType,
+    TimestampType,
+)
 
 if TYPE_CHECKING:
     from pyspark.sql import SparkSession, DataFrame
@@ -29,6 +37,70 @@ from src.framework.connectors.partition_strategies import PageInputPartition, Of
 from src.framework.helper import logging_helper
 
 logger = logging_helper.get_logger(__name__)
+
+def flatten_json(nested, parent_key="", sep="."):
+    """
+    Basic recursive flatten of a JSON object (dict) into a one-level dict.
+    E.g. {"a": {"b": 123, "c": 456}} -> {"a.b": 123, "a.c": 456}
+    Arrays (lists) remain as raw JSON strings.
+    """
+    items = []
+    if isinstance(nested, dict):
+        for k, v in nested.items():
+            new_key = f"{parent_key}{sep}{k}" if parent_key else k
+            if isinstance(v, dict):
+                items.extend(flatten_json(v, new_key, sep=sep).items())
+            elif isinstance(v, list):
+                items.append((new_key, json.dumps(v)))
+            else:
+                items.append((new_key, v))
+    elif isinstance(nested, list):
+        items.append((parent_key, json.dumps(nested)))
+    else:
+        items.append((parent_key, nested))
+    return dict(items)
+
+def get_nested_value(data, json_path):
+    """
+    Extracts a nested value from data following a path like "data.items".
+    If any level is missing, returns None.
+    """
+    if not json_path:
+        return data
+    keys = json_path.split(".")
+    for key in keys:
+        if not isinstance(data, dict):
+            return None
+        data = data.get(key)
+        if data is None:
+            return None
+    return data
+
+def infer_spark_type(value):
+    """
+    Infer Spark DataType from a given Python value.
+    For strings, we try to detect an ISO-formatted datetime.
+    For lists or dicts, we fallback to StringType since these are flattened to JSON strings.
+    """
+    if value is None:
+        return StringType()
+    if isinstance(value, bool):
+        return BooleanType()
+    if isinstance(value, int):
+        return LongType()
+    if isinstance(value, float):
+        return DoubleType()
+    if isinstance(value, str):
+        try:
+            # Attempt to parse ISO formatted datetime
+            datetime.datetime.fromisoformat(value)
+            return TimestampType()
+        except ValueError:
+            return StringType()
+    return StringType()
+
+def convert_value_to_type(value, spark_type):
+    return str(value)
 
 
 class RestApiDataSource(BasePySparkDataSource):
@@ -52,10 +124,12 @@ class RestApiDataSource(BasePySparkDataSource):
         Args:
             options: Configuration options for the data source
             
-        Raises:
+        Raises:RestApiDataSourceReader._access_token_cache[cache_key]
             ValueError: If required auth configuration is missing
         """
         super().__init__(options)
+
+        logger.info("running with options: %s", options)
         
         # Validate and log auth configuration early
         auth_type = self.config.get("auth_type", "none").lower()
@@ -70,123 +144,94 @@ class RestApiDataSource(BasePySparkDataSource):
             logger.info(f"Validated {auth_type} authentication token in RestApiDataSource.__init__")
         
         logger.debug(f"RestApiDataSource initialized with config keys: {list(self.config.keys())}")
-    
+        
     @classmethod
     def name(cls) -> str:
         """Return the short name for this data source."""
-        return "rest_api"
+        return "rest_api_ds"
     
     def schema(self) -> Union[StructType, str]:
         """
-        Infer schema from API response or use provided schema.
+        Spark calls this method to get a schema (StructType)
+        for the DataFrame.
         
-        Returns:
-            StructType of the response data
+        We perform a quick API call to infer the columns by examining the first JSON object.
+        Each field is flattened and its type is inferred (if enabled) or set as a string.
         """
-        # If schema provided in config, use it
-        if "schema" in self.config:
-            schema_config = self.config["schema"]
-            if isinstance(schema_config, StructType):
-                return schema_config
-            elif isinstance(schema_config, str):
-                return schema_config
-        
-        # Otherwise, make a sample request to infer schema
-        logger.info("Inferring schema from API response")
         try:
-            sample_data = self._fetch_sample_data()
-            if sample_data:
-                # Create schema from first record
-                return self._infer_schema_from_dict(sample_data[0])
-        except Exception as e:
-            logger.warning(f"Could not infer schema: {e}")
-        
-        # Fallback to generic schema
-        return StructType([StructField("data", StringType(), True)])
-    
-    def _fetch_sample_data(self) -> List[Dict[str, Any]]:
-        """Fetch a small sample to infer schema.
-        
-        This method extracts data from the API response using data_path and returns
-        the innermost array elements (after extraction). These are the records that
-        will be yielded from read_partition() and should match the declared schema.
-        
-        Note: Authentication may not be fully resolved during schema inference,
-        so we do a best-effort attempt without raising on auth errors.
-        """
-        endpoint = self._build_endpoint()
-        method = self.config.get("method", "GET").upper()
-        
-        try:
-            # Build headers, but don't fail if auth can't be resolved yet
-            try:
-                headers = self._build_headers()
-            except Exception as auth_error:
-                logger.warning(f"Could not build auth headers during schema inference: {auth_error}. Using minimal headers.")
-                headers = {"Accept": "application/json"}
-            
-            timeout_val = self.config.get("timeout", 30)
-            timeout = float(timeout_val) if timeout_val else 30.0
-            
-            logger.info(f"Fetching sample data from {endpoint} for schema inference")
-            response = requests.request(
-                method=method,
-                url=endpoint,
-                headers=headers,
-                params=self.config.get("params", {}),
-                timeout=timeout
+            url = self._build_endpoint()
+            # auth_token = self.config.get("auth_token")
+            auth_token = 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlblR5cGUiOiJDdXN0b21lckFQSV9EYXRhQWNjZXNzIiwidG9rZW5pZCI6ImNlNmYzODIwLTUxOTItNDkyOS1hY2Q1LTg2MWE5N2YzMzBhOSIsIndlYkFwcCI6IkN1c3RvbWVyQXBwIiwidmVyc2lvbiI6IjIiLCJpZGVudGl0eVRva2VuIjoiby9lUkhCNXI5WGpCam5mQWVjUFFRcHdZNUpMeEZBK002M24wOFQyUFFuMHhWRzdIWWp4NFh1N1NRaEhjK3ZwcWtMM2pxN3BZTUJzZXIzUzNwOGxJMmc0WXQyVVE5Z1dEZHdPZ1dOd2F2TkNOZGdRZG9mRllPV3dwbWhVZWFURThLcjhVbnI3dUVyZEJjT0hnbmZ6UStIZVZTYzF3M29kTGtrK1h2d1Fxc3RKcjFybTBCSW9ESmZPY1VRbG1jbWM4SFZKRTBROU1Lc3g3STFIckVKNC9oRnBTMGRVUnJncmRXSFp3YlhqL3JBd0tudWlteXlLaHpmczNJbERMRWdlTFVlVFpIbEpPOUlLeTJQUkM3QXBBSUl2YXBNZmlCU3BXa0gyVitGOGxxaHYvUSt5UWswdDloeDE5OG5HYTZ6aXVjdlZIZ2xSSXlFMzBGcVo1Q3dGemhtRkNxNWhFcjZhQlRtSHJQNDltdVlZU0s5UXIyaXYzWFJkc3NHQVpqcWpkcDlFV1kzamdBcTFjWHN2OWVoZ2wwQXBXMXEwYlBPc3hhSEZuMXRXY0dhOXRmVmlxUlU4VWYwTlR3YjIvMGdJTXJnMU1iR0hnN2RwU3FNV1k0ZWRJSk5wYTRZM1k2cDJUUVVOd0N1Y1dtb0pnVUxScGhBRmtuYkU0aExHSG9XdWZrTTEybnRJT1hOT1pkdk50bCtuQ29FUEpINm9RanV3MkthTEIzbWhXNGlkNm5xcWVoN1pzeWxDRkQ0SlA2dGM4SmZPTnJPWkQ2cWs1dWlETlpEUkdKNFM2ZGM0ek43N1huREtpYi9DcW9rTVBoZGZlNm4rZ2ZzS25uT0NRYk9uUDhFbGx0L3VqcmViZ21tc1lGNFhXSk9oOGJjV3E4VkJBWWhyRTFFUHZjQ250UGVLUXg0a25Gc3luUEJlUDh5MGhQZzVDR25OeEsxN0E3a0FPMVc4UGhSK0dOL1d4NE9QNWp4WnRUWUJZTUVtcHBGTVlSYXVvY3FDSHhxZkMwSHQxekpaM2JSeTZ5T2FvQjVNVDc4bUo4by9JbDNlVWkwSkhzM3FDRnlsWEIvUzdxYm1ibVZsd1FXUXFRYmZFL0tFK3BVNzJSazBnUVV0dmk2OXhrSkVTdlpiOFVSRlAvbXpocVd5NzBNZzc3ck9JbFJEMnZOdE90RVBLbUVrVjJ6OS9YU1N0YWhuUXZRa0ozeEhWazdaN2FGdWVMUngrT1BFTHZyT1dmSkE5Rm53SXJ2K3hQajhQY0tqaFZkaWhzRHBwUTROdzE5bHhwdGJKRGQ3ZXhKQ0loTkdTMmxPb1Ntc0lvWVZ0cE11QTF0ZGloWDJkUWdpWDVlRlg5N3krVi9LUG9uNDVHMEE3YW9uRjVBaVU2Ump3ZXViNWt5UzJYSG53UUZyeU1sdnNpa05jMUNXSVoyL1pVcEsrVHFZUE1td3pTM24vZU9tZ0hSZmdXUzhUNUtHL0hzcm1CbnFMRm0zTzcyNHQ3cGRuMWdFT2VVL1llRCtxRWpsTXFQY1dndk0wdWNFR01oV0FvczhhbHdkcXJoSXNCbGRqclRXVjhkT3VYTUUxQnJKWjlqVm96V0VSRUdOUm81U0ZwYWVJU0NieUZNRmpISndZN29LaktMVDJjMnlGYlp1NHN1LzFzVmVzY2hoVFc5SnpwVUtIU09YbVBSOTQyY3pTOUlEU3RUdlAzRkZGMzRuWkpKR2tWb3NiekpSbjhRbUhSYW1XT1R5ZE9VYmxmUFdRYUpJWjg1a1BGL3lRb2NGY2hBbmZXU01sL1hFNDMxb2ozS2lRSTRVOEVjYUsxYzU4dFhWZUpHYVd2VDdrdVNtTFNBS1VDeGpzZkY0QXdCd3luZEg2cURhaWwvR2lxYkJlSnQydURoY2lLU0FtS3l1QkZlejFvM2YveGI5TlFsSjRqaUpPVk1KWDRxbXgxY29yOWlCQ2s4QytxeDQ3Z1IzdStBMU1raVpwVzgwME13M2l5blV6b1hJS3BScHJ0NkRvT0wvU2ZmWlJYa0dYRHhFVVhUYVVVakRiVTdodkF6QTlBWXh0MmxWT1VUbTdnbm5kNDIvOGpCVUV3Vk5jT2VFZlorVzJuRXMwUllDUHF4QUI2TjNUbGJycEUyNEc4UkpZbUdnSi9KejBTSTRZRW5iaTFGRndzWnlEcFNrTmNuczBDVUVDbXFxWVBlY0hQMkxqMCs1aHhybFJyVnpRN1lZV2t6RzlPTmVpWVByY1lNYllkUWFFdmxuQVJaNm1WVVNTcXp3alZHRVhyRlVjYjMvU2VuM0pEQStlVkFLczJQeWsrVmJXMVQ3SGlobndPK0p3QnFNcmRUejFrME5MamY4MnpWaEsxaVg5MC9HR3E0eXEwSUhGOXBteVZPMTF4bkZCQ0FTazRoQzFPRENXcUJpL2J4YlpNOG5vTmxUbk1VQ3NPbFRLeHAxRTRHR0o3dzUvMjNTaXB1aDgxdVJMRlFwbkdubFo2RWhLVmdRYUhMQjNDMUh5RER2L2tjTEE4SUlIRlcrWk1HWU9VTzJZRWFVWUUrTkVKMGV1a05jV1lyYW1XOHVzeDBGWTJ4NDBZRG1tck9hcXVrakZqSGx1YnhBblpQRGpYdE1ibmNzQVNTUzYzNG9xOFc3YSIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL2dpdmVubmFtZSI6IlJhc211cyBIb2xtIExhdXJzZW4iLCJsb2dpblR5cGUiOiJLZXlDYXJkIiwiYjNmIjoiMndtZjh1MWpoM0M2OU8vM1lQZlo2UUhwMmozcUZvYk82cXhWL1NEY2VOYz0iLCJwaWQiOiJQSUQ6OTIwOC0yMDAyLTItNzAyODQyOTk5MzUwIiwidXNlcklkIjoiNDUzMzU4IiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvbmFtZWlkZW50aWZpZXIiOiJQSUQ6OTIwOC0yMDAyLTItNzAyODQyOTk5MzUwIiwiZXhwIjoxNzY1ODc2OTI0LCJpc3MiOiJFbmVyZ2luZXQiLCJqdGkiOiJjZTZmMzgyMC01MTkyLTQ5MjktYWNkNS04NjFhOTdmMzMwYTkiLCJ0b2tlbk5hbWUiOiJ0ZXN0LXRva2VuIiwiYXVkIjoiRW5lcmdpbmV0In0.sv9koJNfE8R_-I3lsyLjX48kbw-6AjYALsjh4xf5Wrk'
+
+
+            pagination_type = self.config.get("pagination_type", "none").lower()
+            pagination_config = RestApiDataSource._parse_dict_config(
+                self.config.get("pagination_config", {}), "pagination_config"
             )
-            response.raise_for_status()
-            data = response.json()
+            page_param = pagination_config.get("page_param", "page")
+            start_page = int(RestApiDataSource._parse_numeric_config(
+                pagination_config.get("start_page", 1), 1, "start_page"
+            ))
+            infer_types_flag = self.config.get("infer_types", "false").lower() == "true"
+
+            params = {}
+            # Use a requests.Session for improved performance and connection reuse
+            with requests.Session() as session:
+                if auth_token:
+                    session.headers.update({"Authorization": auth_token})
+                # Set a timeout to avoid hanging indefinitely
+                resp = session.get(url, params=params, timeout=10)
+                resp.raise_for_status()
+                data = resp.json()
             
-            logger.debug(f"Sample API response keys: {list(data.keys()) if isinstance(data, dict) else 'not a dict'}")
-            
-            # Extract data using data_path if specified
-            if "data_path" in self.config:
-                data_path = self.config["data_path"]
-                logger.info(f"Extracting sample data using data_path: {data_path}")
-                for key in data_path.split("."):
-                    if isinstance(data, dict):
-                        data = data.get(key, [])
-                        logger.debug(f"After extracting '{key}': got {type(data)} with {len(data) if isinstance(data, list) else 'N/A'} items")
-                    else:
-                        logger.warning(f"Could not extract '{key}' from non-dict data: {type(data)}")
-                        return []
-            
-            logger.info(f"Extracted sample data type: {type(data)}, list length: {len(data) if isinstance(data, list) else 'N/A'}")
-            
-            # Return list of individual records
-            if isinstance(data, list):
-                if data and isinstance(data[0], dict):
-                    logger.info(f"Sample record has {len(data[0])} fields: {list(data[0].keys())}")
-                return data
+            logger.info("Inferring schema from REST API response: {}".format(data))
+
+            # Apply json_path if present, otherwise try common result paths
+            json_path = self.config.get("json_path")
+            if json_path:
+                data = get_nested_value(data, json_path)
             else:
-                # If not a list, wrap in a list
-                return [data] if data else []
+                # If no json_path, try to detect common result paths
+                if isinstance(data, dict):
+                    if "result" in data and isinstance(data["result"], list):
+                        data = data["result"]
+                    elif "data" in data and isinstance(data["data"], list):
+                        data = data["data"]
+                    elif "results" in data and isinstance(data["results"], list):
+                        data = data["results"]
+                    elif "items" in data and isinstance(data["items"], list):
+                        data = data["items"]
+                    elif "records" in data and isinstance(data["records"], list):
+                        data = data["records"]                        
+            
+            if data is None:
+                # No data returns an empty schema
+                return StructType([])
+
+            # If the root is a single object, wrap it in a list
+            if isinstance(data, dict):
+                data = [data]
+            if not isinstance(data, list) or len(data) == 0:
+                return StructType([])
+
+            # Infer columns based on the first element
+            first_elem = data[0]
+            if not isinstance(first_elem, dict):
+                return StructType([])
+
+            flattened = flatten_json(first_elem)
+            fields = []
+            for key, value in flattened.items():
+                if infer_types_flag:
+                    spark_type = infer_spark_type(value)
+                else:
+                    spark_type = StringType()
+                fields.append(StructField(key, spark_type, True))
+            logger.info("Using the following fields: {}".format(fields))
+            return StructType(fields)
         except Exception as e:
-            logger.error(f"Error fetching sample data for schema inference: {e}", exc_info=True)
-            return []
-    
-    def _infer_schema_from_dict(self, data: Dict[str, Any]) -> StructType:
-        """Infer schema from a dictionary."""
-        fields = []
-        for key, value in data.items():
-            # Simple type inference
-            if isinstance(value, bool):
-                from pyspark.sql.types import BooleanType
-                field_type = BooleanType()
-            elif isinstance(value, int):
-                from pyspark.sql.types import LongType
-                field_type = LongType()
-            elif isinstance(value, float):
-                from pyspark.sql.types import DoubleType
-                field_type = DoubleType()
-            else:
-                field_type = StringType()
-            
-            fields.append(StructField(key, field_type, True))
-        
-        return StructType(fields)
+            logger.error(f"Error inferring schema from REST API: {str(e)}")
+            raise
     
     @staticmethod
     def _parse_dict_config(config_value: Any, config_name: str) -> Dict[str, Any]:
@@ -397,15 +442,16 @@ class RestApiDataSource(BasePySparkDataSource):
             logger.debug(f"DataSource may already be registered: {e}")
         
         # Filter config to only include DataSource-relevant options
-        # Exclude framework-specific keys like catalog, schema, volume, etc.
-        # Keep table_name as it's needed to build the endpoint
+        # Exclude framework-specific keys and non-string values (like StructType schema)
+        # Spark's DataSource API options() only accepts string values
         excluded_keys = {
-            'catalog', 'schema', 'volume', 'source_system', 
-            'model_name', 'format'
+            'catalog', 'volume', 'source_system', 
+            'model_name', 'format', 'schema'  # schema handled separately via schema() method
         }
         datasource_config = {
-            k: v for k, v in self.config.items() 
+            str(k): str(v) for k, v in self.config.items() 
             if k not in excluded_keys and not k.endswith('_catalog') and not k.endswith('_schema')
+            and not isinstance(v, StructType)  # Don't pass StructType objects to options
         }
         
         # Use Spark's format API to read data
@@ -448,14 +494,16 @@ class RestApiDataSource(BasePySparkDataSource):
             logger.debug(f"DataSource may already be registered: {e}")
         
         # Filter config to only include DataSource-relevant options
-        # Keep table_name as it's needed to build the endpoint
+        # Exclude framework-specific keys and non-string values (like StructType schema)
+        # Spark's DataSource API options() only accepts string values
         excluded_keys = {
-            'catalog', 'schema', 'volume', 'source_system', 
-            'model_name', 'format'
+            'catalog', 'volume', 'source_system', 
+            'model_name', 'format', 'schema'  # schema handled separately via schema() method
         }
         datasource_config = {
-            k: v for k, v in self.config.items() 
+            str(k): str(v) for k, v in self.config.items() 
             if k not in excluded_keys and not k.endswith('_catalog') and not k.endswith('_schema')
+            and not isinstance(v, StructType)  # Don't pass StructType objects to options
         }
         
         # Use Spark's format API for streaming
@@ -526,6 +574,8 @@ class RestApiDataSourceReader(BaseDataSourceReader):
             logger.info("Pre-fetching OAuth2 access token in RestApiDataSourceReader.__init__")
             try:
                 cache_key = self._get_token_cache_key(refresh_token)
+
+                logger.info(f"OAuth2 token cache key: {cache_key}")
                 
                 # Check if already cached from a previous reader instance
                 if cache_key in RestApiDataSourceReader._access_token_cache:
@@ -534,6 +584,7 @@ class RestApiDataSourceReader(BaseDataSourceReader):
                     # Exchange refresh token for new access token
                     access_token = self._get_access_token_from_refresh(refresh_token)
                     RestApiDataSourceReader._access_token_cache[cache_key] = access_token
+                    logger.info(f"Cached new OAuth2 access token for reader instance {access_token}")
                     logger.info("Successfully pre-fetched and cached OAuth2 access token")
             except Exception as e:
                 raise ValueError(
@@ -628,6 +679,8 @@ class RestApiDataSourceReader(BaseDataSourceReader):
         # Parse params and pagination config
         base_params = RestApiDataSource._parse_dict_config(self.config.get("params", {}), "params")
         pagination_config = RestApiDataSource._parse_dict_config(self.config.get("pagination_config", {}), "pagination_config")
+
+        logger.debug(f"fetching data from API partition {partition} endpoint: {endpoint} with base_params: {base_params} and pagination_config: {pagination_config}")
         
         # Apply rate limiting
         self._apply_rate_limit()
@@ -689,6 +742,7 @@ class RestApiDataSourceReader(BaseDataSourceReader):
                     params=base_params,
                     timeout=timeout
                 )
+                logger.error(response)
                 response.raise_for_status()
                 logger.info(f"API Response [read_partition]: {response.status_code} from {response.url}")
                 data = response.json()
@@ -701,10 +755,25 @@ class RestApiDataSourceReader(BaseDataSourceReader):
                 else:
                     logger.info(f"Retrieved {len(records)} records from offset {current_position}")
                 
+                # Log structure of first record for debugging
+                if records and isinstance(records[0], dict):
+                    logger.info(f"First record has {len(records[0])} fields: {list(records[0].keys())}")
+                
                 # Convert to rows and yield
                 for record in records:
                     if isinstance(record, dict):
-                        yield Row(**record)
+                        # If schema is defined, only include schema fields to avoid mismatch
+                        if "schema" in self.config and isinstance(self.config["schema"], StructType):
+                            schema_fields = {f.name for f in self.config["schema"].fields}
+                            filtered_record = {k: v for k, v in record.items() if k in schema_fields}
+                            if len(filtered_record) != len(schema_fields):
+                                missing_fields = schema_fields - set(filtered_record.keys())
+                                logger.warning(f"Record missing fields from schema: {missing_fields}. Using None for missing fields.")
+                                for field_name in schema_fields:
+                                    filtered_record.setdefault(field_name, None)
+                            yield Row(**filtered_record)
+                        else:
+                            yield Row(**record)
                     else:
                         yield Row(data=str(record))
                 
@@ -759,13 +828,17 @@ class RestApiDataSourceReader(BaseDataSourceReader):
         token_response_path = self.config.get("token_response_path", "result")
         
         logger.info(f"Exchanging refresh token for access token at: {token_endpoint}")
-        
+
+        logger.info(f"usinbg : {refresh_token}")
+
+        headers={"Authorization": f"Bearer {refresh_token}"},
+        logger.info(f"running with asgvb {headers}")
+     
         try:
             response = requests.request(
                 method=token_method,
                 url=token_endpoint,
-                # headers={"Authorization": f"Bearer {refresh_token}"},
-                headers={"Authorization": f"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlblR5cGUiOiJDdXN0b21lckFQSV9SZWZyZXNoIiwidG9rZW5pZCI6IjAwOTVjMGJjLTlmZGYtNDcxYi1iOTVmLWY5ZDA2NDNiM2JiMCIsIndlYkFwcCI6IkN1c3RvbWVyQXBwIiwidmVyc2lvbiI6IjIiLCJpZGVudGl0eVRva2VuIjoiby9lUkhCNXI5WGpCam5mQWVjUFFRcHdZNUpMeEZBK002M24wOFQyUFFuMHhWRzdIWWp4NFh1N1NRaEhjK3ZwcWtMM2pxN3BZTUJzZXIzUzNwOGxJMmc0WXQyVVE5Z1dEZHdPZ1dOd2F2TkNOZGdRZG9mRllPV3dwbWhVZWFURThLcjhVbnI3dUVyZEJjT0hnbmZ6UStIZVZTYzF3M29kTGtrK1h2d1Fxc3RKcjFybTBCSW9ESmZPY1VRbG1jbWM4SFZKRTBROU1Lc3g3STFIckVKNC9oRnBTMGRVUnJncmRXSFp3YlhqL3JBd0tudWlteXlLaHpmczNJbERMRWdlTFVlVFpIbEpPOUlLeTJQUkM3QXBBSUl2YXBNZmlCU3BXa0gyVitGOGxxaHYvUSt5UWswdDloeDE5OG5HYTZ6aXVjdlZIZ2xSSXlFMzBGcVo1Q3dGemhtRkNxNWhFcjZhQlRtSHJQNDltdVlZU0s5UXIyaXYzWFJkc3NHQVpqcWpkcDlFV1kzamdBcTFjWHN2OWVoZ2wwQXBXMXEwYlBPc3hhSEZuMXRXY0dhOXRmVmlxUlU4VWYwTlR3YjIvMGdJTXJnMU1iR0hnN2RwU3FNV1k0ZWRJSk5wYTRZM1k2cDJUUVVOd0N1Y1dtb0pnVUxScGhBRmtuYkU0aExHSG9XdWZrTTEybnRJT1hOT1pkdk50bCtuQ29FUEpINm9RanV3MkthTEIzbWhXNGlkNm5xcWVoN1pzeWxDRkQ0SlA2dGM4SmZPTnJPWkQ2cWs1dWlETlpEUkdKNFM2ZGM0ek43N1huREtpYi9DcW9rTVBoZGZlNm4rZ2ZzS25uT0NRYk9uUDhFbGx0L3VqcmViZ21tc1lGNFhXSk9oOGJjV3E4VkJBWWhyRTFFUHZjQ250UGVLUXg0a25Gc3luUEJlUDh5MGhQZzVDR25OeEsxN0E3a0FPMVc4UGhSK0dOL1d4NE9QNWp4WnRUWUJZTUVtcHBGTVlSYXVvY3FDSHhxZkMwSHQxekpaM2JSeTZ5T2FvQjVNVDc4bUo4by9JbDNlVWkwSkhzM3FDRnlsWEIvUzdxYm1ibVZsd1FXUXFRYmZFL0tFK3BVNzJSazBnUVV0dmk2OXhrSkVTdlpiOFVSRlAvbXpocVd5NzBNZzc3ck9JbFJEMnZOdE90RVBLbUVrVjJ6OS9YU1N0YWhuUXZRa0ozeEhWazdaN2FGdWVMUngrT1BFTHZyT1dmSkE5Rm53SXJ2K3hQajhQY0tqaFZkaWhzRHBwUTROdzE5bHhwdGJKRGQ3ZXhKQ0loTkdTMmxPb1Ntc0lvWVZ0cE11QTF0ZGloWDJkUWdpWDVlRlg5N3krVi9LUG9uNDVHMEE3YW9uRjVBaVU2Ump3ZXViNWt5UzJYSG53UUZyeU1sdnNpa05jMUNXSVoyL1pVcEsrVHFZUE1td3pTM24vZU9tZ0hSZmdXUzhUNUtHL0hzcm1CbnFMRm0zTzcyNHQ3cGRuMWdFT2VVL1llRCtxRWpsTXFQY1dndk0wdWNFR01oV0FvczhhbHdkcXJoSXNCbGRqclRXVjhkT3VYTUUxQnJKWjlqVm96V0VSRUdOUm81U0ZwYWVJU0NieUZNRmpISndZN29LaktMVDJjMnlGYlp1NHN1LzFzVmVzY2hoVFc5SnpwVUtIU09YbVBSOTQyY3pTOUlEU3RUdlAzRkZGMzRuWkpKR2tWb3NiekpSbjhRbUhSYW1XT1R5ZE9VYmxmUFdRYUpJWjg1a1BGL3lRb2NGY2hBbmZXU01sL1hFNDMxb2ozS2lRSTRVOEVjYUsxYzU4dFhWZUpHYVd2VDdrdVNtTFNBS1VDeGpzZkY0QXdCd3luZEg2cURhaWwvR2lxYkJlSnQydURoY2lLU0FtS3l1QkZlejFvM2YveGI5TlFsSjRqaUpPVk1KWDRxbXgxY29yOWlCQ2s4QytxeDQ3Z1IzdStBMU1raVpwVzgwME13M2l5blV6b1hJS3BScHJ0NkRvT0wvU2ZmWlJYa0dYRHhFVVhUYVVVakRiVTdodkF6QTlBWXh0MmxWT1VUbTdnbm5kNDIvOGpCVUV3Vk5jT2VFZlorVzJuRXMwUllDUHF4QUI2TjNUbGJycEUyNEc4UkpZbUdnSi9KejBTSTRZRW5iaTFGRndzWnlEcFNrTmNuczBDVUVDbXFxWVBlY0hQMkxqMCs1aHhybFJyVnpRN1lZV2t6RzlPTmVpWVByY1lNYllkUWFFdmxuQVJaNm1WVVNTcXp3alZHRVhyRlVjYjMvU2VuM0pEQStlVkFLczJQeWsrVmJXMVQ3SGlobndPK0p3QnFNcmRUejFrME5MamY4MnpWaEsxaVg5MC9HR3E0eXEwSUhGOXBteVZPMTF4bkZCQ0FTazRoQzFPRENXcUJpL2J4YlpNOG5vTmxUbk1VQ3NPbFRLeHAxRTRHR0o3dzUvMjNTaXB1aDgxdVJMRlFwbkdubFo2RWhLVmdRYUhMQjNDMUh5RER2L2tjTEE4SUlIRlcrWk1HWU9VTzJZRWFVWUUrTkVKMGV1a05jV1lyYW1XOHVzeDBGWTJ4NDBZRG1tck9hcXVrakZqSGx1YnhBblpQRGpYdE1ibmNzQVNTUzYzNG9xOFc3YSIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL2dpdmVubmFtZSI6IlJhc211cyBIb2xtIExhdXJzZW4iLCJsb2dpblR5cGUiOiJLZXlDYXJkIiwiYjNmIjoiMndtZjh1MWpoM0M2OU8vM1lQZlo2UUhwMmozcUZvYk82cXhWL1NEY2VOYz0iLCJwaWQiOiJQSUQ6OTIwOC0yMDAyLTItNzAyODQyOTk5MzUwIiwidXNlcklkIjoiNDUzMzU4IiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvbmFtZWlkZW50aWZpZXIiOiJQSUQ6OTIwOC0yMDAyLTItNzAyODQyOTk5MzUwIiwiZXhwIjoxNzk3MDc5MDAyLCJpc3MiOiJFbmVyZ2luZXQiLCJqdGkiOiIwMDk1YzBiYy05ZmRmLTQ3MWItYjk1Zi1mOWQwNjQzYjNiYjAiLCJ0b2tlbk5hbWUiOiJ0ZXN0LXRva2VuIiwiYXVkIjoiRW5lcmdpbmV0In0._H1UEKbPRP24aWnvTVaOArGTcnGnaDOMNfOaqZsan4g"},
+                headers={"Authorization": f"Bearer {refresh_token}"},
                 timeout=30
             )
             response.raise_for_status()
@@ -899,10 +972,42 @@ class RestApiDataSourceReader(BaseDataSourceReader):
 
 class RestApiDataSourceStreamReader(BaseDataSourceStreamReader):
     """
-    Streaming reader for REST APIs with offset-based polling.
+    Streaming reader for REST APIs with timestamp-based incremental loading.
     
-    Periodically polls the API for new data using timestamp or ID offsets.
+    Uses offset-based polling to fetch only new data since last checkpoint.
+    Supports timestamp filtering for efficient incremental loads.
     """
+    
+    def __init__(self, *args, **kwargs):
+        """Initialize streaming reader with same OAuth2 token caching as batch reader."""
+        super().__init__(*args, **kwargs)
+        
+        # Pre-fetch and cache access token for OAuth2 (same as RestApiDataSourceReader)
+        auth_type = self.config.get("auth_type", "none").lower()
+        if auth_type == "oauth2_refresh":
+            refresh_token: str = self.config.get("auth_token")  # type: ignore
+            if not refresh_token:
+                raise ValueError("OAuth2 refresh requires 'auth_token' to be configured")
+            
+            logger.info("Pre-fetching OAuth2 access token in RestApiDataSourceStreamReader.__init__")
+            try:
+                cache_key = self._get_token_cache_key(refresh_token)
+                
+                # Check if already cached from a previous reader instance
+                if cache_key in RestApiDataSourceStreamReader._access_token_cache:
+                    logger.info("Using cached OAuth2 access token from previous reader")
+                else:
+                    # Exchange refresh token for new access token
+                    access_token = self._get_access_token_from_refresh(refresh_token)
+                    RestApiDataSourceStreamReader._access_token_cache[cache_key] = access_token
+                    logger.info("Successfully pre-fetched and cached OAuth2 access token")
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to obtain OAuth2 access token during streaming reader initialization: {e}. "
+                    f"Check token_endpoint, token_method, and token_response_path configuration."
+                )
+        
+        logger.debug(f"RestApiDataSourceStreamReader initialized with auth_type: {auth_type}")
     
     def get_initial_offset(self) -> dict:
         """
@@ -914,8 +1019,6 @@ class RestApiDataSourceStreamReader(BaseDataSourceStreamReader):
         Returns:
             Dictionary with last_timestamp (ISO format string)
         """
-        import datetime
-        
         # Get initial timestamp from config or default to 30 days back
         initial_timestamp = self.config.get("initial_timestamp")
         if not initial_timestamp:
@@ -1157,7 +1260,21 @@ class RestApiDataSourceStreamReader(BaseDataSourceStreamReader):
         # Reverse records to chronological order (oldest first) and yield
         logger.info(f"Yielding {len(records_in_window)} records in chronological order")
         for record in reversed(records_in_window):
-            yield Row(**record)
+            if isinstance(record, dict):
+                # If schema is defined, only include schema fields to avoid mismatch
+                if "schema" in self.config and isinstance(self.config["schema"], StructType):
+                    schema_fields = {f.name for f in self.config["schema"].fields}
+                    filtered_record = {k: v for k, v in record.items() if k in schema_fields}
+                    if len(filtered_record) != len(schema_fields):
+                        missing_fields = schema_fields - set(filtered_record.keys())
+                        logger.warning(f"Record missing fields from schema: {missing_fields}. Using None for missing fields.")
+                        for field_name in schema_fields:
+                            filtered_record.setdefault(field_name, None)
+                    yield Row(**filtered_record)
+                else:
+                    yield Row(**record)
+            else:
+                yield Row(data=str(record))
         
         logger.info(f"Streaming complete. Fetched {total_records_fetched} total, yielded {len(records_in_window)} new records")
     
@@ -1174,20 +1291,90 @@ class RestApiDataSourceStreamReader(BaseDataSourceStreamReader):
         
         return base_endpoint
     
-    def _build_headers(self) -> Dict[str, str]:
-        """Build HTTP headers including authentication (delegates to RestApiDataSource)."""
-        headers = RestApiDataSource._parse_dict_config(self.config.get("headers", {}), "headers")
+    def _get_access_token_from_refresh(self, refresh_token: str) -> str:
+        """Exchange refresh token for access token (same as RestApiDataSourceReader)."""
+        token_endpoint = self.config.get("token_endpoint")
+        if not token_endpoint:
+            raise ValueError("token_endpoint must be configured for oauth2_refresh auth type")
         
+        token_method = self.config.get("token_method", "GET").upper()
+        token_response_path = self.config.get("token_response_path", "result")
+        
+        logger.info(f"Exchanging refresh token for access token at: {token_endpoint}")
+        
+        try:
+            response = requests.request(
+                method=token_method,
+                url=token_endpoint,
+                headers={"Authorization": f"Bearer {refresh_token}"},
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            # Extract access token using response path
+            access_token = data
+            for key in token_response_path.split("."):
+                access_token = access_token.get(key)
+            
+            if not access_token:
+                raise ValueError(f"Could not extract access token from response using path: {token_response_path}")
+            
+            logger.info("Successfully obtained access token")
+            return access_token
+            
+        except requests.HTTPError as e:
+            logger.error(f"Failed to exchange refresh token: {e}")
+            raise
+    
+    # Class-level cache for pre-fetched OAuth2 access tokens
+    _access_token_cache: Dict[str, str] = {}
+    
+    def _build_headers(self) -> Dict[str, str]:
+        """Build HTTP headers including authentication (same as RestApiDataSourceReader)."""
+        headers = RestApiDataSource._parse_dict_config(self.config.get("headers", {}), "headers")
         auth_type = self.config.get("auth_type", "none").lower()
         
         if auth_type == "bearer":
             token = self.config.get("auth_token")
-            if token:
-                headers["Authorization"] = f"Bearer {token}"
+            logger.debug("Using bearer token from config")
+            headers["Authorization"] = f"Bearer {token}"
+                
         elif auth_type == "api_key":
             token = self.config.get("auth_token")
             header_name = self.config.get("auth_header", "X-API-Key")
-            if token:
-                headers[header_name] = token
+            logger.debug(f"Using API key in header: {header_name}")
+            headers[header_name] = token
+                
+        elif auth_type == "oauth2_refresh":
+            # Get the cached access token that was pre-fetched in __init__
+            refresh_token: str = self.config.get("auth_token")  # type: ignore
+            cache_key = self._get_token_cache_key(refresh_token)
+            
+            access_token = RestApiDataSourceStreamReader._access_token_cache.get(cache_key)
+            if not access_token:
+                # Fallback: re-fetch if not in cache
+                logger.warning("Access token not found in cache, re-fetching")
+                access_token = self._get_access_token_from_refresh(refresh_token)
+                RestApiDataSourceStreamReader._access_token_cache[cache_key] = access_token
+            else:
+                logger.debug("Using pre-fetched OAuth2 access token")
+            
+            headers["Authorization"] = f"Bearer {access_token}"
         
         return headers
+    
+    @staticmethod
+    def _get_token_cache_key(refresh_token: str) -> str:
+        """Get cache key for a refresh token (hash for security)."""
+        import hashlib
+        return hashlib.sha256(refresh_token.encode()).hexdigest()
+    
+    def _apply_rate_limit(self) -> None:
+        """Apply rate limiting delay if configured."""
+        if "rate_limit_delay" in self.config:
+            delay = RestApiDataSource._parse_numeric_config(
+                self.config["rate_limit_delay"], 0.0, "rate_limit_delay"
+            )
+            time.sleep(delay)

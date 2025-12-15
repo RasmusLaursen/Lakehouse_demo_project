@@ -59,6 +59,7 @@ class RawPipelineFactory:
         # Process each schema in the data contract
         for schema in data_contract.schema_:  # type: ignore
             try:
+                logger.info(f"Processing schema: {schema.name if schema else 'unknown'}")
                 self._process_schema(schema, config)
             except Exception as e:
                 logger.error(f"Error processing schema {schema.name if schema else 'unknown'}: {e}")

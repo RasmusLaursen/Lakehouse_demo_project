@@ -10,18 +10,6 @@ description:
   limitations: "Requires authentication token. Data availability depends on user's metering points. Rate limits apply."
   usage: "Extract electricity consumption time series data for energy analytics, billing, and consumption monitoring"
 
-# SETUP INSTRUCTIONS:
-# 1. Store your Eloverblik REFRESH TOKEN (JWT) in Databricks secrets:
-#    databricks secrets put --scope databricks-free-dev --key eloverblik-api-token
-#    Note: This is the long-lived refresh token, NOT the access token
-#
-# 2. The connector will automatically exchange the refresh token for an access token
-#    using the /api/token endpoint before each API call
-#
-# 3. For DLT pipelines, add to pipeline configuration:
-#    configuration:
-#      spark.secrets.databricks-free-dev.token: "{{secrets/databricks-free-dev/eloverblik-api-token}}"
-
 servers:
   - server: dev
     type: "rest_api"
@@ -59,7 +47,6 @@ servers:
           timeout: 60
 
 schema:
-  # Schema 1: Metering Points (Customer's electricity meters)
   - name: MeteringPoints
     description: "List of metering points (electricity meters) associated with the customer"
     type: table
@@ -79,7 +66,7 @@ schema:
     properties:
       - name: meteringPointId
         description: "Unique identifier for the metering point (18-digit number)"
-        type: string
+        logicalType: string
         required: true
         tags:
           - "identifier"
@@ -90,7 +77,7 @@ schema:
       
       - name: typeOfMP
         description: "Type of metering point (e.g., E17 for electricity consumption)"
-        type: string
+        logicalType: string
         required: true
         tags:
           - "classification"
@@ -99,7 +86,7 @@ schema:
       
       - name: settlementMethod
         description: "Settlement method (D01=Profiled, E02=Non-profiled)"
-        type: string
+        logicalType: string
         required: false
         tags:
           - "metadata"
@@ -108,7 +95,7 @@ schema:
       
       - name: meterReadingOccurrence
         description: "Meter reading frequency"
-        type: string
+        logicalType: string
         required: false
         tags:
           - "metadata"
@@ -116,7 +103,7 @@ schema:
       
       - name: meterNumber
         description: "Physical meter number"
-        type: string
+        logicalType: string
         required: false
         tags:
           - "identifier"
@@ -124,7 +111,7 @@ schema:
       
       - name: consumerStartDate
         description: "Date when consumer started at this metering point"
-        type: timestamp
+        logicalType: timestamp
         required: false
         tags:
           - "temporal"
@@ -132,7 +119,7 @@ schema:
       
       - name: streetCode
         description: "Street code for the metering point location"
-        type: string
+        logicalType: string
         required: false
         tags:
           - "geographic"
@@ -140,7 +127,7 @@ schema:
       
       - name: streetName
         description: "Street name for the metering point location"
-        type: string
+        logicalType: string
         required: false
         tags:
           - "geographic"
@@ -148,7 +135,7 @@ schema:
       
       - name: buildingNumber
         description: "Building number"
-        type: string
+        logicalType: string
         required: false
         tags:
           - "geographic"
@@ -156,7 +143,7 @@ schema:
       
       - name: floorId
         description: "Floor identifier"
-        type: string
+        logicalType: string
         required: false
         tags:
           - "geographic"
@@ -164,7 +151,7 @@ schema:
       
       - name: roomId
         description: "Room identifier"
-        type: string
+        logicalType: string
         required: false
         tags:
           - "geographic"
@@ -172,7 +159,7 @@ schema:
       
       - name: cityName
         description: "City name"
-        type: string
+        logicalType: string
         required: false
         tags:
           - "geographic"
@@ -180,7 +167,7 @@ schema:
       
       - name: postcode
         description: "Postal code"
-        type: string
+        logicalType: string
         required: false
         tags:
           - "geographic"
@@ -189,100 +176,99 @@ schema:
       
       - name: hasRelation
         description: "Whether the user has an active relation to this metering point"
-        type: boolean
+        logicalType: boolean
         required: false
         tags:
           - "status"
         classification: "confidential"
 
-  # Schema 2: Time Series Data (Electricity consumption)
-  # - name: TimeSeriesData
-  #   description: "Hourly electricity consumption time series data"
-  #   type: table
-  #   customProperties:
-  #     - property: scd_type
-  #       value: 1  # Append-only for time series data
-  #     - property: keys
-  #       value: ["meteringPointId", "position"]
-  #     - property: sequence_column
-  #       value: "position"
-  #     - property: loadtype
-  #       value: "rest_api_ds"
-  #     - property: mode
-  #       value: "streaming"
-  #     - property: timestamp_field
-  #       value: "position"
-  #     - property: initial_timestamp
-  #       value: "2025-01-01T00:00:00"
-  #     - property: table_name
-  #       value: "meterdata/gettimeseries"
-  #     - property: params
-  #       value:
-  #         # Parameters for time series extraction
-  #         # Note: You'll need to customize this with actual metering point IDs
-  #         # Format: {"meteringPoints": {"meteringPoint": ["571313174012345678"]}, "dateFrom": "2025-01-01", "dateTo": "2025-12-31"}
-  #         aggregation: "Hour"  # Hour, Day, Month, or Year
-  #   properties:
-  #     - name: meteringPointId
-  #       description: "Metering point identifier"
-  #       type: string
-  #       required: true
-  #       tags:
-  #         - "identifier"
-  #         - "primary_key"
-  #         - "foreign_key"
-  #       classification: "confidential"
-  #       example: "571313174012345678"
+  - name: TimeSeriesData
+    description: "Hourly electricity consumption time series data"
+    type: table
+    customProperties:
+      - property: scd_type
+        value: 1  # Append-only for time series data
+      - property: keys
+        value: ["meteringPointId", "position"]
+      - property: sequence_column
+        value: "position"
+      - property: loadtype
+        value: "rest_api_ds"
+      - property: mode
+        value: "streaming"
+      - property: timestamp_field
+        value: "position"
+      - property: initial_timestamp
+        value: "2025-01-01T00:00:00"
+      - property: table_name
+        value: "meterdata/gettimeseries"
+      - property: params
+        value:
+          # Parameters for time series extraction
+          # Note: You'll need to customize this with actual metering point IDs
+          # Format: {"meteringPoints": {"meteringPoint": ["571313174012345678"]}, "dateFrom": "2025-01-01", "dateTo": "2025-12-31"}
+          aggregation: "Hour"  # Hour, Day, Month, or Year
+    properties:
+      - name: meteringPointId
+        description: "Metering point identifier"
+        type: string
+        required: true
+        tags:
+          - "identifier"
+          - "primary_key"
+          - "foreign_key"
+        classification: "confidential"
+        example: "571313174012345678"
       
-  #     - name: position
-  #       description: "Timestamp for the measurement period start (UTC)"
-  #       type: timestamp
-  #       required: true
-  #       tags:
-  #         - "temporal"
-  #         - "primary_key"
-  #         - "utc"
-  #       classification: "public"
-  #       example: "2025-12-01T00:00:00Z"
+      - name: position
+        description: "Timestamp for the measurement period start (UTC)"
+        type: timestamp
+        required: true
+        tags:
+          - "temporal"
+          - "primary_key"
+          - "utc"
+        classification: "public"
+        example: "2025-12-01T00:00:00Z"
       
-  #     - name: quantity
-  #       description: "Electricity consumption quantity in kWh"
-  #       type: double
-  #       required: true
-  #       tags:
-  #         - "measure"
-  #         - "consumption"
-  #       classification: "confidential"
-  #       example: 1.234
+      - name: quantity
+        description: "Electricity consumption quantity in kWh"
+        type: double
+        required: true
+        tags:
+          - "measure"
+          - "consumption"
+        classification: "confidential"
+        example: 1.234
       
-  #     - name: quality
-  #       description: "Data quality indicator (e.g., Measured, Estimated)"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "quality"
-  #         - "metadata"
-  #       classification: "public"
-  #       example: "Measured"
+      - name: quality
+        description: "Data quality indicator (e.g., Measured, Estimated)"
+        type: string
+        required: false
+        tags:
+          - "quality"
+          - "metadata"
+        classification: "public"
+        example: "Measured"
       
-  #     - name: unit
-  #       description: "Unit of measurement (typically kWh)"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "metadata"
-  #       classification: "public"
-  #       example: "kWh"
+      - name: unit
+        description: "Unit of measurement (typically kWh)"
+        type: string
+        required: false
+        tags:
+          - "metadata"
+        classification: "public"
+        example: "kWh"
       
-  #     - name: resolution
-  #       description: "Time resolution (e.g., Hour, Day)"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "temporal"
-  #         - "metadata"
-  #       classification: "public"
-  #       example: "Hour"
+      - name: resolution
+        description: "Time resolution (e.g., Hour, Day)"
+        type: string
+        required: false
+        tags:
+          - "temporal"
+          - "metadata"
+        classification: "public"
+        example: "Hour"
 
   # Schema 3: Charges (Tariffs and fees)
   # - name: Charges
@@ -386,35 +372,3 @@ tags:
   - "eloverblik"
   - "time-series"
   - "iot"
-
-# links:
-#   - url: "https://api.eloverblik.dk/CustomerApi/index.html"
-#     description: "Eloverblik Customer API Documentation"
-#   - url: "https://eloverblik.dk"
-#     description: "Eloverblik Portal"
-
-# USAGE NOTES:
-# 
-# 1. Authentication:
-#    - Store token: databricks secrets put --scope databricks-free-dev --key eloverblik-api-token
-#    - Token format: JWT (shown in your Untitled-1 file)
-#    - Token expiry: Check 'exp' claim in JWT (expires: 2026-12-09)
-#
-# 2. API Endpoints:
-#    - Metering Points: GET /api/meteringpoints/meteringpoints
-#    - Time Series: POST /api/meterdata/gettimeseries (requires JSON body with date range)
-#    - Charges: POST /api/meterdata/getcharges
-#
-# 3. Time Series Extraction:
-#    - Requires POST with JSON body: {"meteringPoints": {"meteringPoint": ["ID1", "ID2"]}, "dateFrom": "YYYY-MM-DD", "dateTo": "YYYY-MM-DD"}
-#    - Start with MeteringPoints extraction to get IDs
-#    - Then extract TimeSeriesData for those IDs
-#
-# 4. Rate Limits:
-#    - Respect API rate limits (1 second delay configured)
-#    - Monitor for 429 (Too Many Requests) responses
-#
-# 5. Data Classification:
-#    - Metering point IDs and consumption data are CONFIDENTIAL
-#    - Follow GDPR requirements for personal data handling
-#    - Implement appropriate access controls in Unity Catalog

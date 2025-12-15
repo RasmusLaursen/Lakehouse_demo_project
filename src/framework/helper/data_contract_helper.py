@@ -383,7 +383,8 @@ def schema_properties_to_spark_schema(schema: SchemaObject):
     
     for prop in schema.properties:
         col_name = prop.name
-        col_type_str = (prop.type or "string").lower()
+        # Use logicalType which is the ODCS standard field (prefer it over deprecated type/physicalType)
+        col_type_str = (prop.logicalType or prop.physicalType or "string").lower()
         col_required = not (hasattr(prop, 'required') and prop.required == False)  # Default to required
         
         # Map data contract type to PySpark type

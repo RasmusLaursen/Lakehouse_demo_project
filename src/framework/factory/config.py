@@ -61,10 +61,6 @@ class PipelineConfig:
             'dimensions'
         """
         environment = spark.conf.get("environment", "dev")
-
-        rest_api_token = spark.conf.get("spark.eloverblik-api-token")
-
-        logger.info(f"Rest API Token from Spark Config: {rest_api_token}")
         
         catalogs = databricks_helper.get_pipeline_configurations(spark, "catalogs")
         schemas = databricks_helper.get_pipeline_configurations(spark, "schemas")
@@ -124,9 +120,12 @@ class PipelineConfig:
                 self.filetype = server_config.format
             
             if hasattr(server_config, "customProperties") and server_config.customProperties:
+                # First pass: process connector_config and secret_keys separately
+                connector_config_value = None
+                secret_keys_value = None
+                
                 for prop in server_config.customProperties:
                     if hasattr(prop, 'property'):
-                        # Handle both old-style (key) and new-style (property) attributes
                         prop_name = getattr(prop, 'property', getattr(prop, 'key', None))
                         prop_value = getattr(prop, 'value', None)
                         
@@ -136,9 +135,18 @@ class PipelineConfig:
                             self.connector_type = prop_value
                             logger.info(f"Set connector type to: {prop_value}")
                         elif prop_name == "connector_config":
-                            # connector_config should be a dictionary in YAML
-                            self.connector_config = prop_value if isinstance(prop_value, dict) else {}
-                            logger.info(f"Set connector config: {self.connector_config}")
+                            connector_config_value = prop_value
+                        elif prop_name == "secret_keys":
+                            secret_keys_value = prop_value
+                
+                # Second pass: merge connector_config and secret_keys to ensure both are preserved
+                if connector_config_value and isinstance(connector_config_value, dict):
+                    self.connector_config.update(connector_config_value)
+                    logger.info(f"Merged connector config: {self.connector_config}")
+                
+                if secret_keys_value and isinstance(secret_keys_value, list):
+                    self.connector_config.setdefault("secret_keys", []).extend(secret_keys_value)
+                    logger.info(f"Added server-level secret_keys to connector config: {secret_keys_value}")
     
     # Helper methods for table paths
     
@@ -256,20 +264,23 @@ class PipelineConfig:
         if self.connector_type in ["rest_api", "rest_api_ds"]:
             connector_config.setdefault("table_name", model_name)
             
-            # For REST API connectors with schema, build schema from contract properties
+        # For REST API connectors with schema, build schema from contract properties
             # This avoids needing to infer schema from API at connector creation time
             if schema and hasattr(schema, 'properties') and schema.properties:
                 try:
                     from src.framework.helper.data_contract_helper import schema_properties_to_spark_schema
                     spark_schema = schema_properties_to_spark_schema(schema)
                     connector_config["schema"] = spark_schema
-                    logger.info(f"Added Spark schema to REST API connector config for {model_name} with {len(spark_schema.fields)} fields")
+                    logger.info(f"✓ Added Spark schema to REST API connector config for {model_name} with {len(spark_schema.fields)} fields: {[f.name for f in spark_schema.fields]}")
                 except Exception as e:
-                    logger.warning(f"Could not build schema from contract properties for {model_name}: {e}. Will infer from API.")
+                    logger.warning(f"✗ Could not build schema from contract properties for {model_name}: {e}. Will infer from API.")
+            else:
+                logger.warning(f"✗ REST API connector for {model_name} has no schema properties. Schema will be inferred from API response.")
         
         # Extract and resolve secrets from connector config
         # Secret keys should be declared in the connector_config via secret_keys property
         secret_keys = connector_config.pop("secret_keys", [])
+        logger.info("testsd: " + str(secret_keys))
         if secret_keys:
             logger.info(f"Resolving {len(secret_keys)} secrets for {model_name} connector")
             try:
@@ -307,7 +318,7 @@ class PipelineConfig:
         # Handle "{{spark.config-key}}" format (Spark config for DLT pipelines)
         if reference.startswith("{{spark.") and reference.endswith("}}"):
             config_key = reference[8:-2]  # Remove {{spark. and }}
-            logger.debug(f"Resolving {{{{spark.{config_key}}}}} from Spark config")
+            logger.info(f"Resolving {{{{spark.{config_key}}}}} from Spark config")
             try:
                 spark = databricks_helper.get_spark()
                 if spark:
@@ -317,10 +328,14 @@ class PipelineConfig:
                         value = spark.conf.get(config_key, None)
                     
                     if value:
-                        logger.debug(f"Resolved {{{{spark.{config_key}}}}} from Spark config")
+                        logger.info(f"Successfully resolved {{{{spark.{config_key}}}}} from Spark config (length: {len(str(value))})")
                         return value
+                    else:
+                        logger.warning(f"Spark config key 'spark.{config_key}' or '{config_key}' not found")
+                else:
+                    logger.warning(f"Could not get Spark session to resolve {{{{spark.{config_key}}}}}")
             except Exception as e:
-                logger.debug(f"Exception resolving {{{{spark.{config_key}}}}}: {e}")
+                logger.warning(f"Exception resolving {{{{spark.{config_key}}}}}: {e}")
             
             raise ValueError(f"Could not resolve {{{{spark.{config_key}}}}} - key not found in Spark config")
         
@@ -410,11 +425,12 @@ class PipelineConfig:
                 value = connector_config[key]
                 if value and isinstance(value, str):
                     try:
+                        logger.info(f"Attempting to resolve secret key '{key}' with value: {value[:50]}..." if len(str(value)) > 50 else f"Attempting to resolve secret key '{key}' with value: {value}")
                         resolved = self._resolve_secret_reference(value)
                         connector_config[key] = resolved
-                        logger.debug(f"Resolved secret key '{key}'")
+                        logger.info(f"Successfully resolved secret key '{key}' to value of length {len(str(resolved))}")
                     except Exception as e:
-                        logger.error(f"Failed to resolve secret key '{key}': {e}")
+                        logger.error(f"Failed to resolve secret key '{key}' with value '{value}': {e}")
                         raise ValueError(f"Failed to resolve secret key '{key}' in connector config: {e}")
                 else:
                     logger.debug(f"Secret key '{key}' is not a string, skipping resolution")
