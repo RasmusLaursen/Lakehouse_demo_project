@@ -32,6 +32,9 @@ servers:
         value: "rest_api_ds"
       - property: connector_type
         value: "rest_api_ds"
+      - property: secret_keys
+        value:
+          - "auth_token"
       - property: connector_config
         value:
           endpoint: "https://api.eloverblik.dk/customerapi/api"
@@ -39,7 +42,7 @@ servers:
           
           # OAuth2 refresh token authentication
           auth_type: "oauth2_refresh"
-          auth_token_key: "eloverblik-api-token"
+          auth_token: "{{spark.eloverblik-api-token}}"
           token_endpoint: "https://api.eloverblik.dk/customerapi/api/token"
           token_method: "GET"
           token_response_path: "result"
@@ -73,9 +76,6 @@ schema:
         value: "batch"  # Full refresh for metering point metadata
       - property: table_name
         value: "meteringpoints/meteringpoints"
-      - property: params
-        value:
-          includeAll: "false"
     properties:
       - name: meteringPointId
         description: "Unique identifier for the metering point (18-digit number)"

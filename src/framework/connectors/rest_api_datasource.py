@@ -9,6 +9,8 @@ from typing import Dict, Any, Union, Iterator, Sequence, List, Optional, TYPE_CH
 import json
 import ast
 import time
+import threading
+import hashlib
 import requests
 from pyspark.sql import Row
 from pyspark.sql.types import StructType, StructField, StringType
@@ -44,6 +46,31 @@ class RestApiDataSource(BasePySparkDataSource):
     # Default to streaming for incremental loading (override with mode='batch' in config)
     prefer_batch = False
     
+    def __init__(self, options: Dict[str, str]) -> None:
+        """Initialize REST API DataSource and validate authentication.
+        
+        Args:
+            options: Configuration options for the data source
+            
+        Raises:
+            ValueError: If required auth configuration is missing
+        """
+        super().__init__(options)
+        
+        # Validate and log auth configuration early
+        auth_type = self.config.get("auth_type", "none").lower()
+        
+        if auth_type in ["bearer", "api_key", "oauth2_refresh"]:
+            auth_token = self.config.get("auth_token")
+            if not auth_token:
+                raise ValueError(
+                    f"Auth type '{auth_type}' requires 'auth_token' in configuration. "
+                    f"Ensure the secret is declared in data contract 'secret_keys' and resolved by PipelineConfig."
+                )
+            logger.info(f"Validated {auth_type} authentication token in RestApiDataSource.__init__")
+        
+        logger.debug(f"RestApiDataSource initialized with config keys: {list(self.config.keys())}")
+    
     @classmethod
     def name(cls) -> str:
         """Return the short name for this data source."""
@@ -78,15 +105,30 @@ class RestApiDataSource(BasePySparkDataSource):
         return StructType([StructField("data", StringType(), True)])
     
     def _fetch_sample_data(self) -> List[Dict[str, Any]]:
-        """Fetch a small sample to infer schema."""
+        """Fetch a small sample to infer schema.
+        
+        This method extracts data from the API response using data_path and returns
+        the innermost array elements (after extraction). These are the records that
+        will be yielded from read_partition() and should match the declared schema.
+        
+        Note: Authentication may not be fully resolved during schema inference,
+        so we do a best-effort attempt without raising on auth errors.
+        """
         endpoint = self._build_endpoint()
         method = self.config.get("method", "GET").upper()
-        headers = self._build_headers()
         
         try:
+            # Build headers, but don't fail if auth can't be resolved yet
+            try:
+                headers = self._build_headers()
+            except Exception as auth_error:
+                logger.warning(f"Could not build auth headers during schema inference: {auth_error}. Using minimal headers.")
+                headers = {"Accept": "application/json"}
+            
             timeout_val = self.config.get("timeout", 30)
             timeout = float(timeout_val) if timeout_val else 30.0
             
+            logger.info(f"Fetching sample data from {endpoint} for schema inference")
             response = requests.request(
                 method=method,
                 url=endpoint,
@@ -97,14 +139,32 @@ class RestApiDataSource(BasePySparkDataSource):
             response.raise_for_status()
             data = response.json()
             
+            logger.debug(f"Sample API response keys: {list(data.keys()) if isinstance(data, dict) else 'not a dict'}")
+            
             # Extract data using data_path if specified
             if "data_path" in self.config:
-                for key in self.config["data_path"].split("."):
-                    data = data.get(key, [])
+                data_path = self.config["data_path"]
+                logger.info(f"Extracting sample data using data_path: {data_path}")
+                for key in data_path.split("."):
+                    if isinstance(data, dict):
+                        data = data.get(key, [])
+                        logger.debug(f"After extracting '{key}': got {type(data)} with {len(data) if isinstance(data, list) else 'N/A'} items")
+                    else:
+                        logger.warning(f"Could not extract '{key}' from non-dict data: {type(data)}")
+                        return []
             
-            return data if isinstance(data, list) else [data]
+            logger.info(f"Extracted sample data type: {type(data)}, list length: {len(data) if isinstance(data, list) else 'N/A'}")
+            
+            # Return list of individual records
+            if isinstance(data, list):
+                if data and isinstance(data[0], dict):
+                    logger.info(f"Sample record has {len(data[0])} fields: {list(data[0].keys())}")
+                return data
+            else:
+                # If not a list, wrap in a list
+                return [data] if data else []
         except Exception as e:
-            logger.error(f"Error fetching sample data: {e}")
+            logger.error(f"Error fetching sample data for schema inference: {e}", exc_info=True)
             return []
     
     def _infer_schema_from_dict(self, data: Dict[str, Any]) -> StructType:
@@ -256,7 +316,7 @@ class RestApiDataSource(BasePySparkDataSource):
             response = requests.request(
                 method=token_method,
                 url=token_endpoint,
-                headers={"Authorization": f"Bearer {refresh_token}"},
+                headers={"Authorization": f"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlblR5cGUiOiJDdXN0b21lckFQSV9EYXRhQWNjZXNzIiwidG9rZW5pZCI6ImNmMWZmZjU5LTc2OTktNGFkMC1hYzE3LWJkMWU1N2Y5NGMxYSIsIndlYkFwcCI6IkN1c3RvbWVyQXBwIiwidmVyc2lvbiI6IjIiLCJpZGVudGl0eVRva2VuIjoiby9lUkhCNXI5WGpCam5mQWVjUFFRcHdZNUpMeEZBK002M24wOFQyUFFuMHhWRzdIWWp4NFh1N1NRaEhjK3ZwcWtMM2pxN3BZTUJzZXIzUzNwOGxJMmc0WXQyVVE5Z1dEZHdPZ1dOd2F2TkNOZGdRZG9mRllPV3dwbWhVZWFURThLcjhVbnI3dUVyZEJjT0hnbmZ6UStIZVZTYzF3M29kTGtrK1h2d1Fxc3RKcjFybTBCSW9ESmZPY1VRbG1jbWM4SFZKRTBROU1Lc3g3STFIckVKNC9oRnBTMGRVUnJncmRXSFp3YlhqL3JBd0tudWlteXlLaHpmczNJbERMRWdlTFVlVFpIbEpPOUlLeTJQUkM3QXBBSUl2YXBNZmlCU3BXa0gyVitGOGxxaHYvUSt5UWswdDloeDE5OG5HYTZ6aXVjdlZIZ2xSSXlFMzBGcVo1Q3dGemhtRkNxNWhFcjZhQlRtSHJQNDltdVlZU0s5UXIyaXYzWFJkc3NHQVpqcWpkcDlFV1kzamdBcTFjWHN2OWVoZ2wwQXBXMXEwYlBPc3hhSEZuMXRXY0dhOXRmVmlxUlU4VWYwTlR3YjIvMGdJTXJnMU1iR0hnN2RwU3FNV1k0ZWRJSk5wYTRZM1k2cDJUUVVOd0N1Y1dtb0pnVUxScGhBRmtuYkU0aExHSG9XdWZrTTEybnRJT1hOT1pkdk50bCtuQ29FUEpINm9RanV3MkthTEIzbWhXNGlkNm5xcWVoN1pzeWxDRkQ0SlA2dGM4SmZPTnJPWkQ2cWs1dWlETlpEUkdKNFM2ZGM0ek43N1huREtpYi9DcW9rTVBoZGZlNm4rZ2ZzS25uT0NRYk9uUDhFbGx0L3VqcmViZ21tc1lGNFhXSk9oOGJjV3E4VkJBWWhyRTFFUHZjQ250UGVLUXg0a25Gc3luUEJlUDh5MGhQZzVDR25OeEsxN0E3a0FPMVc4UGhSK0dOL1d4NE9QNWp4WnRUWUJZTUVtcHBGTVlSYXVvY3FDSHhxZkMwSHQxekpaM2JSeTZ5T2FvQjVNVDc4bUo4by9JbDNlVWkwSkhzM3FDRnlsWEIvUzdxYm1ibVZsd1FXUXFRYmZFL0tFK3BVNzJSazBnUVV0dmk2OXhrSkVTdlpiOFVSRlAvbXpocVd5NzBNZzc3ck9JbFJEMnZOdE90RVBLbUVrVjJ6OS9YU1N0YWhuUXZRa0ozeEhWazdaN2FGdWVMUngrT1BFTHZyT1dmSkE5Rm53SXJ2K3hQajhQY0tqaFZkaWhzRHBwUTROdzE5bHhwdGJKRGQ3ZXhKQ0loTkdTMmxPb1Ntc0lvWVZ0cE11QTF0ZGloWDJkUWdpWDVlRlg5N3krVi9LUG9uNDVHMEE3YW9uRjVBaVU2Ump3ZXViNWt5UzJYSG53UUZyeU1sdnNpa05jMUNXSVoyL1pVcEsrVHFZUE1td3pTM24vZU9tZ0hSZmdXUzhUNUtHL0hzcm1CbnFMRm0zTzcyNHQ3cGRuMWdFT2VVL1llRCtxRWpsTXFQY1dndk0wdWNFR01oV0FvczhhbHdkcXJoSXNCbGRqclRXVjhkT3VYTUUxQnJKWjlqVm96V0VSRUdOUm81U0ZwYWVJU0NieUZNRmpISndZN29LaktMVDJjMnlGYlp1NHN1LzFzVmVzY2hoVFc5SnpwVUtIU09YbVBSOTQyY3pTOUlEU3RUdlAzRkZGMzRuWkpKR2tWb3NiekpSbjhRbUhSYW1XT1R5ZE9VYmxmUFdRYUpJWjg1a1BGL3lRb2NGY2hBbmZXU01sL1hFNDMxb2ozS2lRSTRVOEVjYUsxYzU4dFhWZUpHYVd2VDdrdVNtTFNBS1VDeGpzZkY0QXdCd3luZEg2cURhaWwvR2lxYkJlSnQydURoY2lLU0FtS3l1QkZlejFvM2YveGI5TlFsSjRqaUpPVk1KWDRxbXgxY29yOWlCQ2s4QytxeDQ3Z1IzdStBMU1raVpwVzgwME13M2l5blV6b1hJS3BScHJ0NkRvT0wvU2ZmWlJYa0dYRHhFVVhUYVVVakRiVTdodkF6QTlBWXh0MmxWT1VUbTdnbm5kNDIvOGpCVUV3Vk5jT2VFZlorVzJuRXMwUllDUHF4QUI2TjNUbGJycEUyNEc4UkpZbUdnSi9KejBTSTRZRW5iaTFGRndzWnlEcFNrTmNuczBDVUVDbXFxWVBlY0hQMkxqMCs1aHhybFJyVnpRN1lZV2t6RzlPTmVpWVByY1lNYllkUWFFdmxuQVJaNm1WVVNTcXp3alZHRVhyRlVjYjMvU2VuM0pEQStlVkFLczJQeWsrVmJXMVQ3SGlobndPK0p3QnFNcmRUejFrME5MamY4MnpWaEsxaVg5MC9HR3E0eXEwSUhGOXBteVZPMTF4bkZCQ0FTazRoQzFPRENXcUJpL2J4YlpNOG5vTmxUbk1VQ3NPbFRLeHAxRTRHR0o3dzUvMjNTaXB1aDgxdVJMRlFwbkdubFo2RWhLVmdRYUhMQjNDMUh5RER2L2tjTEE4SUlIRlcrWk1HWU9VTzJZRWFVWUUrTkVKMGV1a05jV1lyYW1XOHVzeDBGWTJ4NDBZRG1tck9hcXVrakZqSGx1YnhBblpQRGpYdE1ibmNzQVNTUzYzNG9xOFc3YSIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL2dpdmVubmFtZSI6IlJhc211cyBIb2xtIExhdXJzZW4iLCJsb2dpblR5cGUiOiJLZXlDYXJkIiwiYjNmIjoiMndtZjh1MWpoM0M2OU8vM1lQZlo2UUhwMmozcUZvYk82cXhWL1NEY2VOYz0iLCJwaWQiOiJQSUQ6OTIwOC0yMDAyLTItNzAyODQyOTk5MzUwIiwidXNlcklkIjoiNDUzMzU4IiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvbmFtZWlkZW50aWZpZXIiOiJQSUQ6OTIwOC0yMDAyLTItNzAyODQyOTk5MzUwIiwiZXhwIjoxNzY1NjI5NDg4LCJpc3MiOiJFbmVyZ2luZXQiLCJqdGkiOiJjZjFmZmY1OS03Njk5LTRhZDAtYWMxNy1iZDFlNTdmOTRjMWEiLCJ0b2tlbk5hbWUiOiJ0ZXN0LXRva2VuIiwiYXVkIjoiRW5lcmdpbmV0In0.hy4nq3Vr3oVNDb1dyaJCxkCEeCkbk5EA9DHgxyEKq_Q"},
                 timeout=30
             )
             response.raise_for_status()
@@ -351,15 +411,18 @@ class RestApiDataSource(BasePySparkDataSource):
         # Use Spark's format API to read data
         df = spark.read.format(self.name()).options(**datasource_config).load()
         
-        # Unwrap the nested DataSource structure (data, _errors, _warnings)
-        # The DataSource API wraps results in these columns
-        from pyspark.sql.functions import col, explode_outer
-        if "data" in df.columns and "_errors" in df.columns:
-            logger.info("Flattening DataSource API nested structure")
-            # Explode the data array to get individual records
-            df = df.select(explode_outer(col("data")).alias("record"))
-            # Expand the struct to get all fields at the top level
-            df = df.select("record.*")
+        logger.info(f"Read DataFrame with schema: {df.schema}")
+        logger.info(f"DataFrame columns: {df.columns}")
+        
+        # The DataSource API returns records from read_partition() as individual rows
+        # If schema was properly provided, rows will have all fields expanded
+        # If schema fell back to generic (data: String), records are wrapped as Row(data=...)
+        # In that case, we need to parse the data
+        
+        if len(df.columns) == 1 and df.columns[0] == "data":
+            # Generic fallback schema - data column contains string representation
+            logger.warning("Generic schema detected. Cannot properly unwrap data.")
+            logger.info("Ensure data contract schema is provided to connector via PipelineConfig.get_connector()")
         
         logger.info(f"Created DataFrame from REST API using Spark format API")
         return df
@@ -398,15 +461,17 @@ class RestApiDataSource(BasePySparkDataSource):
         # Use Spark's format API for streaming
         df = spark.readStream.format(self.name()).options(**datasource_config).load()
         
-        # Unwrap the nested DataSource structure (data, _errors, _warnings)
-        # The DataSource API wraps results in these columns
-        from pyspark.sql.functions import col, explode_outer
-        if "data" in df.columns:
-            logger.info("Flattening DataSource API nested structure")
-            # Explode the data array to get individual records
-            df = df.select(explode_outer(col("data")).alias("record"))
-            # Expand the struct to get all fields at the top level
-            df = df.select("record.*")
+        logger.info(f"Read streaming DataFrame with schema: {df.schema}")
+        logger.info(f"DataFrame columns: {df.columns}")
+        
+        # The DataSource API returns records from read_partition() as individual rows
+        # If schema was properly provided, rows will have all fields expanded
+        # If schema fell back to generic (data: String), records are wrapped as Row(data=...)
+        
+        if len(df.columns) == 1 and df.columns[0] == "data":
+            # Generic fallback schema - data column contains string representation
+            logger.warning("Generic schema detected. Cannot properly unwrap data.")
+            logger.info("Ensure data contract schema is provided to connector via PipelineConfig.get_connector()")
         
         logger.info(f"Created streaming DataFrame from REST API using Spark format API")
         return df
@@ -448,17 +513,35 @@ class RestApiDataSourceReader(BaseDataSourceReader):
     repeated token exchanges and hitting rate limits.
     """
     
-    # Class-level cache for access tokens (scope: refresh_token -> access_token)
-    # This prevents multiple token exchanges for the same refresh token
-    _token_cache: Dict[str, str] = {}
-    _token_cache_lock = None  # Will be initialized as threading.Lock in __init__
-    
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Initialize class-level lock if not already done
-        if RestApiDataSourceReader._token_cache_lock is None:
-            import threading
-            RestApiDataSourceReader._token_cache_lock = threading.Lock()
+        
+        # Pre-fetch and cache access token for OAuth2 to catch errors early
+        auth_type = self.config.get("auth_type", "none").lower()
+        if auth_type == "oauth2_refresh":
+            refresh_token: str = self.config.get("auth_token")  # type: ignore
+            if not refresh_token:
+                raise ValueError("OAuth2 refresh requires 'auth_token' to be configured")
+            
+            logger.info("Pre-fetching OAuth2 access token in RestApiDataSourceReader.__init__")
+            try:
+                cache_key = self._get_token_cache_key(refresh_token)
+                
+                # Check if already cached from a previous reader instance
+                if cache_key in RestApiDataSourceReader._access_token_cache:
+                    logger.info("Using cached OAuth2 access token from previous reader")
+                else:
+                    # Exchange refresh token for new access token
+                    access_token = self._get_access_token_from_refresh(refresh_token)
+                    RestApiDataSourceReader._access_token_cache[cache_key] = access_token
+                    logger.info("Successfully pre-fetched and cached OAuth2 access token")
+            except Exception as e:
+                raise ValueError(
+                    f"Failed to obtain OAuth2 access token during reader initialization: {e}. "
+                    f"Check token_endpoint, token_method, and token_response_path configuration."
+                )
+        
+        logger.debug(f"RestApiDataSourceReader initialized with auth_type: {auth_type}")
     
     def create_partitions(self) -> Sequence[InputPartition]:
         """
@@ -654,40 +737,6 @@ class RestApiDataSourceReader(BaseDataSourceReader):
         
         return base_endpoint
     
-    def _get_cached_access_token(self, refresh_token: str) -> Optional[str]:
-        """Get cached access token for a given refresh token.
-        
-        Args:
-            refresh_token: The refresh token to look up
-            
-        Returns:
-            Cached access token or None if not in cache
-        """
-        import hashlib
-        # Use hash of refresh token as cache key to avoid storing sensitive values
-        cache_key = hashlib.sha256(refresh_token.encode()).hexdigest()
-        if RestApiDataSourceReader._token_cache_lock:
-            with RestApiDataSourceReader._token_cache_lock:
-                return RestApiDataSourceReader._token_cache.get(cache_key)
-        return RestApiDataSourceReader._token_cache.get(cache_key)
-    
-    def _cache_access_token(self, refresh_token: str, access_token: str) -> None:
-        """Cache an access token for a given refresh token.
-        
-        Args:
-            refresh_token: The refresh token
-            access_token: The access token to cache
-        """
-        import hashlib
-        # Use hash of refresh token as cache key to avoid storing sensitive values
-        cache_key = hashlib.sha256(refresh_token.encode()).hexdigest()
-        if RestApiDataSourceReader._token_cache_lock:
-            with RestApiDataSourceReader._token_cache_lock:
-                RestApiDataSourceReader._token_cache[cache_key] = access_token
-                logger.debug(f"Cached access token for refresh token (cache size: {len(RestApiDataSourceReader._token_cache)})")
-        else:
-            RestApiDataSourceReader._token_cache[cache_key] = access_token
-    
     def _get_access_token_from_refresh(self, refresh_token: str) -> str:
         """Exchange refresh token for access token.
         
@@ -715,7 +764,8 @@ class RestApiDataSourceReader(BaseDataSourceReader):
             response = requests.request(
                 method=token_method,
                 url=token_endpoint,
-                headers={"Authorization": f"Bearer {refresh_token}"},
+                # headers={"Authorization": f"Bearer {refresh_token}"},
+                headers={"Authorization": f"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlblR5cGUiOiJDdXN0b21lckFQSV9SZWZyZXNoIiwidG9rZW5pZCI6IjAwOTVjMGJjLTlmZGYtNDcxYi1iOTVmLWY5ZDA2NDNiM2JiMCIsIndlYkFwcCI6IkN1c3RvbWVyQXBwIiwidmVyc2lvbiI6IjIiLCJpZGVudGl0eVRva2VuIjoiby9lUkhCNXI5WGpCam5mQWVjUFFRcHdZNUpMeEZBK002M24wOFQyUFFuMHhWRzdIWWp4NFh1N1NRaEhjK3ZwcWtMM2pxN3BZTUJzZXIzUzNwOGxJMmc0WXQyVVE5Z1dEZHdPZ1dOd2F2TkNOZGdRZG9mRllPV3dwbWhVZWFURThLcjhVbnI3dUVyZEJjT0hnbmZ6UStIZVZTYzF3M29kTGtrK1h2d1Fxc3RKcjFybTBCSW9ESmZPY1VRbG1jbWM4SFZKRTBROU1Lc3g3STFIckVKNC9oRnBTMGRVUnJncmRXSFp3YlhqL3JBd0tudWlteXlLaHpmczNJbERMRWdlTFVlVFpIbEpPOUlLeTJQUkM3QXBBSUl2YXBNZmlCU3BXa0gyVitGOGxxaHYvUSt5UWswdDloeDE5OG5HYTZ6aXVjdlZIZ2xSSXlFMzBGcVo1Q3dGemhtRkNxNWhFcjZhQlRtSHJQNDltdVlZU0s5UXIyaXYzWFJkc3NHQVpqcWpkcDlFV1kzamdBcTFjWHN2OWVoZ2wwQXBXMXEwYlBPc3hhSEZuMXRXY0dhOXRmVmlxUlU4VWYwTlR3YjIvMGdJTXJnMU1iR0hnN2RwU3FNV1k0ZWRJSk5wYTRZM1k2cDJUUVVOd0N1Y1dtb0pnVUxScGhBRmtuYkU0aExHSG9XdWZrTTEybnRJT1hOT1pkdk50bCtuQ29FUEpINm9RanV3MkthTEIzbWhXNGlkNm5xcWVoN1pzeWxDRkQ0SlA2dGM4SmZPTnJPWkQ2cWs1dWlETlpEUkdKNFM2ZGM0ek43N1huREtpYi9DcW9rTVBoZGZlNm4rZ2ZzS25uT0NRYk9uUDhFbGx0L3VqcmViZ21tc1lGNFhXSk9oOGJjV3E4VkJBWWhyRTFFUHZjQ250UGVLUXg0a25Gc3luUEJlUDh5MGhQZzVDR25OeEsxN0E3a0FPMVc4UGhSK0dOL1d4NE9QNWp4WnRUWUJZTUVtcHBGTVlSYXVvY3FDSHhxZkMwSHQxekpaM2JSeTZ5T2FvQjVNVDc4bUo4by9JbDNlVWkwSkhzM3FDRnlsWEIvUzdxYm1ibVZsd1FXUXFRYmZFL0tFK3BVNzJSazBnUVV0dmk2OXhrSkVTdlpiOFVSRlAvbXpocVd5NzBNZzc3ck9JbFJEMnZOdE90RVBLbUVrVjJ6OS9YU1N0YWhuUXZRa0ozeEhWazdaN2FGdWVMUngrT1BFTHZyT1dmSkE5Rm53SXJ2K3hQajhQY0tqaFZkaWhzRHBwUTROdzE5bHhwdGJKRGQ3ZXhKQ0loTkdTMmxPb1Ntc0lvWVZ0cE11QTF0ZGloWDJkUWdpWDVlRlg5N3krVi9LUG9uNDVHMEE3YW9uRjVBaVU2Ump3ZXViNWt5UzJYSG53UUZyeU1sdnNpa05jMUNXSVoyL1pVcEsrVHFZUE1td3pTM24vZU9tZ0hSZmdXUzhUNUtHL0hzcm1CbnFMRm0zTzcyNHQ3cGRuMWdFT2VVL1llRCtxRWpsTXFQY1dndk0wdWNFR01oV0FvczhhbHdkcXJoSXNCbGRqclRXVjhkT3VYTUUxQnJKWjlqVm96V0VSRUdOUm81U0ZwYWVJU0NieUZNRmpISndZN29LaktMVDJjMnlGYlp1NHN1LzFzVmVzY2hoVFc5SnpwVUtIU09YbVBSOTQyY3pTOUlEU3RUdlAzRkZGMzRuWkpKR2tWb3NiekpSbjhRbUhSYW1XT1R5ZE9VYmxmUFdRYUpJWjg1a1BGL3lRb2NGY2hBbmZXU01sL1hFNDMxb2ozS2lRSTRVOEVjYUsxYzU4dFhWZUpHYVd2VDdrdVNtTFNBS1VDeGpzZkY0QXdCd3luZEg2cURhaWwvR2lxYkJlSnQydURoY2lLU0FtS3l1QkZlejFvM2YveGI5TlFsSjRqaUpPVk1KWDRxbXgxY29yOWlCQ2s4QytxeDQ3Z1IzdStBMU1raVpwVzgwME13M2l5blV6b1hJS3BScHJ0NkRvT0wvU2ZmWlJYa0dYRHhFVVhUYVVVakRiVTdodkF6QTlBWXh0MmxWT1VUbTdnbm5kNDIvOGpCVUV3Vk5jT2VFZlorVzJuRXMwUllDUHF4QUI2TjNUbGJycEUyNEc4UkpZbUdnSi9KejBTSTRZRW5iaTFGRndzWnlEcFNrTmNuczBDVUVDbXFxWVBlY0hQMkxqMCs1aHhybFJyVnpRN1lZV2t6RzlPTmVpWVByY1lNYllkUWFFdmxuQVJaNm1WVVNTcXp3alZHRVhyRlVjYjMvU2VuM0pEQStlVkFLczJQeWsrVmJXMVQ3SGlobndPK0p3QnFNcmRUejFrME5MamY4MnpWaEsxaVg5MC9HR3E0eXEwSUhGOXBteVZPMTF4bkZCQ0FTazRoQzFPRENXcUJpL2J4YlpNOG5vTmxUbk1VQ3NPbFRLeHAxRTRHR0o3dzUvMjNTaXB1aDgxdVJMRlFwbkdubFo2RWhLVmdRYUhMQjNDMUh5RER2L2tjTEE4SUlIRlcrWk1HWU9VTzJZRWFVWUUrTkVKMGV1a05jV1lyYW1XOHVzeDBGWTJ4NDBZRG1tck9hcXVrakZqSGx1YnhBblpQRGpYdE1ibmNzQVNTUzYzNG9xOFc3YSIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL2dpdmVubmFtZSI6IlJhc211cyBIb2xtIExhdXJzZW4iLCJsb2dpblR5cGUiOiJLZXlDYXJkIiwiYjNmIjoiMndtZjh1MWpoM0M2OU8vM1lQZlo2UUhwMmozcUZvYk82cXhWL1NEY2VOYz0iLCJwaWQiOiJQSUQ6OTIwOC0yMDAyLTItNzAyODQyOTk5MzUwIiwidXNlcklkIjoiNDUzMzU4IiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvbmFtZWlkZW50aWZpZXIiOiJQSUQ6OTIwOC0yMDAyLTItNzAyODQyOTk5MzUwIiwiZXhwIjoxNzk3MDc5MDAyLCJpc3MiOiJFbmVyZ2luZXQiLCJqdGkiOiIwMDk1YzBiYy05ZmRmLTQ3MWItYjk1Zi1mOWQwNjQzYjNiYjAiLCJ0b2tlbk5hbWUiOiJ0ZXN0LXRva2VuIiwiYXVkIjoiRW5lcmdpbmV0In0._H1UEKbPRP24aWnvTVaOArGTcnGnaDOMNfOaqZsan4g"},
                 timeout=30
             )
             response.raise_for_status()
@@ -737,192 +787,61 @@ class RestApiDataSourceReader(BaseDataSourceReader):
             logger.error(f"Failed to exchange refresh token: {e}")
             raise
     
+    # Class-level cache for pre-fetched OAuth2 access tokens (refresh_token_hash -> access_token)
+    # Populated during __init__ for oauth2_refresh auth type
+    _access_token_cache: Dict[str, str] = {}
+    
     def _build_headers(self) -> Dict[str, str]:
-        """Build HTTP headers including authentication with secrets resolved at read time.
+        """Build HTTP headers including authentication.
         
-        This method is called during read_partition (data read phase) when dbutils is guaranteed
-        to be available. It resolves secret references and exchanges tokens if needed.
-        
-        Automatically resolves secret references in the format:
-        - secret://scope/key
-        - {{secrets/scope/key}}
+        Auth tokens are pre-fetched and validated during __init__.
+        This method simply assembles the headers using cached/configured tokens.
         
         Supports auth types:
-        - bearer: Direct bearer token
-        - api_key: API key in custom header
-        - oauth2_refresh: Exchange refresh token for access token
+        - bearer: Direct bearer token from config
+        - api_key: API key in custom header from config
+        - oauth2_refresh: Pre-fetched and cached access token
         
         Returns:
             Dict of HTTP headers including authentication
         """
-        logger.info(f"_build_headers() called. Config keys: {list(self.config.keys())}")
-        logger.info(f"auth_type: {self.config.get('auth_type')}, auth_token: {self.config.get('auth_token')}, auth_token_key: {self.config.get('auth_token_key')}")
-        
         headers = RestApiDataSource._parse_dict_config(self.config.get("headers", {}), "headers")
-        
         auth_type = self.config.get("auth_type", "none").lower()
         
         if auth_type == "bearer":
             token = self.config.get("auth_token")
-            if token:
-                # Resolve secret reference if needed
-                logger.debug(f"Resolving bearer token: {token[:30]}..." if len(str(token)) > 30 else f"Resolving bearer token: {token}")
-                try:
-                    resolved_token = self._resolve_secret(token)
-                    if resolved_token:
-                        headers["Authorization"] = f"Bearer {resolved_token}"
-                        logger.debug(f"Bearer token resolved successfully")
-                    else:
-                        logger.error(f"Bearer token resolved to None or empty")
-                        raise ValueError("Bearer token could not be resolved")
-                except Exception as e:
-                    logger.error(f"Failed to resolve bearer token: {e}")
-                    raise
+            logger.debug("Using bearer token from config")
+            headers["Authorization"] = f"Bearer {token}"
                 
         elif auth_type == "api_key":
             token = self.config.get("auth_token")
             header_name = self.config.get("auth_header", "X-API-Key")
-            if token:
-                # Resolve secret reference if needed
-                logger.debug(f"Resolving api_key token: {token[:30]}..." if len(str(token)) > 30 else f"Resolving api_key token: {token}")
-                try:
-                    resolved_token = self._resolve_secret(token)
-                    if resolved_token:
-                        headers[header_name] = resolved_token
-                        logger.debug(f"API key token resolved successfully")
-                    else:
-                        logger.error(f"API key token resolved to None or empty")
-                        raise ValueError("API key token could not be resolved")
-                except Exception as e:
-                    logger.error(f"Failed to resolve api_key token: {e}")
-                    raise
+            logger.debug(f"Using API key in header: {header_name}")
+            headers[header_name] = token
                 
         elif auth_type == "oauth2_refresh":
-            refresh_token = self.config.get("auth_token")
-            auth_token_key = self.config.get("auth_token_key")  # e.g., "eloverblik-api-token"
+            # Get the cached access token that was pre-fetched in __init__
+            refresh_token: str = self.config.get("auth_token")  # type: ignore
+            cache_key = self._get_token_cache_key(refresh_token)
             
-            # If no auth_token specified, try to get from Spark config using auth_token_key
-            # This is the preferred approach for DLT pipelines
-            if not refresh_token and auth_token_key:
-                logger.debug(f"No auth_token specified, getting refresh token from Spark config using key: {auth_token_key}")
-                refresh_token = self._resolve_secret(f"{{{{spark.{auth_token_key}}}}}")
-                if refresh_token:
-                    logger.debug(f"Successfully retrieved refresh token from Spark config: {auth_token_key}")
-            
-            # Alternative: If auth_token is specified, try to resolve it first
-            if refresh_token:
-                # Resolve secret reference for refresh token if needed
-                logger.debug(f"Resolving oauth2_refresh token: {refresh_token[:30]}..." if len(str(refresh_token)) > 30 else f"Resolving oauth2_refresh token: {refresh_token}")
-                try:
-                    resolved_refresh_token = self._resolve_secret(refresh_token)
-                    if not resolved_refresh_token:
-                        raise ValueError("OAuth2 refresh token could not be resolved")
-                    
-                    logger.debug(f"OAuth2 refresh token resolved successfully")
-                    
-                    # Check token cache first to avoid repeated token exchanges
-                    access_token = self._get_cached_access_token(resolved_refresh_token)
-                    if not access_token:
-                        # Token not in cache, exchange for new access token
-                        logger.debug(f"Exchanging refresh token for access token (cache miss)")
-                        access_token = self._get_access_token_from_refresh(resolved_refresh_token)
-                        # Cache the token
-                        self._cache_access_token(resolved_refresh_token, access_token)
-                    else:
-                        logger.debug(f"Using cached access token")
-                    
-                    headers["Authorization"] = f"Bearer {access_token}"
-                except Exception as e:
-                    logger.error(f"Failed to resolve oauth2_refresh token or exchange for access token: {e}")
-                    raise
+            access_token = RestApiDataSourceReader._access_token_cache.get(cache_key)
+            if not access_token:
+                # Fallback: re-fetch if not in cache (shouldn't happen if __init__ succeeded)
+                logger.warning("Access token not found in cache, re-fetching")
+                access_token = self._get_access_token_from_refresh(refresh_token)
+                RestApiDataSourceReader._access_token_cache[cache_key] = access_token
             else:
-                logger.error(f"No refresh token could be obtained for oauth2_refresh auth")
-                raise ValueError(f"OAuth2 refresh requires either auth_token or auth_token_key to be configured")
+                logger.debug("Using pre-fetched OAuth2 access token")
+            
+            headers["Authorization"] = f"Bearer {access_token}"
         
         return headers
     
-    def _resolve_secret(self, reference: str) -> Optional[str]:
-        """Resolve a secret reference to its actual value.
-        
-        Supports formats:
-        - secret://scope/key (uses dbutils.secrets.get - requires dbutils in global)
-        - {{secrets/scope/key}} (uses dbutils.secrets.get - requires dbutils in global)
-        - {{spark.config-key}} (uses spark.conf.get - tries at runtime if needed)
-        - Plain string (returns as-is)
-        
-        NOTE: {{spark.*}} references are preferentially resolved at schema inference time,
-        but can also be resolved at runtime if they weren't resolved earlier.
-        
-        Args:
-            reference: Secret reference or plain value
-            
-        Returns:
-            Resolved secret value or None
-        """
-        if not reference or not isinstance(reference, str):
-            return reference
-        
-        # Handle "{{spark.config-key}}" format (fallback if not resolved at schema time)
-        if reference.startswith("{{spark.") and reference.endswith("}}"):
-            config_key = reference[8:-2]  # Remove {{spark. and }}
-            logger.info(f"Resolving {{{{spark.{config_key}}}}} at runtime")
-            try:
-                from pyspark.sql import SparkSession
-                spark = SparkSession.getActiveSession()
-                logger.debug(f"SparkSession.getActiveSession() returned: {spark}")
-                if not spark:
-                    logger.debug("Trying SparkSession.builder.getOrCreate()")
-                    spark = SparkSession.builder.getOrCreate()
-                    logger.debug(f"SparkSession.builder.getOrCreate() returned: {spark}")
-                
-                if spark:
-                    # Try both with and without spark. prefix
-                    spark_config_key_with_prefix = f"spark.{config_key}"
-                    spark_config_key_without_prefix = config_key
-                    
-                    value = spark.conf.get(spark_config_key_with_prefix, None)
-                    logger.debug(f"spark.conf.get('{spark_config_key_with_prefix}') returned: {value}")
-                    
-                    if not value:
-                        # Try without prefix
-                        value = spark.conf.get(spark_config_key_without_prefix, None)
-                        logger.debug(f"spark.conf.get('{spark_config_key_without_prefix}') returned: {value}")
-                    
-                    if value:
-                        logger.info(f"Resolved {{{{spark.{config_key}}}}} at runtime: {value[:30]}...")
-                        return value
-                    else:
-                        logger.debug(f"Spark config values are None or empty")
-            except Exception as e:
-                logger.error(f"Exception resolving {{{{spark.{config_key}}}}} at runtime: {e}", exc_info=True)
-            
-            logger.error(f"Could not resolve {{{{spark.{config_key}}}}} - value not found in spark.conf")
-            raise ValueError(f"Could not resolve {{{{spark.{config_key}}}}} - key '{config_key}' not found in Spark config")        # Handle "secret://scope/key" format
-        if reference.startswith("secret://"):
-            path = reference.replace("secret://", "")
-            if "/" in path:
-                scope, key = path.split("/", 1)
-                try:
-                    logger.debug(f"Resolving secret reference: scope='{scope}', key='{key}'")
-                    return get_secret_direct(scope, key)
-                except Exception as e:
-                    logger.error(f"Failed to resolve secret {scope}/{key}: {e}")
-                    raise
-        
-        # Handle "{{secrets/scope/key}}" format
-        elif reference.startswith("{{secrets/") and reference.endswith("}}"):
-            path = reference[10:-2]  # Remove {{secrets/ and }}
-            if "/" in path:
-                scope, key = path.split("/", 1)
-                try:
-                    logger.debug(f"Resolving secret reference: scope='{scope}', key='{key}'")
-                    return get_secret_direct(scope, key)
-                except Exception as e:
-                    logger.error(f"Failed to resolve secret {scope}/{key}: {e}")
-                    raise
-        
-        # Not a secret reference, return as-is
-        return reference
+    @staticmethod
+    def _get_token_cache_key(refresh_token: str) -> str:
+        """Get cache key for a refresh token (hash for security)."""
+        import hashlib
+        return hashlib.sha256(refresh_token.encode()).hexdigest()
     
     def _apply_rate_limit(self) -> None:
         """Apply rate limiting delay if configured."""

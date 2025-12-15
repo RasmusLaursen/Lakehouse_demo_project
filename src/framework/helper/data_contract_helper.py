@@ -334,3 +334,63 @@ def schema_to_table_config(schema: SchemaObject) -> Dict[str, Any]:
         config["apply_as_truncates"] = apply_as_truncates
     
     return config
+
+
+def schema_properties_to_spark_schema(schema: SchemaObject):
+    """
+    Convert data contract schema properties to a Spark StructType.
+    
+    Converts ODCS schema properties (with name and type) to PySpark StructType
+    for use with Spark DataSource API. This avoids needing to infer schema from
+    API responses and allows schema definition to come from the data contract.
+    
+    Args:
+        schema (SchemaObject): The schema object from ODCS contract.
+        
+    Returns:
+        StructType: PySpark schema definition
+        
+    Example:
+        >>> schema_obj = get_schema_from_contract(contract, "MeteringPoints")
+        >>> spark_schema = schema_properties_to_spark_schema(schema_obj)
+        >>> df = spark.read.format("rest_api").schema(spark_schema).load()
+    """
+    from pyspark.sql.types import (
+        StructType, StructField, StringType, IntegerType, LongType,
+        DoubleType, FloatType, BooleanType, TimestampType, DateType,
+        DecimalType
+    )
+    
+    if not schema.properties:
+        logger.warning(f"Schema '{schema.name}' has no properties. Returning generic schema.")
+        return StructType([StructField("data", StringType(), True)])
+    
+    fields = []
+    type_mapping = {
+        "string": StringType(),
+        "integer": IntegerType(),
+        "long": LongType(),
+        "int": IntegerType(),
+        "bigint": LongType(),
+        "double": DoubleType(),
+        "float": FloatType(),
+        "boolean": BooleanType(),
+        "bool": BooleanType(),
+        "timestamp": TimestampType(),
+        "date": DateType(),
+        "decimal": DecimalType(38, 18),
+    }
+    
+    for prop in schema.properties:
+        col_name = prop.name
+        col_type_str = (prop.type or "string").lower()
+        col_required = not (hasattr(prop, 'required') and prop.required == False)  # Default to required
+        
+        # Map data contract type to PySpark type
+        pyspark_type = type_mapping.get(col_type_str, StringType())
+        
+        fields.append(StructField(col_name, pyspark_type, col_required))
+        logger.debug(f"Added field: {col_name} ({col_type_str} -> {type(pyspark_type).__name__})")
+    
+    logger.info(f"Created Spark schema for '{schema.name}' with {len(fields)} fields")
+    return StructType(fields)

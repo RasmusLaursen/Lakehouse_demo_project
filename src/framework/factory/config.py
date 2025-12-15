@@ -1,6 +1,6 @@
 """Pipeline configuration models."""
 from dataclasses import dataclass
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, List
 from pyspark.sql import SparkSession
 from src.framework.helper import databricks_helper, logging_helper
 
@@ -233,6 +233,11 @@ class PipelineConfig:
                     else:
                         connector_config["params"] = prop_value
                         logger.info(f"Applied schema-level params for {model_name}: {prop_value}")
+                elif prop_name == "secret_keys":
+                    # Schema-level secret_keys to be resolved
+                    if isinstance(prop_value, list):
+                        connector_config.setdefault("secret_keys", []).extend(prop_value)
+                        logger.info(f"Applied schema-level secret_keys for {model_name}: {prop_value}")
                 elif prop_name in ["mode", "timestamp_field", "timestamp_param", "initial_timestamp", "table_name"]:
                     # Pass streaming-related config and table_name directly to connector
                     connector_config[prop_name] = prop_value
@@ -250,10 +255,173 @@ class PipelineConfig:
         # For REST API connectors, add table_name for endpoint construction
         if self.connector_type in ["rest_api", "rest_api_ds"]:
             connector_config.setdefault("table_name", model_name)
+            
+            # For REST API connectors with schema, build schema from contract properties
+            # This avoids needing to infer schema from API at connector creation time
+            if schema and hasattr(schema, 'properties') and schema.properties:
+                try:
+                    from src.framework.helper.data_contract_helper import schema_properties_to_spark_schema
+                    spark_schema = schema_properties_to_spark_schema(schema)
+                    connector_config["schema"] = spark_schema
+                    logger.info(f"Added Spark schema to REST API connector config for {model_name} with {len(spark_schema.fields)} fields")
+                except Exception as e:
+                    logger.warning(f"Could not build schema from contract properties for {model_name}: {e}. Will infer from API.")
+        
+        # Extract and resolve secrets from connector config
+        # Secret keys should be declared in the connector_config via secret_keys property
+        secret_keys = connector_config.pop("secret_keys", [])
+        if secret_keys:
+            logger.info(f"Resolving {len(secret_keys)} secrets for {model_name} connector")
+            try:
+                self._resolve_connector_secrets(connector_config, secret_keys)
+                logger.info(f"Successfully resolved all secrets for {model_name}")
+            except ValueError as e:
+                logger.error(f"Secret resolution failed for {model_name}: {e}")
+                raise
         
         logger.info(f"Creating {self.connector_type} connector for {model_name} with config keys: {list(connector_config.keys())}")
         
         return ConnectorFactory.create(self.connector_type, connector_config)
+    
+    def _resolve_secret_reference(self, reference: str) -> str:
+        """Resolve a single secret reference to its actual value.
+        
+        Supports formats:
+        - {{spark.config-key}}: Spark configuration value (for DLT pipelines)
+        - {{secrets/scope/key}}: Databricks secret reference
+        - secret://scope/key: Databricks secret reference
+        - Plain string: Returns as-is (not a secret reference)
+        
+        Args:
+            reference: Secret reference or plain value
+            
+        Returns:
+            Resolved secret value
+            
+        Raises:
+            ValueError: If secret reference cannot be resolved
+        """
+        if not reference or not isinstance(reference, str):
+            return reference
+        
+        # Handle "{{spark.config-key}}" format (Spark config for DLT pipelines)
+        if reference.startswith("{{spark.") and reference.endswith("}}"):
+            config_key = reference[8:-2]  # Remove {{spark. and }}
+            logger.debug(f"Resolving {{{{spark.{config_key}}}}} from Spark config")
+            try:
+                spark = databricks_helper.get_spark()
+                if spark:
+                    # Try with and without spark. prefix
+                    value = spark.conf.get(f"spark.{config_key}", None)
+                    if not value:
+                        value = spark.conf.get(config_key, None)
+                    
+                    if value:
+                        logger.debug(f"Resolved {{{{spark.{config_key}}}}} from Spark config")
+                        return value
+            except Exception as e:
+                logger.debug(f"Exception resolving {{{{spark.{config_key}}}}}: {e}")
+            
+            raise ValueError(f"Could not resolve {{{{spark.{config_key}}}}} - key not found in Spark config")
+        
+        # Handle "secret://scope/key" format
+        if reference.startswith("secret://"):
+            path = reference.replace("secret://", "")
+            if "/" in path:
+                scope, key = path.split("/", 1)
+                logger.debug(f"Resolving secret: scope='{scope}', key='{key}'")
+                return self._get_dbutils_secret(scope, key)
+        
+        # Handle "{{secrets/scope/key}}" format
+        if reference.startswith("{{secrets/") and reference.endswith("}}"):
+            path = reference[10:-2]  # Remove {{secrets/ and }}
+            if "/" in path:
+                scope, key = path.split("/", 1)
+                logger.debug(f"Resolving secret: scope='{scope}', key='{key}'")
+                return self._get_dbutils_secret(scope, key)
+        
+        # Not a secret reference, return as-is
+        return reference
+    
+    def _get_dbutils_secret(self, scope: str, key: str) -> str:
+        """Get a secret from Databricks secrets using dbutils.
+        
+        Args:
+            scope: Secret scope name
+            key: Secret key name
+            
+        Returns:
+            Secret value
+            
+        Raises:
+            ValueError: If secret cannot be accessed
+        """
+        try:
+            # Try direct dbutils access (works in Databricks notebooks)
+            try:
+                dbutils = globals().get('dbutils')
+                if dbutils:
+                    return dbutils.secrets.get(scope, key)
+            except:
+                pass
+            
+            # Try via PySpark context
+            from pyspark.sql import SparkSession
+            spark = SparkSession.getActiveSession()
+            if not spark:
+                spark = SparkSession.builder.getOrCreate()
+            
+            if spark:
+                try:
+                    # Access via Spark context
+                    sc = spark.sparkContext
+                    return sc.parallelize([1]).map(lambda x: __import__('dbutils').secrets.get(scope, key)).collect()[0]
+                except:
+                    pass
+            
+            raise ValueError(f"Could not access dbutils for secret resolution")
+        except Exception as e:
+            logger.error(f"Failed to resolve secret {scope}/{key}: {e}")
+            raise ValueError(f"Failed to resolve secret {scope}/{key}: {e}")
+    
+    def _resolve_connector_secrets(self, connector_config: Dict[str, Any], secret_keys: List[str]) -> Dict[str, Any]:
+        """Resolve all declared secret keys in connector configuration.
+        
+        Resolves each key in secret_keys list, replacing the reference with the actual secret value.
+        Fails fast if any secret cannot be resolved.
+        
+        Args:
+            connector_config: Configuration dictionary for the connector
+            secret_keys: List of config keys that contain secret references (e.g., ["auth_token", "auth_token_key"])
+            
+        Returns:
+            Updated connector_config with secrets resolved (modifies in place and returns)
+            
+        Raises:
+            ValueError: If any secret cannot be resolved
+        """
+        if not secret_keys:
+            return connector_config
+        
+        logger.debug(f"Resolving {len(secret_keys)} secret keys: {secret_keys}")
+        
+        for key in secret_keys:
+            if key in connector_config:
+                value = connector_config[key]
+                if value and isinstance(value, str):
+                    try:
+                        resolved = self._resolve_secret_reference(value)
+                        connector_config[key] = resolved
+                        logger.debug(f"Resolved secret key '{key}'")
+                    except Exception as e:
+                        logger.error(f"Failed to resolve secret key '{key}': {e}")
+                        raise ValueError(f"Failed to resolve secret key '{key}' in connector config: {e}")
+                else:
+                    logger.debug(f"Secret key '{key}' is not a string, skipping resolution")
+            else:
+                logger.warning(f"Secret key '{key}' not found in connector config")
+        
+        return connector_config
     
     def get_secret_from_spark_config(self, key: str) -> Optional[str]:
         """Get a secret value from Spark configuration.
