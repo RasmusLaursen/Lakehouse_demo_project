@@ -19,9 +19,10 @@ servers:
       - property: loadtype
         value: "volume_autoloader"
       - property: connector_type
-        value: "volume"
+        value: "autoloader"
       - property: connector_config
         value:
+          source_type: "volume"
           add_audit_columns: true
 
 schema:
@@ -29,6 +30,8 @@ schema:
     description: "Customer reviews for lakehouse rental experiences"
     type: table
     customProperties:
+      - property: mode
+        value: streaming
       - property: scd_type
         value: 1
       - property: keys

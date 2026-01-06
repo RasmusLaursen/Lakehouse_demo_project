@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional, List
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.types import StructType
 from src.framework.connectors.base_connector import BaseConnector
-from src.framework.helper import logging_helper, common
+from src.framework.helper import logging_helper, add_audit_columns
 
 logger = logging_helper.get_logger(__name__)
 
@@ -145,7 +145,7 @@ class RestApiConnector(BaseConnector):
         
         # Add audit columns if requested
         if self.config.get("add_audit_columns", False):
-            df = common.add_audit_columns(df=df)
+            df = add_audit_columns(df=df)
             logger.info("Added audit columns to batch DataFrame")
         
         logger.info(f"Successfully fetched {df.count()} records from API")

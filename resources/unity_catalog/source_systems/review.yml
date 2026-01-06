@@ -22,7 +22,3 @@ resources:
       catalog_name: ${resources.schemas.review_landing_schema.catalog_name}
       name: reviews
       schema_name: ${resources.schemas.review_landing_schema.name}
-    review_volume_contract:
-      catalog_name: ${resources.schemas.review_landing_schema.catalog_name}
-      name: reviews_contract
-      schema_name: ${resources.schemas.review_landing_schema.name}      

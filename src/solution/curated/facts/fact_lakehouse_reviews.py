@@ -4,10 +4,10 @@ This module uses the factory pattern to create DLT fact tables.
 All logic has been consolidated into the CuratedFactFactory.
 """
 from src.framework.factory.fact_factory import CuratedFactFactory
-from src.framework.helper import databricks_helper
+from src.framework.helper import get_spark, get_pipeline_configurations
 
 # Create the fact table for lakehouse reviews
-spark = databricks_helper.get_spark()
+spark = get_spark()
 factory = CuratedFactFactory(spark, source_system='review')
 
 factory.create_fact(

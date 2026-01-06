@@ -5,7 +5,8 @@ while keeping custom transformation logic (joins) in this file.
 """
 from pyspark.sql import DataFrame
 from src.framework.factory.dimension_factory import CuratedDimensionFactory
-from src.framework.helper import databricks_helper
+from src.framework.helper import get_spark, get_pipeline_configurations
+from src.framework.config import CentralizedPipelineConfig, CatalogSchemaManager
 
 def custom_seller_transform(df: DataFrame) -> DataFrame:
     """Apply seller-specific transformations.
@@ -18,13 +19,13 @@ def custom_seller_transform(df: DataFrame) -> DataFrame:
     Returns:
         DataFrame with meta_region joined
     """
-    spark = databricks_helper.get_spark()
-    from src.framework.factory.config import PipelineConfig
-    config = PipelineConfig.from_spark(spark)
+    spark = get_spark()
+    centralized_config = CentralizedPipelineConfig.from_spark(spark)
+    catalog_manager = CatalogSchemaManager.from_pipeline_config(centralized_config)
     
     # Read lookup table
     meta_region_df = spark.read.table(
-        config.get_base_table_path('meta_region')
+        catalog_manager.get_base_table_path('meta_region')
     )
     
     # Join to get region name
@@ -41,7 +42,7 @@ def custom_seller_transform(df: DataFrame) -> DataFrame:
 
 
 # Create the dimension table using factory with custom transform
-spark = databricks_helper.get_spark()
+spark = get_spark()
 factory = CuratedDimensionFactory(spark)
 
 factory.create_dimension(

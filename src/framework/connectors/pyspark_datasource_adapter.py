@@ -149,8 +149,17 @@ class BaseDataSourceReader(DataSourceReader, ABC):
         Returns:
             Sequence of InputPartition objects
         """
+        msg = f"*** BaseDataSourceReader.partitions() called"
+        logger.warning(msg)
+        print(msg, flush=True)
+        import sys
+        print(msg, file=sys.stderr, flush=True)
         partitions = self.create_partitions()
-        logger.info(f"Created {len(partitions)} partitions for reading")
+        msg2 = f"*** BaseDataSourceReader.partitions() returning {len(partitions)} partitions"
+        logger.info(msg2)
+        logger.warning(msg2)
+        print(msg2, flush=True)
+        print(msg2, file=sys.stderr, flush=True)
         return partitions
     
     @abstractmethod
@@ -176,7 +185,12 @@ class BaseDataSourceReader(DataSourceReader, ABC):
         Returns:
             Iterator of Row objects
         """
-        logger.debug(f"Reading partition: {partition}")
+        msg = f"*** BaseDataSourceReader.read() called: partition_type={type(partition).__name__}"
+        logger.debug(msg)
+        logger.warning(msg)  # Force it to warning level
+        print(msg, flush=True)
+        import sys
+        print(msg, file=sys.stderr, flush=True)
         return self.read_partition(partition)
 
 

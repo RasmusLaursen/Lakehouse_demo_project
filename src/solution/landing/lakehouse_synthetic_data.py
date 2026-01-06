@@ -3,8 +3,8 @@ from datetime import timedelta
 from faker import Faker
 import random
 from typing import List
-from src.framework.helper import write
-from src.framework.helper.synthetic_data_config import (
+from src.framework.helper import (
+    write_volume,
     LoyaltyTier,
     PaymentMethod,
     CustomerProfile,
@@ -13,13 +13,14 @@ from src.framework.helper.synthetic_data_config import (
     LakehouseRental,
     Regions,
     Lakehouses,
+    get_logger,
+    get_spark,
+    get_dbutils,
 )
-from src.framework.helper import logging_helper
-from src.framework.helper import databricks_helper
 
 # Initialize logger
-logger = logging_helper.get_logger(__name__)
-spark = databricks_helper.get_spark()
+logger = get_logger(__name__)
+spark = get_spark()
 
 # Databricks notebook source
 
@@ -304,7 +305,7 @@ class LakehouseSyntheticData:
             )
             df_entity = spark.createDataFrame(entity_records)
 
-            write.write_volume(
+            write_volume(
                 target_catalog=landing_catalog,
                 target_schema=landing_schema,
                 target_name=entity_name,

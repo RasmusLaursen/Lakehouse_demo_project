@@ -18,7 +18,6 @@ from src.framework.connectors.connector_factory import ConnectorFactory
 from src.framework.connectors.autoloader_connector import AutoLoaderConnector
 from src.framework.connectors.rest_api_connector import RestApiConnector
 from src.framework.connectors.jdbc_connector import JdbcConnector
-from src.framework.connectors.table_connector import TableConnector
 from src.framework.connectors.dataframe_connector import DataFrameConnector
 from src.framework.connectors.pyspark_datasource_adapter import (
     BasePySparkDataSource,
@@ -36,6 +35,7 @@ from src.framework.connectors.partition_strategies import (
 )
 # PySpark DataSource implementations (Spark 4.0+) for non-Databricks sources
 from src.framework.connectors.rest_api_datasource import RestApiDataSource
+from src.framework.connectors.rest_api_workflow_datasource import RestApiWorkflowDataSource
 
 # Auto-register all connectors
 ConnectorFactory.register("autoloader", AutoLoaderConnector)
@@ -51,10 +51,10 @@ ConnectorFactory.register("http", RestApiConnector)  # Alias
 ConnectorFactory.register("https", RestApiConnector)  # Alias
 # PySpark DataSource version for REST API (non-Databricks native)
 ConnectorFactory.register("rest_api_ds", RestApiDataSource)
+# PySpark DataSource version for REST API workflows with dependencies
+ConnectorFactory.register("rest_api_workflow_ds", RestApiWorkflowDataSource)
 ConnectorFactory.register("jdbc", JdbcConnector)
 ConnectorFactory.register("database", JdbcConnector)  # Alias
-ConnectorFactory.register("table", TableConnector)
-ConnectorFactory.register("table_stream", TableConnector)  # Alias for streaming tables
 ConnectorFactory.register("dataframe", DataFrameConnector)
 
 # Backward compatibility alias
@@ -69,7 +69,6 @@ __all__ = [
     "VolumeConnector",  # Backward compatibility
     "RestApiConnector",
     "JdbcConnector",
-    "TableConnector",
     "DataFrameConnector",
     # PySpark DataSource API (Spark 4.0+)
     "BasePySparkDataSource",
@@ -85,4 +84,5 @@ __all__ = [
     "HashInputPartition",
     # PySpark DataSource implementations (non-Databricks native)
     "RestApiDataSource",
+    "RestApiWorkflowDataSource",
 ]

@@ -8,16 +8,26 @@ except ImportError:
     dlt = None  # type: ignore
 
 from src.framework.helper import (
-    data_contract_helper,
-    databricks_helper,
-    lakeflow_declarative_pipeline,
-    logging_helper,
-    common,
-    dqx_helper
+    load_data_contract,
+    get_data_contract,
+    get_spark,
+    ldp_change_data_capture,
+    get_logger,
+    get_validate_data_configuration_contract,
+    get_data_quality_configuration,
+    get_ws_client,
+    get_dq_engine,
+    schema_to_table_config,
 )
-from src.framework.factory.config import PipelineConfig
+from src.framework.config import (
+    CentralizedPipelineConfig,
+    ConnectorConfig,
+    ConnectorConfigBuilderFactory,
+    CatalogSchemaManager
+)
+from src.framework.connectors import ConnectorFactory
 
-logger = logging_helper.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 class BasePipelineFactory:
@@ -30,8 +40,8 @@ class BasePipelineFactory:
             spark: Active SparkSession
         """
         self.spark = spark
-        self.ws = dqx_helper.get_ws_client()
-        self.dq_engine = dqx_helper.get_dq_engine(self.ws)
+        self.ws = get_ws_client()
+        self.dq_engine = get_dq_engine(self.ws)
     
     def create_pipeline(self, source_system_name: str) -> None:
         """Create base layer CDC pipeline for a source system.
@@ -44,17 +54,21 @@ class BasePipelineFactory:
         """
         logger.info(f"Creating base pipeline for source system: {source_system_name}")
         
-        # Load configuration
-        config = PipelineConfig.from_spark(self.spark, source_system_name)
+        # Load centralized configuration
+        centralized_config = CentralizedPipelineConfig.from_spark(self.spark, source_system_name)
+        centralized_config.validate()
+        
+        # Create catalog/schema manager
+        catalog_manager = CatalogSchemaManager.from_pipeline_config(centralized_config)
         
         # Load data contract
-        data_contract = data_contract_helper.get_data_contract(
+        data_contract = get_data_contract(
             catalog="source_system",
             object_name=source_system_name
         )
         
         # Load data quality configuration
-        validated_data_quality_raw = dqx_helper.get_data_quality_configuration(
+        validated_data_quality_raw = get_data_quality_configuration(
             catalog="source_system",
             object=source_system_name,
             spark=self.spark
@@ -71,7 +85,7 @@ class BasePipelineFactory:
         # Process each schema in the data contract
         for schema in data_contract.schema_:  # type: ignore
             try:
-                self._process_schema(schema, config, validated_data_quality)
+                self._process_schema(schema, centralized_config, validated_data_quality)
             except Exception as e:
                 logger.error(f"Error processing schema {schema.name if schema else 'unknown'}: {e}")
                 continue
@@ -81,14 +95,14 @@ class BasePipelineFactory:
     def _process_schema(
         self,
         schema: Any,
-        config: PipelineConfig,
+        centralized_config: CentralizedPipelineConfig,
         validated_data_quality: List[Dict[str, Any]]
     ) -> None:
         """Process a single schema to create base table with optional DQ.
         
         Args:
             schema: Schema object from data contract
-            config: Pipeline configuration
+            centralized_config: Centralized pipeline configuration
             validated_data_quality: List of data quality check configurations
         """
         model_name = schema.name
@@ -100,8 +114,8 @@ class BasePipelineFactory:
         logger.info(f"Processing model: {model_name}")
         
         # Convert ODCS schema to TableConfig
-        config_dict = data_contract_helper.schema_to_table_config(schema)
-        validated_data_config = common.get_validate_data_configuration_contract(config_dict)
+        config_dict = schema_to_table_config(schema)
+        validated_data_config = get_validate_data_configuration_contract(config_dict)
         
         if not validated_data_config:
             logger.error(f"Validation failed for model: {model_name}. Skipping...")
@@ -118,13 +132,13 @@ class BasePipelineFactory:
         )
         
         # Determine source table (with or without DQ)
-        source = f"{config.raw_catalog}.{config.raw_schema}.{model_name}"
+        source = f"{centralized_config.raw_catalog}.{centralized_config.raw_schema}.{model_name}"
         
         if validated_data_quality:
             # Create DQ table and use it as source
             source = self._create_dq_table(
                 model_name,
-                config,
+                centralized_config,
                 validated_data_quality
             )
         
@@ -132,7 +146,7 @@ class BasePipelineFactory:
         self._create_cdc_table(
             model_name,
             source,
-            config,
+            centralized_config,
             keys,
             sequence_column,
             stored_as_scd_type
@@ -143,20 +157,20 @@ class BasePipelineFactory:
     def _create_dq_table(
         self,
         model_name: str,
-        config: PipelineConfig,
+        centralized_config: CentralizedPipelineConfig,
         validated_data_quality: List[Dict[str, Any]]
     ) -> str:
         """Create data quality validation table.
         
         Args:
             model_name: Name of the model/table
-            config: Pipeline configuration
+            centralized_config: Centralized pipeline configuration
             validated_data_quality: List of data quality check configurations
             
         Returns:
             Fully qualified name of the DQ table
         """
-        dq_table_name = f"{config.base_catalog}.{config.base_schema}.{model_name}_dq"
+        dq_table_name = f"{centralized_config.base_catalog}.{centralized_config.base_schema}.{model_name}_dq"
         
         # Filter DQ checks for this specific table
         data_quality_checks = [
@@ -168,8 +182,8 @@ class BasePipelineFactory:
             logger.warning(f"No data quality checks found for {model_name}")
         
         # Capture variables in local scope for closure
-        source_table = f"{config.raw_catalog}.{config.raw_schema}.{model_name}"
-        source_system_name = config.source_system_name
+        source_table = f"{centralized_config.raw_catalog}.{centralized_config.raw_schema}.{model_name}"
+        source_system_name = centralized_config.source_system_name
         object_name = model_name
         spark = self.spark
         dq_engine = self.dq_engine
@@ -193,7 +207,7 @@ class BasePipelineFactory:
         self,
         model_name: str,
         source: str,
-        config: PipelineConfig,
+        centralized_config: CentralizedPipelineConfig,
         keys: List[str],
         sequence_column: str,
         stored_as_scd_type: int
@@ -203,20 +217,20 @@ class BasePipelineFactory:
         Args:
             model_name: Name of the model/table
             source: Source table (may be DQ table or raw table)
-            config: Pipeline configuration
+            centralized_config: Centralized pipeline configuration
             keys: Primary keys for CDC
             sequence_column: Column used for sequencing changes
             stored_as_scd_type: SCD type (1 or 2)
         """
-        lakeflow_declarative_pipeline.ldp_change_data_capture(
+        ldp_change_data_capture(
             source=source,
-            target_catalog=config.base_catalog,
-            target_schema=config.base_schema,
+            target_catalog=centralized_config.base_catalog,
+            target_schema=centralized_config.base_schema,
             target_object=model_name,
             keys=keys,
             sequence_column=sequence_column,
             stored_as_scd_type=stored_as_scd_type,
-            name=f"base_load_{config.base_schema}_{model_name}",
+            name=f"base_load_{centralized_config.base_schema}_{model_name}",
         )
         logger.info(f"Created CDC table: {model_name}")
 
@@ -227,6 +241,6 @@ def create_base_pipeline(source_system_name: str) -> None:
     Args:
         source_system_name: Name of the source system (e.g., 'lakehouse', 'review')
     """
-    spark = databricks_helper.get_spark()
+    spark = get_spark()
     factory = BasePipelineFactory(spark)
     factory.create_pipeline(source_system_name)

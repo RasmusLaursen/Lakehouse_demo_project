@@ -2,6 +2,7 @@
 # See https://docs.databricks.com/dev-tools/bundles/index.html for documentation.
 bundle:
   name: lakehouse_demo_project
+  databricks_cli_version: ">= 0.281.*"
 
 variables:
   project_name:
@@ -20,7 +21,6 @@ variables:
     default: curated
   warehouse_id:
     lookup:
-      # Replace this with the name of your SQL warehouse.
       warehouse: "Serverless Starter Warehouse"
 
 

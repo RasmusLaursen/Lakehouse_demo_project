@@ -1,6 +1,6 @@
 """Factory for creating curated dimension DLT tables."""
 from pyspark.sql import SparkSession, DataFrame
-from pyspark.sql.functions import col, monotonically_increasing_id
+from pyspark.sql.functions import col, monotonically_increasing_id, when, lit
 from typing import Optional, Callable
 
 try:
@@ -8,10 +8,13 @@ try:
 except ImportError:
     dlt = None  # type: ignore
 
-from src.framework.helper import logging_helper
-from src.framework.factory.config import PipelineConfig
+from src.framework.helper import get_logger
+from src.framework.config import (
+    CentralizedPipelineConfig,
+    CatalogSchemaManager
+)
 
-logger = logging_helper.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 class CuratedDimensionFactory:
@@ -25,8 +28,9 @@ class CuratedDimensionFactory:
             source_system: Source system name (default: lakehouse)
         """
         self.spark = spark
-        self.config = PipelineConfig.from_spark(spark, source_system)
-        self.config.validate()
+        self.centralized_config = CentralizedPipelineConfig.from_spark(spark, source_system)
+        self.centralized_config.validate()
+        self.catalog_manager = CatalogSchemaManager.from_pipeline_config(self.centralized_config)
     
     def create_dimension(
         self,
@@ -34,6 +38,7 @@ class CuratedDimensionFactory:
         source_table: str,
         business_key_column: str,
         filter_active: bool = True,
+        scd_type: int = 2,
         additional_transforms: Optional[Callable[[DataFrame], DataFrame]] = None
     ) -> None:
         """Create a dimension table with standardized pattern.
@@ -44,34 +49,36 @@ class CuratedDimensionFactory:
         3. Applies custom transformations (joins, enrichments, etc.)
         4. Renames business key to {entity}_key
         5. Adds surrogate key as {entity}_id
+        6. For SCD Type 2: Renames __START_AT to dim_start_time and __END_AT to dim_end_time
         
         Args:
             dimension_name: Name of dimension (e.g., 'dim_customer')
             source_table: Name of source table in base layer
             business_key_column: Column name of business key (e.g., 'customer_id')
-            filter_active: Whether to filter for active records only
+            filter_active: Whether to filter for active records only (default: True)
+            scd_type: SCD type - 1 (overwrite) or 2 (with history). Default: 2
             additional_transforms: Optional function to apply custom transformations (e.g., joins)
         """
-        logger.info(f"Creating dimension: {dimension_name}")
+        logger.info(f"Creating dimension: {dimension_name} (SCD Type {scd_type})")
         
         # Capture variables for closure
-        config = self.config
+        catalog_manager = self.catalog_manager
         spark = self.spark
         
         # Create the DLT table
         @dlt.table(  # type: ignore
-            name=config.get_dimension_table_path(dimension_name),
-            comment=f"Curated layer dimension table for {dimension_name.replace('dim_', '')}"
+            name=catalog_manager.get_dimension_table_path(dimension_name),
+            comment=f"Curated layer dimension table for {dimension_name.replace('dim_', '')} (SCD{scd_type})"
         )
         def _dimension_table():
             """Dimension table with standardized processing."""
             logger.info(f"Reading source table: {source_table}")
             
             # Read base table
-            df = spark.read.table(config.get_base_table_path(source_table))
+            df = spark.read.table(catalog_manager.get_base_table_path(source_table))
             
             # Filter active records if SCD Type 2
-            if filter_active:
+            if filter_active and scd_type == 2:
                 df = df.filter(col("__END_AT").isNull())
                 logger.debug(f"Filtered active records for {dimension_name}")
             
@@ -82,9 +89,26 @@ class CuratedDimensionFactory:
             # Add surrogate key
             df = self._add_surrogate_key(df, business_key_column)
             
+            # For SCD Type 2: Add start and end time columns
+            if scd_type == 2:
+                # Rename __START_AT to dim_start_time
+                if "__START_AT" in df.columns:
+                    df = df.withColumnRenamed("__START_AT", "dim_start_time")
+                    logger.debug(f"Renamed __START_AT to dim_start_time for {dimension_name}")
+                
+                # Rename __END_AT to dim_end_time and convert NULL to future date
+                if "__END_AT" in df.columns:
+                    df = df.withColumnRenamed("__END_AT", "dim_end_time")
+                    # Set NULL end times to a far future date (9999-12-31)
+                    df = df.withColumn(
+                        "dim_end_time",
+                        when(col("dim_end_time").isNull(), lit("9999-12-31")).otherwise(col("dim_end_time"))
+                    )
+                    logger.debug(f"Renamed __END_AT to dim_end_time and set NULLs to 9999-12-31 for {dimension_name}")
+            
             return df
         
-        logger.info(f"Successfully created dimension: {dimension_name}")
+        logger.info(f"Successfully created dimension: {dimension_name} (SCD Type {scd_type})")
     
     def _add_surrogate_key(
         self, 

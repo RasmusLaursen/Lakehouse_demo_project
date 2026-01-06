@@ -16,7 +16,7 @@ with patch.dict(
         "src.helper.logging_helper": Mock(),
     },
 ):
-    from src.framework.helper.common import (
+    from src.framework.helper import (
         get_path_for_data_configuration,
         get_data_configuration,
         add_audit_columns,
@@ -42,7 +42,7 @@ class TestCommonUtilities:
         assert result == expected_path
         assert isinstance(result, Path)
 
-    @patch("src.helper.common.get_path_for_data_configuration")
+    @patch("src.framework.helper.core.config_utils.get_path_for_data_configuration")
     def test_get_data_configuration_file_not_found(self, mock_get_path):
         """Test data configuration when file doesn't exist."""
         # Setup mock
@@ -82,7 +82,7 @@ class TestCommonUtilities:
             with pytest.raises(ValueError, match="Error parsing YAML file"):
                 _load_yaml_file("test_file.yml")
 
-    @patch("src.helper.common._load_yaml_file")
+    @patch("src.framework.helper.contracts.loader._load_yaml_file")
     def test_try_load_ingest_config_failure(self, mock_load_yaml):
         """Test ingest config loading when file loading fails."""
         mock_load_yaml.side_effect = FileNotFoundError("File not found")

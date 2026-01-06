@@ -1,19 +1,7 @@
-variables:
-  gateway_name:
-    default: rahl-lakeflow-connect-gateway-sql-dab
-  dest_catalog:
-    default: ${resources.schemas.landing_schema.catalog_name}
-  dest_schema:
-    default: bronze_lakeflow_sql_server
-  environment:
-    default: dev
-
 resources:
   pipelines:
     lakehouse_demo_project_pipeline:
       name: lakehouse_demo_project_pipeline_${var.environment}
-      ## Specify the 'catalog' field to configure this pipeline to make use of Unity Catalog:
-      # super stupid
       catalog: ${resources.schemas.lakehouse_landing_schema.catalog_name}
       schema: ${resources.schemas.lakehouse_landing_schema.name} 
       libraries:
@@ -31,14 +19,14 @@ resources:
             include: ../../src/solution/curated/dimensions/dim_calendar.py
         - glob:
             include: ../../src/solution/curated/dimensions/dim_customer.py 
-        # - glob:
-        #     include: ../../src/solution/curated/dimensions/dim_customer_mv_scd1.py
-        # - glob:
-        #     include: ../../src/solution/curated/dimensions/dim_customer_mv_scd2.py
-        # - glob:
-        #     include: ../../src/solution/curated/dimensions/dim_customer_cdc_scd2.py
-        # - glob:
-        #     include: ../../src/solution/curated/dimensions/dim_customer_cdc_scd1.py
+        # # - glob:
+        # #     include: ../../src/solution/curated/dimensions/dim_customer_mv_scd1.py
+        # # - glob:
+        # #     include: ../../src/solution/curated/dimensions/dim_customer_mv_scd2.py
+        # # - glob:
+        # #     include: ../../src/solution/curated/dimensions/dim_customer_cdc_scd2.py
+        # # - glob:
+        # #     include: ../../src/solution/curated/dimensions/dim_customer_cdc_scd1.py
         - glob:
             include: ../../src/solution/curated/dimensions/dim_seller.py
         - glob:

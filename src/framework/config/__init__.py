@@ -1,9 +1,15 @@
-"""Configuration package for lakehouse pipelines."""
+"""Configuration management for pipeline layers and connectors."""
 
-# Import unified configuration
-from src.framework.factory.config import PipelineConfig
+from src.framework.config.centralized_config import CentralizedPipelineConfig
+from src.framework.config.catalog_schema_manager import CatalogSchemaManager
+from src.framework.config.connector_config import ConnectorConfig
+from src.framework.config.secret_resolver import SecretResolver
+from src.framework.config.builders import ConnectorConfigBuilderFactory
 
-# Backward compatibility alias
-CuratedConfig = PipelineConfig
-
-__all__ = ["PipelineConfig", "CuratedConfig"]
+__all__ = [
+    "CentralizedPipelineConfig",
+    "CatalogSchemaManager",
+    "ConnectorConfig",
+    "SecretResolver",
+    "ConnectorConfigBuilderFactory",
+]

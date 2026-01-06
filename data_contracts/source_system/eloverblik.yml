@@ -17,9 +17,9 @@ servers:
     format: "json"
     customProperties:
       - property: loadtype
-        value: "rest_api_ds"
+        value: "rest_api_workflow_ds"
       - property: connector_type
-        value: "rest_api_ds"
+        value: "rest_api_workflow_ds"
       - property: secret_keys
         value:
           - "auth_token"
@@ -41,10 +41,53 @@ servers:
             Content-Type: "application/json"
           
           pagination_type: "none"  # API returns all data for requested period
-          data_path: "result"
           add_audit_columns: true
-          rate_limit_delay: 1.0  # Respect API rate limits (1 second between requests)
           timeout: 60
+          
+          # Workflow configuration
+          workflow_config:
+            # Table name mapping for dependency resolution
+            table_names:
+              MeteringPoints: "meteringpoints/meteringpoints"
+              TimeSeriesData: "meterdata/gettimeseries/{dateFrom}/{dateTo}/{aggregation}"
+              Charges: "meteringpoints/meteringpoint/getcharges/"
+            
+            # Adaptive concurrency control
+            initial_concurrent_calls: 3
+            max_concurrent_calls: 10
+            min_concurrent_calls: 1
+            concurrency_adjustment_factor: 0.5  # Reduce by 50% on errors
+            success_threshold_for_increase: 10   # Increase after 10 successful calls
+            
+            # Per-run caching
+            cache_strategy: "per_run"
+            cache_max_size: 10000  # Max number of parent records to cache
+            
+            # Rate limiting with backoff
+            base_rate_limit_delay: 1.0
+            max_rate_limit_delay: 60.0
+            rate_limit_backoff_factor: 2.0
+            
+            # HTTPAdapter retry configuration per endpoint
+            retry_config:
+              meteringpoints:
+                total_retries: 3
+                backoff_factor: 1.0
+                status_forcelist: [429, 500, 502, 503, 504]
+                allowed_methods: ["GET", "POST"]
+              meterdata:
+                total_retries: 5  # More retries for time series data
+                backoff_factor: 2.0
+                status_forcelist: [429, 500, 502, 503, 504]
+                allowed_methods: ["GET", "POST"]
+              charges:
+                total_retries: 4  # Moderate retries for charges data
+                backoff_factor: 1.5
+                status_forcelist: [429, 500, 502, 503, 504]
+                allowed_methods: ["GET", "POST"]
+            
+            # Dependency chunking for parallel processing
+            dependency_chunk_size: 50  # Process 50 metering points per partition
 
 schema:
   - name: MeteringPoints
@@ -58,11 +101,19 @@ schema:
       - property: sequence_column
         value: "meteringPointId"
       - property: loadtype
-        value: "rest_api_ds"
+        value: "rest_api_workflow_ds"
       - property: mode
         value: "batch"  # Full refresh for metering point metadata
       - property: table_name
         value: "meteringpoints/meteringpoints"
+      - property: workflow_step
+        value: 1
+      - property: is_root_call
+        value: true
+      - property: provides_dependencies
+        value: ["meteringPointId"]  # Fields available for dependent calls
+      - property: data_path
+        value: "result"
     properties:
       - name: meteringPointId
         description: "Unique identifier for the metering point (18-digit number)"
@@ -193,21 +244,45 @@ schema:
       - property: sequence_column
         value: "position"
       - property: loadtype
-        value: "rest_api_ds"
+        value: "rest_api_workflow_ds"
       - property: mode
-        value: "streaming"
+        value: "batch"
       - property: timestamp_field
         value: "position"
       - property: initial_timestamp
         value: "2025-01-01T00:00:00"
       - property: table_name
-        value: "meterdata/gettimeseries"
-      - property: params
+        value: "meterdata/gettimeseries/{dateFrom}/{dateTo}/{aggregation}"
+      - property: method
+        value: "POST"  # Use POST for body parameters
+      - property: workflow_step
+        value: 2
+      - property: depends_on
+        value: "MeteringPoints"
+      - property: dependency_mapping
         value:
-          # Parameters for time series extraction
-          # Note: You'll need to customize this with actual metering point IDs
-          # Format: {"meteringPoints": {"meteringPoint": ["571313174012345678"]}, "dateFrom": "2025-01-01", "dateTo": "2025-12-31"}
-          aggregation: "Hour"  # Hour, Day, Month, or Year
+          meteringPointId: "meteringPointId"  # Map parent field to parameter
+      - property: body_params_template
+        value:
+          meteringPoints:
+            meteringPoint:
+              - "${meteringPointId}"
+      - property: static_body_params
+        value:
+          # Static parameters in body (empty, all params go to URL path)
+      - property: url_params_template
+        value:
+          dateFrom: "2025-01-01"
+          dateTo: "2025-12-18"
+          aggregation: "Actual"  # Hour, Day, Month, or Year
+      - property: data_path
+        value: "result.MyEnergyData_MarketDocument.TimeSeries.Period.Point"
+      - property: field_mapping
+        value:
+          "out_Quantity.quantity": "quantity"
+          "out_Quantity.quality": "quality"
+      - property: include_parent_context
+        value: true
     properties:
       - name: meteringPointId
         description: "Metering point identifier"
@@ -221,25 +296,24 @@ schema:
         example: "571313174012345678"
       
       - name: position
-        description: "Timestamp for the measurement period start (UTC)"
-        type: timestamp
+        description: "Position/hour index in the period (1-based)"
+        type: string
         required: true
         tags:
           - "temporal"
           - "primary_key"
-          - "utc"
         classification: "public"
-        example: "2025-12-01T00:00:00Z"
+        example: "1"
       
       - name: quantity
         description: "Electricity consumption quantity in kWh"
-        type: double
+        type: string
         required: true
         tags:
           - "measure"
           - "consumption"
         classification: "confidential"
-        example: 1.234
+        example: "1.234"
       
       - name: quality
         description: "Data quality indicator (e.g., Measured, Estimated)"
@@ -251,26 +325,88 @@ schema:
         classification: "public"
         example: "Measured"
       
-      - name: unit
-        description: "Unit of measurement (typically kWh)"
+      - name: mRID
+        description: "Market participant identifier for the time series"
         type: string
         required: false
         tags:
           - "metadata"
         classification: "public"
-        example: "kWh"
       
-      - name: resolution
-        description: "Time resolution (e.g., Hour, Day)"
+      - name: businessType
+        description: "Business type of the time series (e.g., A01, A04)"
+        type: string
+        required: false
+        tags:
+          - "metadata"
+        classification: "public"
+      
+      - name: curveType
+        description: "Curve type (e.g., A01 for Sequential fixed time period)"
+        type: string
+        required: false
+        tags:
+          - "metadata"
+        classification: "public"
+      
+      - name: measurement_Unit.name
+        description: "Unit of measurement (e.g., kWh)"
+        type: string
+        required: false
+        tags:
+          - "metadata"
+        classification: "public"
+      
+      - name: MarketEvaluationPoint.mRID
+        description: "Metering point identifier in market format"
+        type: string
+        required: false
+        tags:
+          - "identifier"
+        classification: "confidential"
+      
+      - name: Period.resolution
+        description: "Time resolution of the period (e.g., PT1H for hourly)"
         type: string
         required: false
         tags:
           - "temporal"
           - "metadata"
         classification: "public"
-        example: "Hour"
+      
+      - name: Period.timeInterval.start
+        description: "Start timestamp of the period"
+        type: string
+        required: false
+        tags:
+          - "temporal"
+        classification: "public"
+      
+      - name: Period.timeInterval.end
+        description: "End timestamp of the period"
+        type: string
+        required: false
+        tags:
+          - "temporal"
+        classification: "public"
+      
+      - name: createdDateTime
+        description: "When the document was created"
+        type: string
+        required: false
+        tags:
+          - "temporal"
+          - "metadata"
+        classification: "public"
+      
+      - name: sender_MarketParticipant.name
+        description: "Name of the sending market participant"
+        type: string
+        required: false
+        tags:
+          - "metadata"
+        classification: "public"
 
-  # Schema 3: Charges (Tariffs and fees)
   # - name: Charges
   #   description: "Electricity charges, tariffs, and fees for metering points"
   #   type: table
@@ -280,11 +416,25 @@ schema:
   #     - property: keys
   #       value: ["meteringPointId", "chargeTypeCode", "validFrom"]
   #     - property: loadtype
-  #       value: "rest_api_ds"
+  #       value: "rest_api_workflow_ds"
   #     - property: mode
   #       value: "batch"
   #     - property: table_name
-  #       value: "meterdata/getcharges"
+  #       value: "meteringpoints/meteringpoint/getcharges"
+  #     - property: method
+  #       value: "POST"  # Use POST for body parameters
+  #     - property: workflow_step
+  #       value: 3
+  #     - property: depends_on
+  #       value: "MeteringPoints"
+  #     - property: dependency_mapping
+  #       value:
+  #         meteringPointId: "meteringPointId"  # Map parent field to parameter
+  #     - property: body_params_template
+  #       value:
+  #         # Dynamic parameter substitution using ${variable} syntax
+  #         meteringPoints:
+  #           meteringPoint: ["${meteringPointId}"]  # Use metering point from parent call
   #   properties:
   #     - name: meteringPointId
   #       description: "Metering point identifier"

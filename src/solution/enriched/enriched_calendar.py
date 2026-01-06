@@ -1,6 +1,6 @@
-from src.framework.helper import databricks_helper
-from src.framework.helper import lakeflow_declarative_pipeline
-from src.framework.helper import logging_helper
+from src.framework.helper import get_spark, get_pipeline_configurations
+from src.framework.helper import ldp_table, ldp_change_data_capture
+from src.framework.helper import get_logger
 from src.framework.connectors import DataFrameConnector
 from pyspark.sql.functions import (
     col,
@@ -15,13 +15,13 @@ from pyspark.sql.functions import (
 from datetime import datetime, timedelta
 
 # Initialize logger
-logger = logging_helper.get_logger(__name__)
+logger = get_logger(__name__)
 
 # Initialize Spark session
-spark = databricks_helper.get_spark()
+spark = get_spark()
 
-catalogs = databricks_helper.get_pipeline_configurations(spark, "catalogs")
-schemas = databricks_helper.get_pipeline_configurations(spark, "schemas")
+catalogs = get_pipeline_configurations(spark, "catalogs")
+schemas = get_pipeline_configurations(spark, "schemas")
 
 logger.debug("Catalogs configuration: " + str(catalogs))
 logger.debug("Schemas configuration: " + str(schemas))
@@ -63,7 +63,7 @@ date_df = (
 connector = DataFrameConnector(date_df)
 
 # Use new connector-based API
-lakeflow_declarative_pipeline.ldp_table(
+ldp_table(
     name=f"{target_catalog}.{target_schema}.calendar",
     connector=connector,
     comment=f"Enriched layer table for calendar",

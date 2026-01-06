@@ -9,7 +9,7 @@ and incremental loading.
 from typing import Dict, Any, Optional
 from pyspark.sql import SparkSession, DataFrame
 from src.framework.connectors.base_connector import BaseConnector
-from src.framework.helper import logging_helper, common
+from src.framework.helper import logging_helper, add_audit_columns
 
 logger = logging_helper.get_logger(__name__)
 
@@ -143,7 +143,7 @@ class JdbcConnector(BaseConnector):
             
             # Add audit columns if requested
             if self.config.get("add_audit_columns", False):
-                df = common.add_audit_columns(df=df)
+                df = add_audit_columns(df=df)
                 logger.info("Added audit columns to batch DataFrame")
             
             logger.info(f"Successfully read data from database table: {table}")

@@ -33,6 +33,7 @@ from src.framework.connectors.pyspark_datasource_adapter import (
     BaseDataSourceStreamReader,
     SimpleInputPartition,
 )
+from src.framework.connectors.oauth2_token_manager import OAuth2TokenManager
 from src.framework.connectors.partition_strategies import PageInputPartition, OffsetInputPartition
 from src.framework.helper import logging_helper
 
@@ -121,17 +122,19 @@ class RestApiDataSource(BasePySparkDataSource):
     def __init__(self, options: Dict[str, str]) -> None:
         """Initialize REST API DataSource and validate authentication.
         
+        NOTE: OAuth2 tokens should be pre-loaded via OAuth2TokenManager
+        before creating this DataSource. This method validates configuration
+        but does not perform token exchange.
+        
         Args:
             options: Configuration options for the data source
             
-        Raises:RestApiDataSourceReader._access_token_cache[cache_key]
+        Raises:
             ValueError: If required auth configuration is missing
         """
         super().__init__(options)
-
-        logger.info("running with options: %s", options)
         
-        # Validate and log auth configuration early
+        # Validate auth configuration
         auth_type = self.config.get("auth_type", "none").lower()
         
         if auth_type in ["bearer", "api_key", "oauth2_refresh"]:
@@ -141,7 +144,18 @@ class RestApiDataSource(BasePySparkDataSource):
                     f"Auth type '{auth_type}' requires 'auth_token' in configuration. "
                     f"Ensure the secret is declared in data contract 'secret_keys' and resolved by PipelineConfig."
                 )
-            logger.info(f"Validated {auth_type} authentication token in RestApiDataSource.__init__")
+            logger.info(f"Validated {auth_type} authentication configuration")
+            
+            # For OAuth2, verify token is available (should be pre-loaded)
+            if auth_type == "oauth2_refresh":
+                cached_token = OAuth2TokenManager.get_cached_token(auth_token)
+                if cached_token:
+                    logger.info("OAuth2 token already cached (pre-loaded)")
+                else:
+                    logger.warning(
+                        "OAuth2 token not pre-loaded. Token will be exchanged on-demand during read operations. "
+                        "For optimal performance, pre-load tokens at factory level before DataSource creation."
+                    )
         
         logger.debug(f"RestApiDataSource initialized with config keys: {list(self.config.keys())}")
         
@@ -160,9 +174,27 @@ class RestApiDataSource(BasePySparkDataSource):
         """
         try:
             url = self._build_endpoint()
-            # auth_token = self.config.get("auth_token")
-            auth_token = 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlblR5cGUiOiJDdXN0b21lckFQSV9EYXRhQWNjZXNzIiwidG9rZW5pZCI6ImNlNmYzODIwLTUxOTItNDkyOS1hY2Q1LTg2MWE5N2YzMzBhOSIsIndlYkFwcCI6IkN1c3RvbWVyQXBwIiwidmVyc2lvbiI6IjIiLCJpZGVudGl0eVRva2VuIjoiby9lUkhCNXI5WGpCam5mQWVjUFFRcHdZNUpMeEZBK002M24wOFQyUFFuMHhWRzdIWWp4NFh1N1NRaEhjK3ZwcWtMM2pxN3BZTUJzZXIzUzNwOGxJMmc0WXQyVVE5Z1dEZHdPZ1dOd2F2TkNOZGdRZG9mRllPV3dwbWhVZWFURThLcjhVbnI3dUVyZEJjT0hnbmZ6UStIZVZTYzF3M29kTGtrK1h2d1Fxc3RKcjFybTBCSW9ESmZPY1VRbG1jbWM4SFZKRTBROU1Lc3g3STFIckVKNC9oRnBTMGRVUnJncmRXSFp3YlhqL3JBd0tudWlteXlLaHpmczNJbERMRWdlTFVlVFpIbEpPOUlLeTJQUkM3QXBBSUl2YXBNZmlCU3BXa0gyVitGOGxxaHYvUSt5UWswdDloeDE5OG5HYTZ6aXVjdlZIZ2xSSXlFMzBGcVo1Q3dGemhtRkNxNWhFcjZhQlRtSHJQNDltdVlZU0s5UXIyaXYzWFJkc3NHQVpqcWpkcDlFV1kzamdBcTFjWHN2OWVoZ2wwQXBXMXEwYlBPc3hhSEZuMXRXY0dhOXRmVmlxUlU4VWYwTlR3YjIvMGdJTXJnMU1iR0hnN2RwU3FNV1k0ZWRJSk5wYTRZM1k2cDJUUVVOd0N1Y1dtb0pnVUxScGhBRmtuYkU0aExHSG9XdWZrTTEybnRJT1hOT1pkdk50bCtuQ29FUEpINm9RanV3MkthTEIzbWhXNGlkNm5xcWVoN1pzeWxDRkQ0SlA2dGM4SmZPTnJPWkQ2cWs1dWlETlpEUkdKNFM2ZGM0ek43N1huREtpYi9DcW9rTVBoZGZlNm4rZ2ZzS25uT0NRYk9uUDhFbGx0L3VqcmViZ21tc1lGNFhXSk9oOGJjV3E4VkJBWWhyRTFFUHZjQ250UGVLUXg0a25Gc3luUEJlUDh5MGhQZzVDR25OeEsxN0E3a0FPMVc4UGhSK0dOL1d4NE9QNWp4WnRUWUJZTUVtcHBGTVlSYXVvY3FDSHhxZkMwSHQxekpaM2JSeTZ5T2FvQjVNVDc4bUo4by9JbDNlVWkwSkhzM3FDRnlsWEIvUzdxYm1ibVZsd1FXUXFRYmZFL0tFK3BVNzJSazBnUVV0dmk2OXhrSkVTdlpiOFVSRlAvbXpocVd5NzBNZzc3ck9JbFJEMnZOdE90RVBLbUVrVjJ6OS9YU1N0YWhuUXZRa0ozeEhWazdaN2FGdWVMUngrT1BFTHZyT1dmSkE5Rm53SXJ2K3hQajhQY0tqaFZkaWhzRHBwUTROdzE5bHhwdGJKRGQ3ZXhKQ0loTkdTMmxPb1Ntc0lvWVZ0cE11QTF0ZGloWDJkUWdpWDVlRlg5N3krVi9LUG9uNDVHMEE3YW9uRjVBaVU2Ump3ZXViNWt5UzJYSG53UUZyeU1sdnNpa05jMUNXSVoyL1pVcEsrVHFZUE1td3pTM24vZU9tZ0hSZmdXUzhUNUtHL0hzcm1CbnFMRm0zTzcyNHQ3cGRuMWdFT2VVL1llRCtxRWpsTXFQY1dndk0wdWNFR01oV0FvczhhbHdkcXJoSXNCbGRqclRXVjhkT3VYTUUxQnJKWjlqVm96V0VSRUdOUm81U0ZwYWVJU0NieUZNRmpISndZN29LaktMVDJjMnlGYlp1NHN1LzFzVmVzY2hoVFc5SnpwVUtIU09YbVBSOTQyY3pTOUlEU3RUdlAzRkZGMzRuWkpKR2tWb3NiekpSbjhRbUhSYW1XT1R5ZE9VYmxmUFdRYUpJWjg1a1BGL3lRb2NGY2hBbmZXU01sL1hFNDMxb2ozS2lRSTRVOEVjYUsxYzU4dFhWZUpHYVd2VDdrdVNtTFNBS1VDeGpzZkY0QXdCd3luZEg2cURhaWwvR2lxYkJlSnQydURoY2lLU0FtS3l1QkZlejFvM2YveGI5TlFsSjRqaUpPVk1KWDRxbXgxY29yOWlCQ2s4QytxeDQ3Z1IzdStBMU1raVpwVzgwME13M2l5blV6b1hJS3BScHJ0NkRvT0wvU2ZmWlJYa0dYRHhFVVhUYVVVakRiVTdodkF6QTlBWXh0MmxWT1VUbTdnbm5kNDIvOGpCVUV3Vk5jT2VFZlorVzJuRXMwUllDUHF4QUI2TjNUbGJycEUyNEc4UkpZbUdnSi9KejBTSTRZRW5iaTFGRndzWnlEcFNrTmNuczBDVUVDbXFxWVBlY0hQMkxqMCs1aHhybFJyVnpRN1lZV2t6RzlPTmVpWVByY1lNYllkUWFFdmxuQVJaNm1WVVNTcXp3alZHRVhyRlVjYjMvU2VuM0pEQStlVkFLczJQeWsrVmJXMVQ3SGlobndPK0p3QnFNcmRUejFrME5MamY4MnpWaEsxaVg5MC9HR3E0eXEwSUhGOXBteVZPMTF4bkZCQ0FTazRoQzFPRENXcUJpL2J4YlpNOG5vTmxUbk1VQ3NPbFRLeHAxRTRHR0o3dzUvMjNTaXB1aDgxdVJMRlFwbkdubFo2RWhLVmdRYUhMQjNDMUh5RER2L2tjTEE4SUlIRlcrWk1HWU9VTzJZRWFVWUUrTkVKMGV1a05jV1lyYW1XOHVzeDBGWTJ4NDBZRG1tck9hcXVrakZqSGx1YnhBblpQRGpYdE1ibmNzQVNTUzYzNG9xOFc3YSIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL2dpdmVubmFtZSI6IlJhc211cyBIb2xtIExhdXJzZW4iLCJsb2dpblR5cGUiOiJLZXlDYXJkIiwiYjNmIjoiMndtZjh1MWpoM0M2OU8vM1lQZlo2UUhwMmozcUZvYk82cXhWL1NEY2VOYz0iLCJwaWQiOiJQSUQ6OTIwOC0yMDAyLTItNzAyODQyOTk5MzUwIiwidXNlcklkIjoiNDUzMzU4IiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvbmFtZWlkZW50aWZpZXIiOiJQSUQ6OTIwOC0yMDAyLTItNzAyODQyOTk5MzUwIiwiZXhwIjoxNzY1ODc2OTI0LCJpc3MiOiJFbmVyZ2luZXQiLCJqdGkiOiJjZTZmMzgyMC01MTkyLTQ5MjktYWNkNS04NjFhOTdmMzMwYTkiLCJ0b2tlbk5hbWUiOiJ0ZXN0LXRva2VuIiwiYXVkIjoiRW5lcmdpbmV0In0.sv9koJNfE8R_-I3lsyLjX48kbw-6AjYALsjh4xf5Wrk'
-
+            auth_type = self.config.get("auth_type", "none").lower()
+            auth_token = self.config.get("auth_token")
+            
+            # For OAuth2, retrieve access token (should be pre-loaded)
+            if auth_type == "oauth2_refresh" and auth_token:
+                cached_token = OAuth2TokenManager.get_cached_token(auth_token)
+                if cached_token:
+                    auth_token = cached_token
+                    logger.info("Using pre-cached OAuth2 access token for schema inference")
+                else:
+                    logger.warning("OAuth2 token not pre-cached, will exchange on-demand")
+                    try:
+                        auth_token = OAuth2TokenManager.exchange_token(
+                            refresh_token=auth_token,
+                            token_endpoint=self.config.get("token_endpoint"),
+                            token_method=self.config.get("token_method", "GET"),
+                            token_response_path=self.config.get("token_response_path", "result")
+                        )
+                        logger.info("Exchanged refresh token for access token during schema inference")
+                    except Exception as e:
+                        raise ValueError(f"Failed to obtain OAuth2 access token during schema inference: {e}")
 
             pagination_type = self.config.get("pagination_type", "none").lower()
             pagination_config = RestApiDataSource._parse_dict_config(
@@ -178,7 +210,7 @@ class RestApiDataSource(BasePySparkDataSource):
             # Use a requests.Session for improved performance and connection reuse
             with requests.Session() as session:
                 if auth_token:
-                    session.headers.update({"Authorization": auth_token})
+                    session.headers.update({"Authorization": f"Bearer {auth_token}"})
                 # Set a timeout to avoid hanging indefinitely
                 resp = session.get(url, params=params, timeout=10)
                 resp.raise_for_status()
@@ -302,7 +334,7 @@ class RestApiDataSource(BasePySparkDataSource):
         
         Args:
             response: The API response
-            data_path: Dot-separated path to data in response
+            data_path: Dot-separated path to data in response (can traverse nested arrays)
             
         Returns:
             List of records extracted from response
@@ -310,9 +342,37 @@ class RestApiDataSource(BasePySparkDataSource):
         if not data_path:
             return response if isinstance(response, list) else [response]
         
+        keys = data_path.split(".")
         data = response
-        for key in data_path.split("."):
-            data = data.get(key, [])
+        
+        for i, key in enumerate(keys):
+            # Handle array indexing (e.g., "0" means [0])
+            if key.isdigit():
+                try:
+                    data = data[int(key)]
+                except (IndexError, TypeError):
+                    return []
+            else:
+                # Handle dictionary access
+                if isinstance(data, dict):
+                    data = data.get(key, [])
+                elif isinstance(data, list):
+                    # If we hit a list while looking for a key, apply the remaining path to each item
+                    remaining_path = ".".join(keys[i:])
+                    results = []
+                    for item in data:
+                        results.extend(RestApiDataSource._extract_data_from_response(item, remaining_path))
+                    return results
+                else:
+                    return []
+            
+            # If we have more keys but data is now a list, apply remaining path to each element
+            if i < len(keys) - 1 and isinstance(data, list):
+                remaining_path = ".".join(keys[i+1:])
+                results = []
+                for item in data:
+                    results.extend(RestApiDataSource._extract_data_from_response(item, remaining_path))
+                return results
         
         return data if isinstance(data, list) else [data]
     
@@ -361,7 +421,7 @@ class RestApiDataSource(BasePySparkDataSource):
             response = requests.request(
                 method=token_method,
                 url=token_endpoint,
-                headers={"Authorization": f"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlblR5cGUiOiJDdXN0b21lckFQSV9EYXRhQWNjZXNzIiwidG9rZW5pZCI6ImNmMWZmZjU5LTc2OTktNGFkMC1hYzE3LWJkMWU1N2Y5NGMxYSIsIndlYkFwcCI6IkN1c3RvbWVyQXBwIiwidmVyc2lvbiI6IjIiLCJpZGVudGl0eVRva2VuIjoiby9lUkhCNXI5WGpCam5mQWVjUFFRcHdZNUpMeEZBK002M24wOFQyUFFuMHhWRzdIWWp4NFh1N1NRaEhjK3ZwcWtMM2pxN3BZTUJzZXIzUzNwOGxJMmc0WXQyVVE5Z1dEZHdPZ1dOd2F2TkNOZGdRZG9mRllPV3dwbWhVZWFURThLcjhVbnI3dUVyZEJjT0hnbmZ6UStIZVZTYzF3M29kTGtrK1h2d1Fxc3RKcjFybTBCSW9ESmZPY1VRbG1jbWM4SFZKRTBROU1Lc3g3STFIckVKNC9oRnBTMGRVUnJncmRXSFp3YlhqL3JBd0tudWlteXlLaHpmczNJbERMRWdlTFVlVFpIbEpPOUlLeTJQUkM3QXBBSUl2YXBNZmlCU3BXa0gyVitGOGxxaHYvUSt5UWswdDloeDE5OG5HYTZ6aXVjdlZIZ2xSSXlFMzBGcVo1Q3dGemhtRkNxNWhFcjZhQlRtSHJQNDltdVlZU0s5UXIyaXYzWFJkc3NHQVpqcWpkcDlFV1kzamdBcTFjWHN2OWVoZ2wwQXBXMXEwYlBPc3hhSEZuMXRXY0dhOXRmVmlxUlU4VWYwTlR3YjIvMGdJTXJnMU1iR0hnN2RwU3FNV1k0ZWRJSk5wYTRZM1k2cDJUUVVOd0N1Y1dtb0pnVUxScGhBRmtuYkU0aExHSG9XdWZrTTEybnRJT1hOT1pkdk50bCtuQ29FUEpINm9RanV3MkthTEIzbWhXNGlkNm5xcWVoN1pzeWxDRkQ0SlA2dGM4SmZPTnJPWkQ2cWs1dWlETlpEUkdKNFM2ZGM0ek43N1huREtpYi9DcW9rTVBoZGZlNm4rZ2ZzS25uT0NRYk9uUDhFbGx0L3VqcmViZ21tc1lGNFhXSk9oOGJjV3E4VkJBWWhyRTFFUHZjQ250UGVLUXg0a25Gc3luUEJlUDh5MGhQZzVDR25OeEsxN0E3a0FPMVc4UGhSK0dOL1d4NE9QNWp4WnRUWUJZTUVtcHBGTVlSYXVvY3FDSHhxZkMwSHQxekpaM2JSeTZ5T2FvQjVNVDc4bUo4by9JbDNlVWkwSkhzM3FDRnlsWEIvUzdxYm1ibVZsd1FXUXFRYmZFL0tFK3BVNzJSazBnUVV0dmk2OXhrSkVTdlpiOFVSRlAvbXpocVd5NzBNZzc3ck9JbFJEMnZOdE90RVBLbUVrVjJ6OS9YU1N0YWhuUXZRa0ozeEhWazdaN2FGdWVMUngrT1BFTHZyT1dmSkE5Rm53SXJ2K3hQajhQY0tqaFZkaWhzRHBwUTROdzE5bHhwdGJKRGQ3ZXhKQ0loTkdTMmxPb1Ntc0lvWVZ0cE11QTF0ZGloWDJkUWdpWDVlRlg5N3krVi9LUG9uNDVHMEE3YW9uRjVBaVU2Ump3ZXViNWt5UzJYSG53UUZyeU1sdnNpa05jMUNXSVoyL1pVcEsrVHFZUE1td3pTM24vZU9tZ0hSZmdXUzhUNUtHL0hzcm1CbnFMRm0zTzcyNHQ3cGRuMWdFT2VVL1llRCtxRWpsTXFQY1dndk0wdWNFR01oV0FvczhhbHdkcXJoSXNCbGRqclRXVjhkT3VYTUUxQnJKWjlqVm96V0VSRUdOUm81U0ZwYWVJU0NieUZNRmpISndZN29LaktMVDJjMnlGYlp1NHN1LzFzVmVzY2hoVFc5SnpwVUtIU09YbVBSOTQyY3pTOUlEU3RUdlAzRkZGMzRuWkpKR2tWb3NiekpSbjhRbUhSYW1XT1R5ZE9VYmxmUFdRYUpJWjg1a1BGL3lRb2NGY2hBbmZXU01sL1hFNDMxb2ozS2lRSTRVOEVjYUsxYzU4dFhWZUpHYVd2VDdrdVNtTFNBS1VDeGpzZkY0QXdCd3luZEg2cURhaWwvR2lxYkJlSnQydURoY2lLU0FtS3l1QkZlejFvM2YveGI5TlFsSjRqaUpPVk1KWDRxbXgxY29yOWlCQ2s4QytxeDQ3Z1IzdStBMU1raVpwVzgwME13M2l5blV6b1hJS3BScHJ0NkRvT0wvU2ZmWlJYa0dYRHhFVVhUYVVVakRiVTdodkF6QTlBWXh0MmxWT1VUbTdnbm5kNDIvOGpCVUV3Vk5jT2VFZlorVzJuRXMwUllDUHF4QUI2TjNUbGJycEUyNEc4UkpZbUdnSi9KejBTSTRZRW5iaTFGRndzWnlEcFNrTmNuczBDVUVDbXFxWVBlY0hQMkxqMCs1aHhybFJyVnpRN1lZV2t6RzlPTmVpWVByY1lNYllkUWFFdmxuQVJaNm1WVVNTcXp3alZHRVhyRlVjYjMvU2VuM0pEQStlVkFLczJQeWsrVmJXMVQ3SGlobndPK0p3QnFNcmRUejFrME5MamY4MnpWaEsxaVg5MC9HR3E0eXEwSUhGOXBteVZPMTF4bkZCQ0FTazRoQzFPRENXcUJpL2J4YlpNOG5vTmxUbk1VQ3NPbFRLeHAxRTRHR0o3dzUvMjNTaXB1aDgxdVJMRlFwbkdubFo2RWhLVmdRYUhMQjNDMUh5RER2L2tjTEE4SUlIRlcrWk1HWU9VTzJZRWFVWUUrTkVKMGV1a05jV1lyYW1XOHVzeDBGWTJ4NDBZRG1tck9hcXVrakZqSGx1YnhBblpQRGpYdE1ibmNzQVNTUzYzNG9xOFc3YSIsImh0dHA6Ly9zY2hlbWFzLnhtbHNvYXAub3JnL3dzLzIwMDUvMDUvaWRlbnRpdHkvY2xhaW1zL2dpdmVubmFtZSI6IlJhc211cyBIb2xtIExhdXJzZW4iLCJsb2dpblR5cGUiOiJLZXlDYXJkIiwiYjNmIjoiMndtZjh1MWpoM0M2OU8vM1lQZlo2UUhwMmozcUZvYk82cXhWL1NEY2VOYz0iLCJwaWQiOiJQSUQ6OTIwOC0yMDAyLTItNzAyODQyOTk5MzUwIiwidXNlcklkIjoiNDUzMzU4IiwiaHR0cDovL3NjaGVtYXMueG1sc29hcC5vcmcvd3MvMjAwNS8wNS9pZGVudGl0eS9jbGFpbXMvbmFtZWlkZW50aWZpZXIiOiJQSUQ6OTIwOC0yMDAyLTItNzAyODQyOTk5MzUwIiwiZXhwIjoxNzY1NjI5NDg4LCJpc3MiOiJFbmVyZ2luZXQiLCJqdGkiOiJjZjFmZmY1OS03Njk5LTRhZDAtYWMxNy1iZDFlNTdmOTRjMWEiLCJ0b2tlbk5hbWUiOiJ0ZXN0LXRva2VuIiwiYXVkIjoiRW5lcmdpbmV0In0.hy4nq3Vr3oVNDb1dyaJCxkCEeCkbk5EA9DHgxyEKq_Q"},
+                headers={"Authorization": f"Bearer {refresh_token}"},
                 timeout=30
             )
             response.raise_for_status()
@@ -434,6 +494,10 @@ class RestApiDataSource(BasePySparkDataSource):
         Returns:
             Batch DataFrame from the REST API
         """
+        msg = f"*** [DIAGNOSTIC] read_batch called for {self.name()}"
+        logger.info(msg)
+        print(msg, flush=True)
+        
         # Register the DataSource with Spark if not already registered
         try:
             spark.dataSource.register(RestApiDataSource)
@@ -455,9 +519,17 @@ class RestApiDataSource(BasePySparkDataSource):
         }
         
         # Use Spark's format API to read data
-        df = spark.read.format(self.name()).options(**datasource_config).load()
+        msg = f"*** [DIAGNOSTIC] Calling spark.read.format('{self.name()}').options(...).load()"
+        logger.info(msg)
+        print(msg, flush=True)
         
-        logger.info(f"Read DataFrame with schema: {df.schema}")
+        df = spark.read.format(self.name()).options(**datasource_config).load()
+
+        logger.info(f"Using BasePySparkDataSource read_batch method to read data for {datasource_config}")
+        
+        msg = f"*** [DIAGNOSTIC] spark.read.load() returned DataFrame with schema: {df.schema}"
+        logger.info(msg)
+        print(msg, flush=True)
         logger.info(f"DataFrame columns: {df.columns}")
         
         # The DataSource API returns records from read_partition() as individual rows
@@ -469,6 +541,10 @@ class RestApiDataSource(BasePySparkDataSource):
             # Generic fallback schema - data column contains string representation
             logger.warning("Generic schema detected. Cannot properly unwrap data.")
             logger.info("Ensure data contract schema is provided to connector via PipelineConfig.get_connector()")
+        
+        msg = f"*** [DIAGNOSTIC] read_batch completed - returning DataFrame"
+        logger.info(msg)
+        print(msg, flush=True)
         
         logger.info(f"Created DataFrame from REST API using Spark format API")
         return df
@@ -564,32 +640,22 @@ class RestApiDataSourceReader(BaseDataSourceReader):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-        # Pre-fetch and cache access token for OAuth2 to catch errors early
+        # OAuth2 tokens are managed by OAuth2TokenManager
+        # They should be pre-loaded at factory level before DataSource creation
         auth_type = self.config.get("auth_type", "none").lower()
         if auth_type == "oauth2_refresh":
             refresh_token: str = self.config.get("auth_token")  # type: ignore
             if not refresh_token:
                 raise ValueError("OAuth2 refresh requires 'auth_token' to be configured")
             
-            logger.info("Pre-fetching OAuth2 access token in RestApiDataSourceReader.__init__")
-            try:
-                cache_key = self._get_token_cache_key(refresh_token)
-
-                logger.info(f"OAuth2 token cache key: {cache_key}")
-                
-                # Check if already cached from a previous reader instance
-                if cache_key in RestApiDataSourceReader._access_token_cache:
-                    logger.info("Using cached OAuth2 access token from previous reader")
-                else:
-                    # Exchange refresh token for new access token
-                    access_token = self._get_access_token_from_refresh(refresh_token)
-                    RestApiDataSourceReader._access_token_cache[cache_key] = access_token
-                    logger.info(f"Cached new OAuth2 access token for reader instance {access_token}")
-                    logger.info("Successfully pre-fetched and cached OAuth2 access token")
-            except Exception as e:
-                raise ValueError(
-                    f"Failed to obtain OAuth2 access token during reader initialization: {e}. "
-                    f"Check token_endpoint, token_method, and token_response_path configuration."
+            logger.info("RestApiDataSourceReader checking for pre-loaded OAuth2 access token")
+            cached_token = OAuth2TokenManager.get_cached_token(refresh_token)
+            if cached_token:
+                logger.info("Using pre-loaded OAuth2 access token from OAuth2TokenManager")
+            else:
+                logger.warning(
+                    "OAuth2 token not pre-loaded. Will exchange on-demand if needed. "
+                    "For optimal performance, pre-load tokens at factory level via OAuth2TokenManager.exchange_token()"
                 )
         
         logger.debug(f"RestApiDataSourceReader initialized with auth_type: {auth_type}")
@@ -828,12 +894,7 @@ class RestApiDataSourceReader(BaseDataSourceReader):
         token_response_path = self.config.get("token_response_path", "result")
         
         logger.info(f"Exchanging refresh token for access token at: {token_endpoint}")
-
-        logger.info(f"usinbg : {refresh_token}")
-
-        headers={"Authorization": f"Bearer {refresh_token}"},
-        logger.info(f"running with asgvb {headers}")
-     
+        
         try:
             response = requests.request(
                 method=token_method,
@@ -860,61 +921,77 @@ class RestApiDataSourceReader(BaseDataSourceReader):
             logger.error(f"Failed to exchange refresh token: {e}")
             raise
     
-    # Class-level cache for pre-fetched OAuth2 access tokens (refresh_token_hash -> access_token)
-    # Populated during __init__ for oauth2_refresh auth type
-    _access_token_cache: Dict[str, str] = {}
-    
     def _build_headers(self) -> Dict[str, str]:
-        """Build HTTP headers including authentication.
+        """Build HTTP headers including resolved authentication.
         
-        Auth tokens are pre-fetched and validated during __init__.
-        This method simply assembles the headers using cached/configured tokens.
-        
-        Supports auth types:
-        - bearer: Direct bearer token from config
-        - api_key: API key in custom header from config
-        - oauth2_refresh: Pre-fetched and cached access token
+        Supports:
+        - Bearer tokens
+        - API keys
+        - OAuth2 (retrieves from OAuth2TokenManager)
+        - Basic auth
+        - Custom headers
         
         Returns:
-            Dict of HTTP headers including authentication
+            Dict of complete HTTP headers with authentication
         """
+        # Parse headers
         headers = RestApiDataSource._parse_dict_config(self.config.get("headers", {}), "headers")
+        
+        # Resolve auth headers
         auth_type = self.config.get("auth_type", "none").lower()
         
         if auth_type == "bearer":
-            token = self.config.get("auth_token")
-            logger.debug("Using bearer token from config")
-            headers["Authorization"] = f"Bearer {token}"
-                
+            auth_token = self.config.get("auth_token")
+            if not auth_token:
+                raise ValueError("Bearer auth requires 'auth_token' configuration")
+            headers["Authorization"] = f"Bearer {auth_token}"
+            logger.debug("Resolved Bearer token authentication")
+        
         elif auth_type == "api_key":
-            token = self.config.get("auth_token")
-            header_name = self.config.get("auth_header", "X-API-Key")
-            logger.debug(f"Using API key in header: {header_name}")
-            headers[header_name] = token
-                
+            auth_token = self.config.get("auth_token")
+            if not auth_token:
+                raise ValueError("API key auth requires 'auth_token' configuration")
+            api_key_header = self.config.get("api_key_header", "X-API-Key")
+            headers[api_key_header] = auth_token
+            logger.debug(f"Resolved API key authentication with header: {api_key_header}")
+        
         elif auth_type == "oauth2_refresh":
-            # Get the cached access token that was pre-fetched in __init__
-            refresh_token: str = self.config.get("auth_token")  # type: ignore
-            cache_key = self._get_token_cache_key(refresh_token)
+            refresh_token = self.config.get("auth_token")
+            if not refresh_token:
+                raise ValueError("OAuth2 requires 'auth_token' (refresh token) configuration")
             
-            access_token = RestApiDataSourceReader._access_token_cache.get(cache_key)
+            # Try to get cached access token first
+            access_token = OAuth2TokenManager.get_cached_token(refresh_token)
+            
             if not access_token:
-                # Fallback: re-fetch if not in cache (shouldn't happen if __init__ succeeded)
-                logger.warning("Access token not found in cache, re-fetching")
-                access_token = self._get_access_token_from_refresh(refresh_token)
-                RestApiDataSourceReader._access_token_cache[cache_key] = access_token
+                # Not in cache, exchange on-demand
+                logger.warning("OAuth2 token not found in cache, exchanging refresh token on-demand")
+                try:
+                    access_token = OAuth2TokenManager.exchange_token(
+                        refresh_token=refresh_token,
+                        token_endpoint=self.config.get("token_endpoint"),
+                        token_method=self.config.get("token_method", "GET"),
+                        token_response_path=self.config.get("token_response_path", "result")
+                    )
+                except Exception as e:
+                    raise ValueError(f"Failed to obtain OAuth2 access token: {e}")
             else:
-                logger.debug("Using pre-fetched OAuth2 access token")
+                logger.debug("Using pre-cached OAuth2 access token from OAuth2TokenManager")
             
             headers["Authorization"] = f"Bearer {access_token}"
+            logger.debug("Resolved OAuth2 token authentication")
+        
+        elif auth_type == "basic":
+            username = self.config.get("username")
+            password = self.config.get("password")
+            if not username or not password:
+                raise ValueError("Basic auth requires 'username' and 'password' configuration")
+            import base64
+            credentials = base64.b64encode(f"{username}:{password}".encode()).decode()
+            headers["Authorization"] = f"Basic {credentials}"
+            logger.debug("Resolved Basic authentication")
         
         return headers
-    
-    @staticmethod
-    def _get_token_cache_key(refresh_token: str) -> str:
-        """Get cache key for a refresh token (hash for security)."""
-        import hashlib
-        return hashlib.sha256(refresh_token.encode()).hexdigest()
     
     def _apply_rate_limit(self) -> None:
         """Apply rate limiting delay if configured."""
@@ -976,35 +1053,30 @@ class RestApiDataSourceStreamReader(BaseDataSourceStreamReader):
     
     Uses offset-based polling to fetch only new data since last checkpoint.
     Supports timestamp filtering for efficient incremental loads.
+    
+    NOTE: OAuth2 tokens are now managed by OAuth2TokenManager singleton.
+    Tokens should be pre-loaded at factory level before DataSource creation.
     """
     
     def __init__(self, *args, **kwargs):
-        """Initialize streaming reader with same OAuth2 token caching as batch reader."""
+        """Initialize streaming reader."""
         super().__init__(*args, **kwargs)
         
-        # Pre-fetch and cache access token for OAuth2 (same as RestApiDataSourceReader)
+        # OAuth2 tokens are managed by OAuth2TokenManager
         auth_type = self.config.get("auth_type", "none").lower()
         if auth_type == "oauth2_refresh":
             refresh_token: str = self.config.get("auth_token")  # type: ignore
             if not refresh_token:
                 raise ValueError("OAuth2 refresh requires 'auth_token' to be configured")
             
-            logger.info("Pre-fetching OAuth2 access token in RestApiDataSourceStreamReader.__init__")
-            try:
-                cache_key = self._get_token_cache_key(refresh_token)
-                
-                # Check if already cached from a previous reader instance
-                if cache_key in RestApiDataSourceStreamReader._access_token_cache:
-                    logger.info("Using cached OAuth2 access token from previous reader")
-                else:
-                    # Exchange refresh token for new access token
-                    access_token = self._get_access_token_from_refresh(refresh_token)
-                    RestApiDataSourceStreamReader._access_token_cache[cache_key] = access_token
-                    logger.info("Successfully pre-fetched and cached OAuth2 access token")
-            except Exception as e:
-                raise ValueError(
-                    f"Failed to obtain OAuth2 access token during streaming reader initialization: {e}. "
-                    f"Check token_endpoint, token_method, and token_response_path configuration."
+            logger.info("RestApiDataSourceStreamReader checking for pre-loaded OAuth2 access token")
+            cached_token = OAuth2TokenManager.get_cached_token(refresh_token)
+            if cached_token:
+                logger.info("Using pre-loaded OAuth2 access token from OAuth2TokenManager")
+            else:
+                logger.warning(
+                    "OAuth2 token not pre-loaded. Will exchange on-demand if needed. "
+                    "For optimal performance, pre-load tokens at factory level via OAuth2TokenManager.exchange_token()"
                 )
         
         logger.debug(f"RestApiDataSourceStreamReader initialized with auth_type: {auth_type}")
@@ -1328,48 +1400,79 @@ class RestApiDataSourceStreamReader(BaseDataSourceStreamReader):
             logger.error(f"Failed to exchange refresh token: {e}")
             raise
     
-    # Class-level cache for pre-fetched OAuth2 access tokens
-    _access_token_cache: Dict[str, str] = {}
+    # Class-level cache for pre-fetched OAuth2 access tokens (now handled by OAuth2TokenManager)
     
     def _build_headers(self) -> Dict[str, str]:
-        """Build HTTP headers including authentication (same as RestApiDataSourceReader)."""
+        """Build HTTP headers including resolved authentication.
+        
+        Supports:
+        - Bearer tokens
+        - API keys
+        - OAuth2 (retrieves from OAuth2TokenManager)
+        - Basic auth
+        - Custom headers
+        
+        Returns:
+            Dict of complete HTTP headers with authentication
+        """
+        # Parse headers
         headers = RestApiDataSource._parse_dict_config(self.config.get("headers", {}), "headers")
+        
+        # Resolve auth headers
         auth_type = self.config.get("auth_type", "none").lower()
         
         if auth_type == "bearer":
-            token = self.config.get("auth_token")
-            logger.debug("Using bearer token from config")
-            headers["Authorization"] = f"Bearer {token}"
-                
+            auth_token = self.config.get("auth_token")
+            if not auth_token:
+                raise ValueError("Bearer auth requires 'auth_token' configuration")
+            headers["Authorization"] = f"Bearer {auth_token}"
+            logger.debug("Resolved Bearer token authentication")
+        
         elif auth_type == "api_key":
-            token = self.config.get("auth_token")
-            header_name = self.config.get("auth_header", "X-API-Key")
-            logger.debug(f"Using API key in header: {header_name}")
-            headers[header_name] = token
-                
+            auth_token = self.config.get("auth_token")
+            if not auth_token:
+                raise ValueError("API key auth requires 'auth_token' configuration")
+            api_key_header = self.config.get("api_key_header", "X-API-Key")
+            headers[api_key_header] = auth_token
+            logger.debug(f"Resolved API key authentication with header: {api_key_header}")
+        
         elif auth_type == "oauth2_refresh":
-            # Get the cached access token that was pre-fetched in __init__
-            refresh_token: str = self.config.get("auth_token")  # type: ignore
-            cache_key = self._get_token_cache_key(refresh_token)
+            refresh_token = self.config.get("auth_token")
+            if not refresh_token:
+                raise ValueError("OAuth2 requires 'auth_token' (refresh token) configuration")
             
-            access_token = RestApiDataSourceStreamReader._access_token_cache.get(cache_key)
+            # Try to get cached access token first
+            access_token = OAuth2TokenManager.get_cached_token(refresh_token)
+            
             if not access_token:
-                # Fallback: re-fetch if not in cache
-                logger.warning("Access token not found in cache, re-fetching")
-                access_token = self._get_access_token_from_refresh(refresh_token)
-                RestApiDataSourceStreamReader._access_token_cache[cache_key] = access_token
+                # Not in cache, exchange on-demand
+                logger.warning("OAuth2 token not found in cache, exchanging refresh token on-demand")
+                try:
+                    access_token = OAuth2TokenManager.exchange_token(
+                        refresh_token=refresh_token,
+                        token_endpoint=self.config.get("token_endpoint"),
+                        token_method=self.config.get("token_method", "GET"),
+                        token_response_path=self.config.get("token_response_path", "result")
+                    )
+                except Exception as e:
+                    raise ValueError(f"Failed to obtain OAuth2 access token: {e}")
             else:
-                logger.debug("Using pre-fetched OAuth2 access token")
+                logger.debug("Using pre-cached OAuth2 access token from OAuth2TokenManager")
             
             headers["Authorization"] = f"Bearer {access_token}"
+            logger.debug("Resolved OAuth2 token authentication")
+        
+        elif auth_type == "basic":
+            username = self.config.get("username")
+            password = self.config.get("password")
+            if not username or not password:
+                raise ValueError("Basic auth requires 'username' and 'password' configuration")
+            import base64
+            credentials = base64.b64encode(f"{username}:{password}".encode()).decode()
+            headers["Authorization"] = f"Basic {credentials}"
+            logger.debug("Resolved Basic authentication")
         
         return headers
-    
-    @staticmethod
-    def _get_token_cache_key(refresh_token: str) -> str:
-        """Get cache key for a refresh token (hash for security)."""
-        import hashlib
-        return hashlib.sha256(refresh_token.encode()).hexdigest()
     
     def _apply_rate_limit(self) -> None:
         """Apply rate limiting delay if configured."""

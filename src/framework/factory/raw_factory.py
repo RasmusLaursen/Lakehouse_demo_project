@@ -8,16 +8,26 @@ except ImportError:
     dlt = None  # type: ignore
 
 from src.framework.helper import (
-    databricks_helper,
-    lakeflow_declarative_pipeline,
-    logging_helper,
-    common,
-    read,
-    data_contract_helper
+    get_spark,
+    get_dbutils,
+    ldp_table,
+    get_logger,
+    get_validate_data_configuration_contract,
+    find_data_contract_path,
+    load_data_contract,
+    get_data_contract,
+    read_dataframe,
+    schema_to_table_config,
 )
-from src.framework.factory.config import PipelineConfig
+from src.framework.config import (
+    CentralizedPipelineConfig,
+    ConnectorConfig,
+    ConnectorConfigBuilderFactory,
+    CatalogSchemaManager
+)
+from src.framework.connectors import ConnectorFactory
 
-logger = logging_helper.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 class RawPipelineFactory:
@@ -43,26 +53,59 @@ class RawPipelineFactory:
         """
         logger.info(f"Creating raw pipeline for source system: {source_system_name}")
         
-        # Load configuration
-        config = PipelineConfig.from_spark(self.spark, source_system_name)
+        # Load centralized configuration
+        centralized_config = CentralizedPipelineConfig.from_spark(self.spark, source_system_name)
+        centralized_config.validate()
+        
+        # Create catalog/schema manager
+        catalog_manager = CatalogSchemaManager.from_pipeline_config(centralized_config)
         
         # Load data contract
-        data_contract = data_contract_helper.get_data_contract(
+        data_contract = get_data_contract(
             catalog="source_system", 
             object_name=source_system_name
         )
         
-        # Find and apply server configuration for current environment
-        server_config = self._get_server_config(data_contract, config.environment)
-        config.update_from_server_config(server_config)
+        # Find server configuration for current environment
+        server_config = self._get_server_config(data_contract, centralized_config.environment)
         
-        # Process each schema in the data contract
+        # Process schemas in two passes:
+        # Pass 1: Create all root call tables (independent)
+        # Pass 2: Create all dependent call tables (depends on root tables being materialized)
+        logger.info("=== PASS 1: Creating root call tables ===")
         for schema in data_contract.schema_:  # type: ignore
             try:
-                logger.info(f"Processing schema: {schema.name if schema else 'unknown'}")
-                self._process_schema(schema, config)
+                is_root_call = True
+                if hasattr(schema, 'customProperties') and schema.customProperties:
+                    for prop in schema.customProperties:
+                        prop_name = getattr(prop, 'property', getattr(prop, 'key', None))
+                        prop_value = getattr(prop, 'value', None)
+                        if prop_name == "is_root_call" and prop_value:
+                            is_root_call = (prop_value == "true" or prop_value is True)
+                
+                if is_root_call:
+                    logger.info(f"Processing root call schema: {schema.name if schema else 'unknown'}")
+                    self._process_schema(schema, server_config, centralized_config, catalog_manager)
             except Exception as e:
-                logger.error(f"Error processing schema {schema.name if schema else 'unknown'}: {e}")
+                logger.error(f"Error processing root schema {schema.name if schema else 'unknown'}: {e}")
+                continue
+        
+        logger.info("=== PASS 2: Creating dependent call tables ===")
+        for schema in data_contract.schema_:  # type: ignore
+            try:
+                is_root_call = True
+                if hasattr(schema, 'customProperties') and schema.customProperties:
+                    for prop in schema.customProperties:
+                        prop_name = getattr(prop, 'property', getattr(prop, 'key', None))
+                        prop_value = getattr(prop, 'value', None)
+                        if prop_name == "is_root_call" and prop_value:
+                            is_root_call = (prop_value == "true" or prop_value is True)
+                
+                if not is_root_call:
+                    logger.info(f"Processing dependent call schema: {schema.name if schema else 'unknown'}")
+                    self._process_schema(schema, server_config, centralized_config, catalog_manager)
+            except Exception as e:
+                logger.error(f"Error processing dependent schema {schema.name if schema else 'unknown'}: {e}")
                 continue
         
         logger.info(f"Completed raw pipeline creation for {source_system_name}")
@@ -82,12 +125,14 @@ class RawPipelineFactory:
                 return server
         return None
     
-    def _process_schema(self, schema: Any, config: PipelineConfig) -> None:
+    def _process_schema(self, schema: Any, server_config: Any, centralized_config: CentralizedPipelineConfig, catalog_manager: CatalogSchemaManager) -> None:
         """Process a single schema to create raw table and optional backfill.
         
         Args:
             schema: Schema object from data contract
-            config: Pipeline configuration
+            server_config: Server configuration from data contract
+            centralized_config: Centralized pipeline configuration
+            catalog_manager: Catalog and schema manager
         """
         model_name = schema.name
         
@@ -98,16 +143,16 @@ class RawPipelineFactory:
         logger.info(f"Processing model: {model_name}")
         
         # Convert ODCS schema to TableConfig
-        config_dict = data_contract_helper.schema_to_table_config(schema)
-        validated_data_config = common.get_validate_data_configuration_contract(config_dict)
+        config_dict = schema_to_table_config(schema)
+        validated_data_config = get_validate_data_configuration_contract(config_dict)
         
         # Create raw layer table
-        self._create_raw_table(model_name, schema, config)
+        self._create_raw_table(model_name, schema, server_config, centralized_config)
         
         # Create backfill if configured
-        self._create_backfill_if_needed(model_name, validated_data_config, config)
+        self._create_backfill_if_needed(model_name, validated_data_config, centralized_config)
     
-    def _create_raw_table(self, model_name: str, schema: Any, config: PipelineConfig) -> None:
+    def _create_raw_table(self, model_name: str, schema: Any, server_config: Any, centralized_config: CentralizedPipelineConfig) -> None:
         """Create raw layer DLT table using connector framework.
         
         Dynamically creates connector based on data contract configuration.
@@ -116,21 +161,46 @@ class RawPipelineFactory:
         Args:
             model_name: Name of the model/table
             schema: Schema object from data contract
-            config: Pipeline configuration
+            server_config: Server configuration from data contract
+            centralized_config: Centralized pipeline configuration
         """
         try:
-            # Get connector with auto-merged config (catalog/schema/volume for volume sources)
-            connector = config.get_connector(model_name, schema)
+            # Build connector configuration using builder pattern
+            base_connector_config = ConnectorConfig.from_server_config(server_config)
             
-            logger.info(f"Created {config.connector_type} connector for {model_name}: {type(connector).__name__}")
+            # Create appropriate builder based on connector type
+            # Pass model_name for per-schema volume mapping in AutoLoader
+            builder = ConnectorConfigBuilderFactory.create_builder(
+                base_connector_config.connector_type,
+                base_connector_config,
+                centralized_config,
+                model_name  # AutoLoader uses this for per-schema volume assignment
+            )
+            
+            # Build config with optional schema overrides for REST API and volume mapping
+            builder = (
+                builder
+                .merge_schema_overrides(schema)
+                .merge_shared_context()
+                .resolve_secrets()
+            )
+            
+            if hasattr(builder, 'build_spark_schema'):
+                builder.build_spark_schema(model_name, schema)
+            
+            final_config = builder.build()
+            
+            # Create connector instance
+            connector = ConnectorFactory.create(base_connector_config.connector_type, final_config)
+            logger.info(f"Created {base_connector_config.connector_type} connector for {model_name}: {type(connector).__name__}")
             
             # Use connector-based API
-            lakeflow_declarative_pipeline.ldp_table(
-                name=f"{config.raw_catalog}.{config.raw_schema}.{model_name}",
+            ldp_table(
+                name=f"{centralized_config.raw_catalog}.{centralized_config.raw_schema}.{model_name}",
                 connector=connector,
-                comment=f"Raw layer table for {model_name} using {config.connector_type} connector",
+                comment=f"Raw layer table for {model_name} using {base_connector_config.connector_type} connector",
             )
-            logger.info(f"Created raw table: {model_name} using {config.connector_type} connector")
+            logger.info(f"Created raw table: {model_name} using {base_connector_config.connector_type} connector")
         except Exception as e:
             logger.error(f"Error creating raw table {model_name}: {e}")
             raise
@@ -139,14 +209,14 @@ class RawPipelineFactory:
         self, 
         model_name: str, 
         validated_data_config: Any, 
-        config: PipelineConfig
+        centralized_config: CentralizedPipelineConfig
     ) -> None:
         """Create backfill append flow if backfill is configured.
         
         Args:
             model_name: Name of the model/table
             validated_data_config: Validated data configuration
-            config: Pipeline configuration
+            centralized_config: Centralized pipeline configuration
         """
         backfill = validated_data_config.backfill if hasattr(validated_data_config, "backfill") else None
         
@@ -159,12 +229,12 @@ class RawPipelineFactory:
         
         try:
             # Create closure properly to avoid variable capture issues
-            self._create_backfill_flow(model_name, config)
+            self._create_backfill_flow(model_name, centralized_config)
         except Exception as e:
             logger.error(f"Error during backfill of table {model_name}: {e}")
             raise
     
-    def _create_backfill_flow(self, model_name: str, config: PipelineConfig) -> None:
+    def _create_backfill_flow(self, model_name: str, centralized_config: CentralizedPipelineConfig) -> None:
         """Create DLT append flow for backfill.
         
         This method uses a factory pattern to create proper closures for DLT decorators,
@@ -172,14 +242,14 @@ class RawPipelineFactory:
         
         Args:
             model_name: Name of the model/table
-            config: Pipeline configuration
+            centralized_config: Centralized pipeline configuration
         """
         # Capture variables in local scope to avoid closure issues
-        source_catalog = config.landing_catalog
-        source_schema = config.landing_schema
-        target_catalog = config.raw_catalog
-        target_schema = config.raw_schema
-        filetype = config.filetype
+        source_catalog = centralized_config.landing_catalog
+        source_schema = centralized_config.landing_schema
+        target_catalog = centralized_config.raw_catalog
+        target_schema = centralized_config.raw_schema
+        filetype = centralized_config.filetype
         object_name = model_name
         
         @dlt.append_flow(
@@ -190,7 +260,7 @@ class RawPipelineFactory:
         )
         def _backfill():
             """Backfill function with properly captured variables."""
-            return read.read_volume(
+            return read_dataframe(
                 source_catalog,
                 source_schema,
                 f"{object_name}_historic",
@@ -206,6 +276,6 @@ def create_raw_pipeline(source_system_name: str) -> None:
     Args:
         source_system_name: Name of the source system (e.g., 'lakehouse', 'review')
     """
-    spark = databricks_helper.get_spark()
+    spark = get_spark()
     factory = RawPipelineFactory(spark)
     factory.create_pipeline(source_system_name)

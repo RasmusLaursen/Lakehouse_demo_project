@@ -1,18 +1,17 @@
-from src.framework.helper import databricks_helper
-from src.framework.helper import lakeflow_declarative_pipeline
-from src.framework.helper import logging_helper
-from src.framework.helper import read
+from src.framework.helper import get_spark, get_pipeline_configurations
+from src.framework.helper import ldp_table, ldp_change_data_capture
+from src.framework.helper import get_logger
 from pyspark.sql.functions import col, monotonically_increasing_id
 import dlt
 
 # Initialize logger
-logger = logging_helper.get_logger(__name__)
+logger = get_logger(__name__)
 
 # Initialize Spark session
-spark = databricks_helper.get_spark()
+spark = get_spark()
 
-catalogs = databricks_helper.get_pipeline_configurations(spark, "catalogs")
-schemas = databricks_helper.get_pipeline_configurations(spark, "schemas")
+catalogs = get_pipeline_configurations(spark, "catalogs")
+schemas = get_pipeline_configurations(spark, "schemas")
 
 logger.debug("Catalogs configuration: " + str(catalogs))
 logger.debug("Schemas configuration: " + str(schemas))
@@ -82,7 +81,7 @@ def dim_customer(
 logger.info(
     f"Starting CDC SCD2 load for: {target_catalog}.{target_schema}.temp_dim_customer -> {target_catalog}.{target_schema}.dim_customer_cdc_scd2"
 )
-lakeflow_declarative_pipeline.ldp_change_data_capture(
+ldp_change_data_capture(
     source=f"{target_catalog}.{target_schema}.temp_dim_customer",
     target_catalog=target_catalog,
     target_schema=target_schema,

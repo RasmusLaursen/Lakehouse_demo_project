@@ -2,13 +2,13 @@
 import os
 import datetime
 from behave import given, when, then  # type: ignore
-from src.framework.helper import logging_helper
+from src.framework.helper import get_logger
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import jobs
 
 
 # Initialize logger
-logger = logging_helper.get_logger(__name__)
+logger = get_logger(__name__)
 workspace_client = WorkspaceClient()
 TIMEOUT = 3600  # seconds
 

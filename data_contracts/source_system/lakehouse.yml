@@ -30,6 +30,8 @@ schema:
     description: "Lakehouse name reference data"
     type: table
     customProperties:
+      - property: mode
+        value: streaming
       - property: scd_type
         value: 1
       - property: keys
@@ -52,6 +54,8 @@ schema:
     description: "Regional location reference data"
     type: table
     customProperties:
+      - property: mode
+        value: streaming
       - property: scd_type
         value: 1
       - property: keys
@@ -69,11 +73,12 @@ schema:
         type: string
         required: true
         maxLength: 50
-      
   - name: loyalty_tier
     description: "Customer loyalty tier levels"
     type: table
     customProperties:
+      - property: mode
+        value: streaming
       - property: scd_type
         value: 1
       - property: keys
@@ -91,11 +96,12 @@ schema:
         type: string
         required: true
         maxLength: 30
-
   - name: payment_method
     description: "Available payment methods"
     type: table
     customProperties:
+      - property: mode
+        value: streaming
       - property: scd_type
         value: 1
       - property: keys
@@ -113,11 +119,12 @@ schema:
         type: string
         required: true
         maxLength: 50
-
   - name: customer
     description: "Customer information and preferences"
     type: table
     customProperties:
+      - property: mode
+        value: streaming
       - property: scd_type
         value: 2
       - property: keys
@@ -193,11 +200,12 @@ schema:
         type: integer
         required: true
         minimum: 0
-
   - name: lakehouse
     description: "Lakehouse property details and amenities"
     type: table
     customProperties:
+      - property: mode
+        value: streaming
       - property: scd_type
         value: 1
       - property: keys
@@ -288,11 +296,12 @@ schema:
       - name: is_active
         type: boolean
         required: true
-
   - name: seller
     description: "Sales representative information and performance"
     type: table
     customProperties:
+      - property: mode
+        value: streaming
       - property: scd_type
         value: 1
       - property: keys
@@ -368,6 +377,8 @@ schema:
     description: "Complete rental transaction records"
     type: table
     customProperties:
+      - property: mode
+        value: streaming
       - property: scd_type
         value: 1
       - property: keys

@@ -1,16 +1,19 @@
 from src.solution.landing.lakehouse_synthetic_data import LakehouseSyntheticData
 from src.solution.landing import review_synthetic_data
-from src.framework.helper import databricks_helper
-from src.framework.helper import logging_helper
-from src.framework.helper import common
-from src.framework.helper import write
+from src.framework.helper import (
+    get_logger,
+    get_spark,
+    get_dbutils,
+    write_volume,
+    parse_arguments,
+)
 import sys
 
 # Configure logging
-logger = logging_helper.get_logger(__name__)
+logger = get_logger(__name__)
 
-spark = databricks_helper.get_spark()
-dbutils = databricks_helper.get_dbutils(spark)
+spark = get_spark()
+dbutils = get_dbutils(spark)
 
 
 def review_generate_data(
@@ -28,7 +31,7 @@ def save_list_to_volume(landing_catalog, landing_schema, entity_name, entity_rec
         f"Creating volume for {landing_catalog}.{landing_schema}.{entity_name}..."
     )
     df_entity = spark.createDataFrame(entity_records)
-    write.write_volume(
+    write_volume(
         target_catalog=landing_catalog,
         target_schema=landing_schema,
         target_name=entity_name,
@@ -40,11 +43,11 @@ def save_list_to_volume(landing_catalog, landing_schema, entity_name, entity_rec
 
 
 def main():
-    landing_catalog = common.parse_arguments("landing_catalog", default="landing_dev")
-    lakehouse_landing_schema = common.parse_arguments("lakehouse_landing_schema", default="lakehouse")
-    review_landing_schema = common.parse_arguments("review_landing_schema", default="review")
+    landing_catalog = parse_arguments("landing_catalog", default="landing_dev")
+    lakehouse_landing_schema = parse_arguments("lakehouse_landing_schema", default="lakehouse")
+    review_landing_schema = parse_arguments("review_landing_schema", default="review")
 
-    random_number_of_records = common.parse_arguments("random_number_of_records")
+    random_number_of_records = parse_arguments("random_number_of_records")
 
     logger.info("Generate random number of records: " + str(random_number_of_records))
 

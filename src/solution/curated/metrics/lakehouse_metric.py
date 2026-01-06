@@ -1,11 +1,11 @@
-from src.framework.helper import databricks_helper
+from src.framework.helper import get_spark, get_pipeline_configurations
 
-spark = databricks_helper.get_spark()
+spark = get_spark()
 
 
 def create_lakehouse_metric_view():
-    catalogs = databricks_helper.get_pipeline_configurations(spark, "catalogs")
-    schemas = databricks_helper.get_pipeline_configurations(spark, "schemas")
+    catalogs = get_pipeline_configurations(spark, "catalogs")
+    schemas = get_pipeline_configurations(spark, "schemas")
 
     logger.debug("Catalogs configuration: " + str(catalogs))
     logger.debug("Schemas configuration: " + str(schemas))

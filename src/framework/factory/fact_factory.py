@@ -8,10 +8,17 @@ try:
 except ImportError:
     dlt = None  # type: ignore
 
-from src.framework.helper import databricks_helper, logging_helper, dw
-from src.framework.factory.config import PipelineConfig
+from src.framework.helper import (
+    get_logger,
+    get_pipeline_configurations,
+    dimension_keys_lookup,
+)
+from src.framework.config import (
+    CentralizedPipelineConfig,
+    CatalogSchemaManager
+)
 
-logger = logging_helper.get_logger(__name__)
+logger = get_logger(__name__)
 
 
 class CuratedFactFactory:
@@ -25,8 +32,9 @@ class CuratedFactFactory:
             source_system: Source system name (default: lakehouse)
         """
         self.spark = spark
-        self.config = PipelineConfig.from_spark(spark, source_system)
-        self.config.validate()
+        self.centralized_config = CentralizedPipelineConfig.from_spark(spark, source_system)
+        self.centralized_config.validate()
+        self.catalog_manager = CatalogSchemaManager.from_pipeline_config(self.centralized_config)
     
     def create_fact(
         self,
@@ -66,19 +74,20 @@ class CuratedFactFactory:
         logger.info(f"Creating fact table: {fact_name}")
         
         # Capture variables for closure
-        config = self.config
+        catalog_manager = self.catalog_manager
+        centralized_config = self.centralized_config
         spark = self.spark
         
         # Determine source schema
         if source_schema is None:
-            schema = config.base_schema
+            schema = centralized_config.base_schema
         else:
             # Get from config
-            schema = databricks_helper.get_pipeline_configurations(spark, "schemas").get(source_schema)
+            schema = get_pipeline_configurations(spark, "schemas").get(source_schema)
         
         # Create the DLT table
         @dlt.table(  # type: ignore
-            name=config.get_fact_table_path(fact_name),
+            name=catalog_manager.get_fact_table_path(fact_name),
             comment=f"Curated layer fact table for {fact_name.replace('fact_', '')}"
         )
         def _fact_table():
@@ -86,7 +95,7 @@ class CuratedFactFactory:
             logger.info(f"Reading source table: {source_table}")
             
             # Read base fact table
-            df = spark.read.table(f"{config.base_catalog}.{schema}.{source_table}")
+            df = spark.read.table(f"{centralized_config.base_catalog}.{schema}.{source_table}")
             
             # Rename columns to dimension keys
             df = df.withColumnsRenamed(dimension_mappings)
@@ -97,9 +106,9 @@ class CuratedFactFactory:
                 df = additional_transforms(df)
             
             # Perform dimension key lookups
-            df = dw.dimension_keys_lookup(
-                curated_catalog=config.curated_catalog,
-                curated_dimension_schema=config.dimensions_schema,
+            df = dimension_keys_lookup(
+                curated_catalog=centralized_config.curated_catalog,
+                curated_dimension_schema=centralized_config.dimensions_schema,
                 fact_df=df
             )
             logger.debug(f"Applied dimension key lookups for {fact_name}")

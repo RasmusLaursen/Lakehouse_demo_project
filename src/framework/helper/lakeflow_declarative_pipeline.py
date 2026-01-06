@@ -1,9 +1,7 @@
-import dlt
-from src.framework.helper import common
+import warnings
 from src.framework.helper import databricks_helper
 from src.framework.helper import read
 from pyspark.sql import DataFrame
-from pyspark import pipelines as dp
 from src.framework.helper.config import DefaultTblProperties
 from typing import Optional
 
@@ -81,45 +79,85 @@ def ldp_table(
     
     logger.info(f"Creating DLT table {name} using {type(connector).__name__}")
     
-    @dlt.table(
-        name=name,
-        comment=comment,
-        spark_conf=spark_conf,
-        table_properties=merged_properties,
-        path=path,
-        partition_cols=partition_cols,
-        cluster_by_auto=cluster_by_auto,
-        cluster_by=cluster_by,
-        schema=schema,
-        row_filter=row_filter,
-        private=private,
-    )
-    def table_creation() -> DataFrame:
-        """Inner function that reads data via connector."""
-        logger.info(f"Reading data using {type(connector).__name__}")
-        spark = databricks_helper.get_spark()
+    # Use factory function pattern to properly capture variables in closures
+    # This avoids Python's late-binding closure issue when called in loops
+    def create_table_with_params(
+        table_name: str,
+        table_connector,
+        table_comment: Optional[str],
+        table_spark_conf: Optional[dict],
+        table_properties: Optional[dict],
+        table_path: Optional[str],
+        table_partition_cols: Optional[list],
+        table_cluster_by_auto: bool,
+        table_cluster_by: Optional[list],
+        table_schema: Optional[str],
+        table_row_filter: Optional[str],
+        table_private: bool,
+    ):
+        # Import dlt inside function - only when actually creating tables in DLT context
+        import dlt  # type: ignore
         
-        # Check for explicit mode configuration in connector config
-        connector_mode = getattr(connector, 'config', {}).get('mode', 'batch')
-        
-        # Check if connector has a preference for batch vs streaming
-        # Explicit mode config overrides connector preference
-        if connector_mode == 'streaming':
-            logger.info(f"Using streaming read for {name} (mode=streaming)")
-            return connector.read_stream(spark)
-        elif connector_mode == 'batch':
-            logger.info(f"Using batch read for {name} (mode=batch)")
-            return connector.read_batch(spark)
-        else:
-            # Fallback to connector preference
-            use_batch = getattr(connector, 'prefer_batch', False)
+        @dlt.table(
+            name=table_name,
+            comment=table_comment,
+            spark_conf=table_spark_conf,
+            table_properties=table_properties,
+            path=table_path,
+            partition_cols=table_partition_cols,
+            cluster_by_auto=table_cluster_by_auto,
+            cluster_by=table_cluster_by,
+            schema=table_schema,
+            row_filter=table_row_filter,
+            private=table_private,
+        )
+        def table_creation(
+            table_connector = table_connector,
+            table_name = table_name,
+
+        ) -> DataFrame:
+            """Inner function that reads data via connector."""
+            logger.info(f"Reading data using {type(table_connector).__name__}")
+            spark = databricks_helper.get_spark()
             
-            if use_batch:
-                logger.info(f"Using batch read for {type(connector).__name__} (prefer_batch=True)")
-                return connector.read_batch(spark)
+            # Check for explicit mode configuration in connector config
+            connector_mode = getattr(table_connector, 'config', {}).get('mode', 'batch')
+            
+            # Check if connector has a preference for batch vs streaming
+            # Explicit mode config overrides connector preference
+            if connector_mode == 'streaming':
+                logger.info(f"Using streaming read for {table_name} (mode=streaming)")
+                df = table_connector.read_stream(spark)
+            elif connector_mode == 'batch':
+                logger.info(f"Using batch read for {table_name} (mode=batch)")
+                df = table_connector.read_batch(spark)
             else:
-                logger.info(f"Using streaming read for {type(connector).__name__} (prefer_batch=False)")
-                return connector.read_stream(spark)
+                # Fallback to connector preference
+                use_batch = getattr(table_connector, 'prefer_batch', False)
+                
+                if use_batch:
+                    logger.info(f"Using batch read for {type(table_connector).__name__} (prefer_batch=True)")
+                    df = table_connector.read_batch(spark)
+                else:
+                    logger.info(f"Using streaming read for {type(table_connector).__name__} (prefer_batch=False)")
+                    df = table_connector.read_stream(spark)
+            return df
+    
+    # Invoke the factory function to register the table with properly captured variables
+    create_table_with_params(
+        table_name=name,
+        table_connector=connector,
+        table_comment=comment,
+        table_spark_conf=spark_conf,
+        table_properties=merged_properties,
+        table_path=path,
+        table_partition_cols=partition_cols,
+        table_cluster_by_auto=cluster_by_auto,
+        table_cluster_by=cluster_by,
+        table_schema=schema,
+        table_row_filter=row_filter,
+        table_private=private,
+    )
 
 def ldp_view(
     source_catalog: str,
@@ -141,6 +179,9 @@ def ldp_view(
     Returns:
         None: This function does not return a value. It registers a view in the pipeline.
     """
+    
+    # Import dlt inside function - only when actually creating views in DLT context
+    import dlt  # type: ignore
 
     @dlt.view(
         name=f"{source_catalog}_{source_schema}_{source_object}_view",
@@ -209,6 +250,9 @@ def ldp_change_data_capture(
         name=f"{target_catalog}.{target_schema}.{target_object}",
         table_properties=table_properties,
     )
+    
+    # Import dlt inside function - only when actually creating CDC in DLT context
+    import dlt  # type: ignore
 
     dlt.create_auto_cdc_flow(
         target=f"{target_catalog}.{target_schema}.{target_object}",
@@ -264,6 +308,9 @@ def ldp_create_streaming_table(
     Returns:
         None: This function does not return a value. It registers a streaming table in DLT.
     """
+    # Import dlt inside function - only when actually creating streaming tables in DLT context
+    import dlt  # type: ignore
+    
     dlt.create_streaming_table(
         name=name,
         comment=comment,
