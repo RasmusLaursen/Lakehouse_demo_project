@@ -37,6 +37,8 @@ from src.framework.connectors.oauth2_token_manager import OAuth2TokenManager
 from src.framework.connectors.pyspark_datasource_adapter import SimpleInputPartition
 from src.framework.helper import logging_helper
 
+from pyspark import pipelines as dp
+
 logger = logging_helper.get_logger(__name__)
 
 # Global schema cache for storing StructType schemas that can't be serialized in DataSource options
@@ -231,7 +233,8 @@ class RestApiWorkflowDataSource(RestApiDataSource):
         4. Parent class inference (for root calls) - may hit API
         """
         table_name = self.config.get("table_name", "")
-        logger.info("Resolving schema for table_name: " + table_name)
+        model_name = self.config.get("model_name", "")
+        logger.info(f"Resolving schema for table_name: {table_name}, model_name: {model_name}")
         
         # Check if this is a dependent call
         is_root_call = self.config.get("is_root_call", "false")
@@ -241,7 +244,7 @@ class RestApiWorkflowDataSource(RestApiDataSource):
         # Check if table_name has path parameter placeholders
         has_path_params = "{" in table_name and "}" in table_name
         
-        logger.info(f"Schema resolution: table_name={table_name}, is_root_call={is_root_call}, has_path_params={has_path_params}")
+        logger.info(f"Schema resolution: table_name={table_name}, model_name={model_name}, is_root_call={is_root_call}, has_path_params={has_path_params}")
         logger.info(f"Schema cache contains: {list(_schema_cache.keys())}")
         
         # # First priority: Avoid API calls for dependent calls with path parameters
@@ -253,9 +256,11 @@ class RestApiWorkflowDataSource(RestApiDataSource):
             
         
         # Second priority: Try to get schema from global cache (pre-loaded from data contract)
-        if table_name in _schema_cache:
-            cached_schema = _schema_cache[table_name]
-            logger.info(f"Using pre-cached schema for {table_name}: {len(cached_schema.fields)} fields")
+        # Use model_name as the primary lookup key (this is what gets cached by the config builder)
+        cache_key = model_name if model_name else table_name
+        if cache_key in _schema_cache:
+            cached_schema = _schema_cache[cache_key]
+            logger.info(f"Using pre-cached schema for {cache_key}: {len(cached_schema.fields)} fields")
             return cached_schema
         
         logger.info("config: " + str(self.config))
@@ -382,11 +387,20 @@ class RestApiWorkflowDataSource(RestApiDataSource):
             
             reader = self.create_reader(schema)  # type: ignore
             
+            meteringpoint = spark.sql("SELECT meteringPointId FROM base_dev.dev_rasmuslaursen_eloverblik.meteringpoints").collect()
+
+            if len(meteringpoint) == 0:
+                logger.error("[READ_BATCH] No metering points found in raw table - cannot proceed with dependent call")
+                meteringpoint = ''
+            else:
+                meteringpoint = meteringpoint[0]['meteringPointId']
+
+
             # TEMPORARY: Use hardcoded metering point for testing
             logger.info("[READ_BATCH] === TESTING MODE: Using hardcoded metering point ===")
             parent_data = [
                 {
-                    "meteringPointId": "571313113160133023",
+                    "meteringPointId": f"{meteringpoint}",
                     "position": "D01",
                     "quantity": "E17",
                     "quality": "A01",
@@ -455,6 +469,7 @@ class RestApiWorkflowDataSource(RestApiDataSource):
             
             # Create DataFrame from collected rows
             df = spark.createDataFrame(all_rows, schema)  # type: ignore
+            logger.info(f"[READ_BATCH] DataFrame schema: {df.count()}")
             return df
         
         # For root calls or when not a workflow, use standard DataSource API
@@ -468,9 +483,10 @@ class RestApiWorkflowDataSource(RestApiDataSource):
             logger.debug(f"DataSource may already be registered: {e}")
         
         # Filter config to only include DataSource-relevant options
+        # Note: model_name is NOT excluded because it's needed for schema cache lookups
         excluded_keys = {
             'catalog', 'volume', 'source_system', 
-            'model_name', 'format', 'schema'
+            'format', 'schema'
         }
         datasource_config = {}
         for k, v in self.config.items():
@@ -511,9 +527,10 @@ class RestApiWorkflowDataSource(RestApiDataSource):
             logger.debug(f"DataSource may already be registered: {e}")
         
         # Filter config to only include DataSource-relevant options
+        # Note: model_name is NOT excluded because it's needed for schema cache lookups
         excluded_keys = {
             'catalog', 'volume', 'source_system', 
-            'model_name', 'format', 'schema'
+            'format', 'schema'
         }
         datasource_config = {}
         for k, v in self.config.items():
@@ -838,9 +855,7 @@ class RestApiWorkflowReader(RestApiDataSourceReader):
                 logger.debug(f"Parent API response headers: {response.headers}")
                 
                 data = response.json()
-                logger.info(f"Parent API response body (first 1000 chars): {json.dumps(data, indent=2)[:1000]}")
-                logger.debug(f"Parent API full response: {json.dumps(data, indent=2)}")
-                
+
                 # Extract data using data_path
                 data_path = self.config.get("data_path", "result")
                 logger.info(f"Using data_path: {data_path}")
@@ -1016,20 +1031,11 @@ class RestApiWorkflowReader(RestApiDataSourceReader):
             
             logger.info(f"[TIMESERIES_API] Response status: {response.status_code}")
             logger.info(f"[TIMESERIES_API] Response headers: {json.dumps(dict(response.headers), indent=2, default=str)}")
-            
-            # Log response body before raising error
-            try:
-                response_body = response.json()
-                logger.info(f"[TIMESERIES_API] Response body: {json.dumps(response_body, indent=2, default=str)}")
-            except:
-                logger.info(f"[TIMESERIES_API] Response body (text): {response.text}")
+        
             
             response.raise_for_status()
             
             data = response.json()
-            
-            logger.info(f"[TIMESERIES_API] Response JSON (first 2000 chars): {json.dumps(data, indent=2, default=str)[:2000]}")
-            logger.info(f"[TIMESERIES_API] Full response JSON: {json.dumps(data, indent=2, default=str)}")
             
             # Parse response
             data_path = self.config.get("data_path")

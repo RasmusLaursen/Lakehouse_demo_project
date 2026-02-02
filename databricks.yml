@@ -2,7 +2,7 @@
 # See https://docs.databricks.com/dev-tools/bundles/index.html for documentation.
 bundle:
   name: lakehouse_demo_project
-  databricks_cli_version: ">= 0.281.*"
+  databricks_cli_version: ">= 0.283.*"
 
 variables:
   project_name:
@@ -22,6 +22,8 @@ variables:
   warehouse_id:
     lookup:
       warehouse: "Serverless Starter Warehouse"
+  volumepath:
+    default: test
 
 
 artifacts:
@@ -32,16 +34,17 @@ artifacts:
 
 include:
   - resources/*.yml
-  - resources/unity_catalog/app/*.yml # excluding apps for now as there is a limit of 1 app pr workspace
-  - resources/app/*.yml # excluding apps for now as there is a limit of 1 app pr workspace
+  # - resources/unity_catalog/app/*.yml # excluding apps for now as there is a limit of 1 app pr workspace
+  # - resources/app/*.yml # excluding apps for now as there is a limit of 1 app pr workspace
   - resources/environments/*.yml
   - resources/jobs/*.yml
   - resources/pipelines/*.yml
   - resources/unity_catalog/source_systems/*.yml
   - resources/unity_catalog/*.yml
 
+
 sync:
   exclude:
-    - src/dashboards/*.lvdash.json
+    - src/solution/dashboards/*.lvdash.json
   include:
     - src/**

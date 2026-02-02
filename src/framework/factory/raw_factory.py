@@ -89,26 +89,6 @@ class RawPipelineFactory:
             except Exception as e:
                 logger.error(f"Error processing root schema {schema.name if schema else 'unknown'}: {e}")
                 continue
-        
-        logger.info("=== PASS 2: Creating dependent call tables ===")
-        for schema in data_contract.schema_:  # type: ignore
-            try:
-                is_root_call = True
-                if hasattr(schema, 'customProperties') and schema.customProperties:
-                    for prop in schema.customProperties:
-                        prop_name = getattr(prop, 'property', getattr(prop, 'key', None))
-                        prop_value = getattr(prop, 'value', None)
-                        if prop_name == "is_root_call" and prop_value:
-                            is_root_call = (prop_value == "true" or prop_value is True)
-                
-                if not is_root_call:
-                    logger.info(f"Processing dependent call schema: {schema.name if schema else 'unknown'}")
-                    self._process_schema(schema, server_config, centralized_config, catalog_manager)
-            except Exception as e:
-                logger.error(f"Error processing dependent schema {schema.name if schema else 'unknown'}: {e}")
-                continue
-        
-        logger.info(f"Completed raw pipeline creation for {source_system_name}")
     
     def _get_server_config(self, data_contract: Any, environment: str) -> Any:
         """Find server configuration matching the current environment.
@@ -185,8 +165,9 @@ class RawPipelineFactory:
                 .resolve_secrets()
             )
             
+            # Build Spark schema if the builder supports it (e.g., REST API connectors)
             if hasattr(builder, 'build_spark_schema'):
-                builder.build_spark_schema(model_name, schema)
+                builder = builder.build_spark_schema(model_name, schema)
             
             final_config = builder.build()
             

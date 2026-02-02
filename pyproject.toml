@@ -108,3 +108,13 @@ dependencies = [
 
 [tool.hatch.envs.app_development.scripts]
 run = "cd src/app_streamlit && streamlit run app.py"
+
+
+##############################
+######### Deploy app #########
+
+## DATABRICKS ENVIRONMENTS ##
+[tool.hatch.envs.databricks-app.scripts]
+validate = "databricks bundle validate"
+deploy = "databricks bundle deploy --auto-approve"
+run = "databricks bundle run"

@@ -157,7 +157,7 @@ class RestApiDataSource(BasePySparkDataSource):
                         "For optimal performance, pre-load tokens at factory level before DataSource creation."
                     )
         
-        logger.debug(f"RestApiDataSource initialized with config keys: {list(self.config.keys())}")
+        logger.info(f"RestApiDataSource initialized with config keys: {list(self.config.keys())}")
         
     @classmethod
     def name(cls) -> str:
@@ -216,7 +216,7 @@ class RestApiDataSource(BasePySparkDataSource):
                 resp.raise_for_status()
                 data = resp.json()
             
-            logger.info("Inferring schema from REST API response: {}".format(data))
+            logger.debug("Inferring schema from REST API response: {}".format(data))
 
             # Apply json_path if present, otherwise try common result paths
             json_path = self.config.get("json_path")
@@ -384,6 +384,7 @@ class RestApiDataSource(BasePySparkDataSource):
         """
         base_endpoint = self.config["endpoint"]
         table_name = self.config.get("table_name")
+        logger.info(f"Building endpoint URL from base: {base_endpoint} and table_name: {table_name}")
         
         if table_name:
             # Ensure no double slashes
@@ -863,6 +864,8 @@ class RestApiDataSourceReader(BaseDataSourceReader):
         """Build full endpoint URL, appending table_name if provided."""
         base_endpoint = self.config["endpoint"]
         table_name = self.config.get("table_name")
+        logger.info(f"Building endpoint URL from base: {base_endpoint} and table_name: {table_name}")
+
         
         if table_name:
             if base_endpoint.endswith("/"):
@@ -1354,6 +1357,8 @@ class RestApiDataSourceStreamReader(BaseDataSourceStreamReader):
         """Build full endpoint URL, appending table_name if provided."""
         base_endpoint = self.config["endpoint"]
         table_name = self.config.get("table_name")
+        logger.info(f"Building endpoint URL from base: {base_endpoint} and table_name: {table_name}")
+
         
         if table_name:
             if base_endpoint.endswith("/"):

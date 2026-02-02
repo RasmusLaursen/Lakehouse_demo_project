@@ -126,8 +126,13 @@ def schema_properties_to_spark_schema(schema: SchemaObject):
     # Create basic Spark schema from properties
     fields = []
     if schema.properties:
-        for prop_name, prop_value in schema.properties.items():
-            # Default to StringType for simplicity - real implementation would map types
-            fields.append(StructField(prop_name, StringType(), True))
+        # schema.properties is a list of property objects with 'name' and 'type' attributes
+        for prop in schema.properties:
+            # Get property name - handle both object attributes and dict access
+            prop_name = getattr(prop, 'name', prop.get('name') if isinstance(prop, dict) else None)
+            if prop_name:
+                # Default to StringType for simplicity - real implementation would map types
+                fields.append(StructField(prop_name, StringType(), True))
     
     return StructType(fields) if fields else None
+

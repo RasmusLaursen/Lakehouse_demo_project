@@ -3,6 +3,31 @@ resources:
     bookings_app:
       name: "booking-app"
       source_code_path: ../../src/solution/app_streamlit
+      
+      config:
+        command: ["streamlit", "run", "app.py"]
+
+        env:
+          - name: ENVIRONMENT
+            value: ${var.environment}
+          - name: LANDING_CATALOG
+            value: ${var.landing_catalog}
+          - name: BASE_CATALOG
+            value: ${var.base_catalog}
+          - name: RAW_CATALOG
+            value: ${var.raw_catalog}
+          - name: ENRICHED_CATALOG
+            value: ${var.enriched_catalog}
+          - name: CURATED_CATALOG
+            value: ${var.curated_catalog}
+          - name: WAREHOUSE_ID
+            value: ${var.warehouse_id}
+          - name: BOOKINGS_LANDING_SCHEMA
+            value: bookings_landing_${var.environment}
+          - name: BOOKINGS_RAW_SCHEMA
+            value: bookings_raw_${var.environment}
+          - name: BOOKINGS_BASE_SCHEMA
+            value: bookings_base_${var.environment}
       description: "Booking app with streamlit"
       # The resources which this app has access to:
       resources:
@@ -11,3 +36,9 @@ resources:
           sql_warehouse: 
             id: ${var.warehouse_id}
             permission: "CAN_MANAGE"
+        - name: "wheel-location-volume"
+          description: "A volume to store wheels for the app"
+          uc_securable:
+            permission: "READ_VOLUME"
+            securable_full_name: ${resources.schemas.shared_schema.catalog_name}.${resources.schemas.shared_schema.name}.${resources.volumes.shared_wheel_location_volume.name}
+            securable_type: VOLUME

@@ -133,210 +133,210 @@ schema:
         example: "243210.828125"
         minimum: 0.0
 
-  - name: ElectricityProdex5MinRealtime
-    description: "Real-time electricity production data at 5-minute intervals for Danish price areas"
-    type: table
-    customProperties:
-      - property: scd_type
-        value: 1
-      - property: keys
-        value: ["Minutes5UTC", "PriceArea"]
-      - property: sequence_column
-        value: "Minutes5UTC"
-      - property: loadtype
-        value: "rest_api_ds"
-      - property: mode
-        value: "streaming"
-      - property: timestamp_field
-        value: "Minutes5UTC"
-      - property: timestamp_param
-        value: "start"
-      - property: initial_timestamp
-        value: "2025-11-01T00:00:00"
-      - property: pagination_config
-        value:
-          limit: 10000
-          offset_param: "offset"
-          limit_param: "limit"
-          total_records: 2300850
-      - property: params
-        value:
-          sort: "Minutes5UTC DESC"
-    properties:
-      - name: Minutes5UTC
-        description: "5-minute interval timestamp in UTC"
-        type: timestamp
-        required: true
-        tags:
-          - "temporal"
-          - "primary_key"
-          - "utc"
-        classification: "public"
-        example: "2025-12-10T20:35:00"
+  # - name: ElectricityProdex5MinRealtime
+  #   description: "Real-time electricity production data at 5-minute intervals for Danish price areas"
+  #   type: table
+  #   customProperties:
+  #     - property: scd_type
+  #       value: 1
+  #     - property: keys
+  #       value: ["Minutes5UTC", "PriceArea"]
+  #     - property: sequence_column
+  #       value: "Minutes5UTC"
+  #     - property: loadtype
+  #       value: "rest_api_ds"
+  #     - property: mode
+  #       value: "streaming"
+  #     - property: timestamp_field
+  #       value: "Minutes5UTC"
+  #     - property: timestamp_param
+  #       value: "start"
+  #     - property: initial_timestamp
+  #       value: "2025-11-01T00:00:00"
+  #     - property: pagination_config
+  #       value:
+  #         limit: 10000
+  #         offset_param: "offset"
+  #         limit_param: "limit"
+  #         total_records: 2300850
+  #     - property: params
+  #       value:
+  #         sort: "Minutes5UTC DESC"
+  #   properties:
+  #     - name: Minutes5UTC
+  #       description: "5-minute interval timestamp in UTC"
+  #       type: timestamp
+  #       required: true
+  #       tags:
+  #         - "temporal"
+  #         - "primary_key"
+  #         - "utc"
+  #       classification: "public"
+  #       example: "2025-12-10T20:35:00"
       
-      - name: Minutes5DK
-        description: "5-minute interval timestamp in Danish time zone"
-        type: timestamp
-        required: true
-        tags:
-          - "temporal"
-          - "local_time"
-        classification: "public"
-        example: "2025-12-10T21:35:00"
+  #     - name: Minutes5DK
+  #       description: "5-minute interval timestamp in Danish time zone"
+  #       type: timestamp
+  #       required: true
+  #       tags:
+  #         - "temporal"
+  #         - "local_time"
+  #       classification: "public"
+  #       example: "2025-12-10T21:35:00"
       
-      - name: PriceArea
-        description: "Danish electricity price area (DK1 or DK2)"
-        type: string
-        required: true
-        tags:
-          - "identifier"
-          - "primary_key"
-          - "geographic"
-        classification: "public"
-        example: "DK1"
-        pattern: "^DK[12]$"
+  #     - name: PriceArea
+  #       description: "Danish electricity price area (DK1 or DK2)"
+  #       type: string
+  #       required: true
+  #       tags:
+  #         - "identifier"
+  #         - "primary_key"
+  #         - "geographic"
+  #       classification: "public"
+  #       example: "DK1"
+  #       pattern: "^DK[12]$"
       
-      - name: ProductionLt100MW
-        description: "Production from plants less than 100MW in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "production"
-        classification: "public"
-        example: "262.269989"
-        minimum: 0.0
+  #     - name: ProductionLt100MW
+  #       description: "Production from plants less than 100MW in MW"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "metric"
+  #         - "power"
+  #         - "production"
+  #       classification: "public"
+  #       example: "262.269989"
+  #       minimum: 0.0
       
-      - name: ProductionGe100MW
-        description: "Production from plants 100MW or greater in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "production"
-        classification: "public"
-        example: "193.199997"
-        minimum: 0.0
+  #     - name: ProductionGe100MW
+  #       description: "Production from plants 100MW or greater in MW"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "metric"
+  #         - "power"
+  #         - "production"
+  #       classification: "public"
+  #       example: "193.199997"
+  #       minimum: 0.0
       
-      - name: OffshoreWindPower
-        description: "Offshore wind power production in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "renewable"
-          - "wind"
-          - "production"
-        classification: "public"
-        example: "1488.390015"
-        minimum: 0.0
+  #     - name: OffshoreWindPower
+  #       description: "Offshore wind power production in MW"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "metric"
+  #         - "power"
+  #         - "renewable"
+  #         - "wind"
+  #         - "production"
+  #       classification: "public"
+  #       example: "1488.390015"
+  #       minimum: 0.0
       
-      - name: OnshoreWindPower
-        description: "Onshore wind power production in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "renewable"
-          - "wind"
-          - "production"
-        classification: "public"
-        example: "2980.719971"
-        minimum: 0.0
+  #     - name: OnshoreWindPower
+  #       description: "Onshore wind power production in MW"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "metric"
+  #         - "power"
+  #         - "renewable"
+  #         - "wind"
+  #         - "production"
+  #       classification: "public"
+  #       example: "2980.719971"
+  #       minimum: 0.0
       
-      - name: SolarPower
-        description: "Solar power production in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "renewable"
-          - "production"
-        classification: "public"
-        example: "11.020000"
-        minimum: 0.0
+  #     - name: SolarPower
+  #       description: "Solar power production in MW"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "metric"
+  #         - "power"
+  #         - "renewable"
+  #         - "production"
+  #       classification: "public"
+  #       example: "11.020000"
+  #       minimum: 0.0
       
-      - name: ExchangeGreatBelt
-        description: "Electricity exchange via Great Belt cable in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "exchange"
-        classification: "public"
-        example: "593.289978"
+  #     - name: ExchangeGreatBelt
+  #       description: "Electricity exchange via Great Belt cable in MW"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "metric"
+  #         - "power"
+  #         - "exchange"
+  #       classification: "public"
+  #       example: "593.289978"
       
-      - name: ExchangeGermany
-        description: "Electricity exchange with Germany in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "exchange"
-        classification: "public"
-        example: "10.160000"
+  #     - name: ExchangeGermany
+  #       description: "Electricity exchange with Germany in MW"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "metric"
+  #         - "power"
+  #         - "exchange"
+  #       classification: "public"
+  #       example: "10.160000"
       
-      - name: ExchangeNetherlands
-        description: "Electricity exchange with Netherlands in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "exchange"
-        classification: "public"
-        example: "-699.289978"
+  #     - name: ExchangeNetherlands
+  #       description: "Electricity exchange with Netherlands in MW"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "metric"
+  #         - "power"
+  #         - "exchange"
+  #       classification: "public"
+  #       example: "-699.289978"
       
-      - name: ExchangeGreatBritain
-        description: "Electricity exchange with Great Britain in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "exchange"
-        classification: "public"
-        example: "-1456.000000"
+  #     - name: ExchangeGreatBritain
+  #       description: "Electricity exchange with Great Britain in MW"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "metric"
+  #         - "power"
+  #         - "exchange"
+  #       classification: "public"
+  #       example: "-1456.000000"
       
-      - name: ExchangeNorway
-        description: "Electricity exchange with Norway in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "exchange"
-        classification: "public"
-        example: "-759.000000"
+  #     - name: ExchangeNorway
+  #       description: "Electricity exchange with Norway in MW"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "metric"
+  #         - "power"
+  #         - "exchange"
+  #       classification: "public"
+  #       example: "-759.000000"
       
-      - name: ExchangeSweden
-        description: "Electricity exchange with Sweden in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "exchange"
-        classification: "public"
-        example: "714.000000"
+  #     - name: ExchangeSweden
+  #       description: "Electricity exchange with Sweden in MW"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "metric"
+  #         - "power"
+  #         - "exchange"
+  #       classification: "public"
+  #       example: "714.000000"
       
-      - name: BornholmSE4
-        description: "Electricity exchange for Bornholm SE4 connection in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "exchange"
-        classification: "public"
-        example: "0.530000"
+  #     - name: BornholmSE4
+  #       description: "Electricity exchange for Bornholm SE4 connection in MW"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "metric"
+  #         - "power"
+  #         - "exchange"
+  #       classification: "public"
+  #       example: "0.530000"
 
   - name: Forecasts_5Min
     description: "5-minute interval forecasts for renewable energy production (wind, solar)"

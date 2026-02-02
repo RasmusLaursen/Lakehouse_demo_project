@@ -59,15 +59,31 @@ class RestApiConfigBuilder(BaseConfigBuilder):
         Returns:
             Self for method chaining
         """
-        if not schema or not hasattr(schema, 'properties') or not schema.properties:
-            logger.warning(f"No schema properties available for {model_name}, will infer from API")
+        logger.info(f"[SCHEMA_BUILD] Called build_spark_schema for {model_name}")
+        
+        # Store model_name in config so it can be used for schema cache lookups
+        if model_name:
+            self.config.set("model_name", model_name)
+        
+        if not schema:
+            logger.warning(f"[SCHEMA_BUILD] No schema object provided for {model_name}, will infer from API")
             return self
+        
+        if not hasattr(schema, 'properties'):
+            logger.warning(f"[SCHEMA_BUILD] Schema object has no 'properties' attribute for {model_name}, will infer from API")
+            return self
+            
+        if not schema.properties:
+            logger.warning(f"[SCHEMA_BUILD] Schema properties is empty for {model_name}, will infer from API")
+            return self
+        
+        logger.info(f"[SCHEMA_BUILD] Schema has {len(schema.properties)} properties for {model_name}")
         
         try:
             from src.framework.helper.contracts import schema_properties_to_spark_schema
             spark_schema = schema_properties_to_spark_schema(schema)
             self.config.set("schema", spark_schema)
-            logger.info(f"Built Spark schema for {model_name} with {len(spark_schema.fields)} fields: {[f.name for f in spark_schema.fields]}")
+            logger.info(f"Built Spark schema for {model_name} with {len(spark_schema.fields)} fields")
             
             # For workflow datasources, cache the schema for later retrieval
             if self.config.connector_type == "rest_api_workflow_ds":
