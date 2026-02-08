@@ -124,6 +124,7 @@ class BaseConfigBuilder(ABC):
             ValueError: If any secret cannot be resolved
         """
         secret_keys = self.config.extract_secrets()
+        logger.info(f"Resolving secrets for keys: {secret_keys}")
         if not secret_keys:
             return self
         

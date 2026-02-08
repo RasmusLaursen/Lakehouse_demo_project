@@ -17,9 +17,9 @@ servers:
     format: "json"
     customProperties:
       - property: loadtype
-        value: "rest_api_ds"
+        value: "energidataservice_api"
       - property: connector_type
-        value: "rest_api_ds"
+        value: "energidataservice_api"
       - property: connector_config
         value:
           endpoint: "https://api.energidataservice.dk/dataset"
@@ -42,9 +42,9 @@ schema:
       - property: sequence_column
         value: "HourUTC"
       - property: loadtype
-        value: "rest_api_ds"
+        value: "energidataservice_api"
       - property: mode
-        value: "streaming"
+        value: "batch"  # Batch mode (custom datasources not supported for streaming)
       - property: table_name
         value: "ReCoverageMunicipality"
       - property: timestamp_field
@@ -349,9 +349,9 @@ schema:
       - property: sequence_column
         value: "Minutes5UTC"
       - property: loadtype
-        value: "rest_api_ds"
+        value: "energidataservice_api"
       - property: mode
-        value: "streaming"
+        value: "batch"  # Batch mode (custom datasources not supported for streaming)
       - property: table_name
         value: "Forecasts_5Min"
       - property: timestamp_field
@@ -495,9 +495,9 @@ schema:
       - property: sequence_column
         value: "TimeUTC"
       - property: loadtype
-        value: "rest_api_ds"
+        value: "energidataservice_api"
       - property: mode
-        value: "streaming"
+        value: "batch"  # Batch mode (custom datasources not supported for streaming)
       - property: table_name
         value: "GenerationProdTypeExchange"
       - property: timestamp_field

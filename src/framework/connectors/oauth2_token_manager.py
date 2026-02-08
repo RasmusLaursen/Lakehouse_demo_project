@@ -41,6 +41,7 @@ class OAuth2TokenManager:
     def exchange_token(
         refresh_token: str,
         token_endpoint: str,
+        source_system: str = "default",
         token_method: str = "GET",
         token_response_path: str = "result",
         timeout: int = 30
@@ -54,6 +55,7 @@ class OAuth2TokenManager:
         Args:
             refresh_token: The OAuth2 refresh token
             token_endpoint: URL to token endpoint that exchanges refresh token
+            source_system: Source system identifier for token isolation (e.g., 'eloverblik', 'energidataservice')
             token_method: HTTP method for token endpoint (GET or POST)
             token_response_path: Dot-separated path to access token in response
             timeout: Request timeout in seconds
@@ -76,12 +78,12 @@ class OAuth2TokenManager:
         if not token_endpoint:
             raise ValueError("token_endpoint must be provided for OAuth2 token exchange")
         
-        # Generate cache key from refresh token hash
-        cache_key = OAuth2TokenManager.get_cache_key(refresh_token)
+        # Generate cache key from refresh token hash and source system
+        cache_key = OAuth2TokenManager.get_cache_key(refresh_token, source_system)
         
         # Check if token already cached
         if cache_key in OAuth2TokenManager._token_cache:
-            logger.info(f"OAuth2 token already cached, returning existing token")
+            logger.info(f"OAuth2 token already cached for {source_system}, returning existing token")
             return OAuth2TokenManager._token_cache[cache_key]
         
         logger.info(f"Exchanging OAuth2 refresh token at: {token_endpoint}")
@@ -118,7 +120,7 @@ class OAuth2TokenManager:
             
             # Cache the token
             OAuth2TokenManager._token_cache[cache_key] = access_token
-            logger.info(f"Successfully obtained and cached OAuth2 access token")
+            logger.info(f"Successfully obtained and cached OAuth2 access token for {source_system}")
             
             return access_token
             
@@ -130,35 +132,36 @@ class OAuth2TokenManager:
             raise
     
     @staticmethod
-    def get_cached_token(refresh_token: str) -> Optional[str]:
+    def get_cached_token(refresh_token: str, source_system: str = "default") -> Optional[str]:
         """
-        Retrieve cached access token for a refresh token.
+        Retrieve cached access token for a refresh token and source system.
         
         Returns None if token not in cache (indicating token exchange needed).
         
         Args:
             refresh_token: The OAuth2 refresh token
+            source_system: Source system identifier for token isolation (e.g., 'eloverblik', 'energidataservice')
             
         Returns:
             Cached access token, or None if not cached
             
         Example:
-            >>> token = OAuth2TokenManager.get_cached_token("abc123")
+            >>> token = OAuth2TokenManager.get_cached_token("abc123", "eloverblik")
             >>> if token is None:
             ...     # Token not cached, exchange needed
         """
-        cache_key = OAuth2TokenManager.get_cache_key(refresh_token)
+        cache_key = OAuth2TokenManager.get_cache_key(refresh_token, source_system)
         token = OAuth2TokenManager._token_cache.get(cache_key)
         
         if token:
-            logger.debug(f"Retrieved cached OAuth2 access token")
+            logger.debug(f"Retrieved cached OAuth2 access token for {source_system}")
         else:
-            logger.debug(f"OAuth2 access token not in cache for key: {cache_key}")
+            logger.debug(f"OAuth2 access token not in cache for {source_system}")
         
         return token
     
     @staticmethod
-    def cache_token(refresh_token: str, access_token: str) -> None:
+    def cache_token(refresh_token: str, access_token: str, source_system: str = "default") -> None:
         """
         Manually cache an access token.
         
@@ -167,36 +170,40 @@ class OAuth2TokenManager:
         Args:
             refresh_token: The OAuth2 refresh token
             access_token: The access token to cache
+            source_system: Source system identifier for token isolation (e.g., 'eloverblik', 'energidataservice')
             
         Example:
-            >>> OAuth2TokenManager.cache_token("abc123", "token_xyz")
+            >>> OAuth2TokenManager.cache_token("abc123", "token_xyz", "eloverblik")
         """
-        cache_key = OAuth2TokenManager.get_cache_key(refresh_token)
+        cache_key = OAuth2TokenManager.get_cache_key(refresh_token, source_system)
         OAuth2TokenManager._token_cache[cache_key] = access_token
-        logger.info(f"Manually cached OAuth2 access token for key: {cache_key}")
+        logger.info(f"Manually cached OAuth2 access token for {source_system}")
     
     @staticmethod
-    def get_cache_key(refresh_token: str) -> str:
+    def get_cache_key(refresh_token: str, source_system: str = "default") -> str:
         """
-        Generate consistent cache key from refresh token.
+        Generate consistent cache key from refresh token and source system.
         
         Uses SHA256 hash to:
         - Prevent token exposure in logs
-        - Provide consistent key for same token
+        - Provide consistent key for same token and source system
         - Support different tokens with different keys
+        - Isolate tokens between different source systems
         
         Args:
             refresh_token: The OAuth2 refresh token
+            source_system: Source system identifier for token isolation
             
         Returns:
-            Hexadecimal string hash of token
+            Hexadecimal string hash of token and source system
             
         Example:
-            >>> key = OAuth2TokenManager.get_cache_key("my_refresh_token")
+            >>> key = OAuth2TokenManager.get_cache_key("my_refresh_token", "eloverblik")
             >>> len(key)
             64  # SHA256 produces 64 hex characters
         """
-        return hashlib.sha256(refresh_token.encode()).hexdigest()
+        combined = f"{source_system}:{refresh_token}"
+        return hashlib.sha256(combined.encode()).hexdigest()
     
     @staticmethod
     def clear_cache() -> None:

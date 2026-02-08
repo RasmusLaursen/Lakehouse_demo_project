@@ -34,8 +34,8 @@ from src.framework.connectors.partition_strategies import (
     HashInputPartition,
 )
 # PySpark DataSource implementations (Spark 4.0+) for non-Databricks sources
-from src.framework.connectors.rest_api_datasource import RestApiDataSource
-from src.framework.connectors.rest_api_workflow_datasource import RestApiWorkflowDataSource
+from src.framework.connectors.eloverblik_datasource import EloverblikDataSource
+from src.framework.connectors.energidataservice_datasource import EnergidataserviceDataSource
 
 # Auto-register all connectors
 ConnectorFactory.register("autoloader", AutoLoaderConnector)
@@ -49,10 +49,11 @@ ConnectorFactory.register("eventhub", AutoLoaderConnector)
 ConnectorFactory.register("rest_api", RestApiConnector)
 ConnectorFactory.register("http", RestApiConnector)  # Alias
 ConnectorFactory.register("https", RestApiConnector)  # Alias
-# PySpark DataSource version for REST API (non-Databricks native)
-ConnectorFactory.register("rest_api_ds", RestApiDataSource)
-# PySpark DataSource version for REST API workflows with dependencies
-ConnectorFactory.register("rest_api_workflow_ds", RestApiWorkflowDataSource)
+
+# Source-specific REST API DataSources (PySpark 4.0+)
+ConnectorFactory.register("eloverblik_api", EloverblikDataSource)
+ConnectorFactory.register("energidataservice_api", EnergidataserviceDataSource)
+
 ConnectorFactory.register("jdbc", JdbcConnector)
 ConnectorFactory.register("database", JdbcConnector)  # Alias
 ConnectorFactory.register("dataframe", DataFrameConnector)
@@ -83,6 +84,6 @@ __all__ = [
     "TablePartition",
     "HashInputPartition",
     # PySpark DataSource implementations (non-Databricks native)
-    "RestApiDataSource",
-    "RestApiWorkflowDataSource",
+    "EloverblikDataSource",
+    "EnergidataserviceDataSource",
 ]

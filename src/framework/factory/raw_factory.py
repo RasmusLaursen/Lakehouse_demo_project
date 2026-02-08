@@ -170,7 +170,7 @@ class RawPipelineFactory:
                 builder = builder.build_spark_schema(model_name, schema)
             
             final_config = builder.build()
-            
+
             # Create connector instance
             connector = ConnectorFactory.create(base_connector_config.connector_type, final_config)
             logger.info(f"Created {base_connector_config.connector_type} connector for {model_name}: {type(connector).__name__}")

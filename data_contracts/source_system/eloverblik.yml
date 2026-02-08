@@ -17,15 +17,16 @@ servers:
     format: "json"
     customProperties:
       - property: loadtype
-        value: "rest_api_workflow_ds"
+        value: "eloverblik_api"
       - property: connector_type
-        value: "rest_api_workflow_ds"
+        value: "eloverblik_api"
       - property: secret_keys
         value:
           - "auth_token"
       - property: connector_config
         value:
-          endpoint: "https://api.eloverblik.dk/customerapi/api"
+          endpoint: "https://api.eloverblik.dk/customerapi/api/"
+          #gettimeseries/{dateFrom}/{dateTo}/{aggregation}
           method: "GET"
           
           # OAuth2 refresh token authentication
@@ -101,9 +102,9 @@ schema:
       - property: sequence_column
         value: "meteringPointId"
       - property: loadtype
-        value: "rest_api_workflow"
+        value: "eloverblik_api"
       - property: mode
-        value: "streaming"  # Full refresh for metering point metadata
+        value: "batch"  # Batch with append (custom datasources not supported for streaming)
       - property: table_name
         value: "meteringpoints/meteringpoints"
       - property: workflow_step
@@ -145,12 +146,29 @@ schema:
         example: "E02"
       
       - name: meterReadingOccurrence
-        description: "Meter reading frequency"
+        description: "Meter reading frequency (e.g., PT1H for hourly)"
         logicalType: string
         required: false
         tags:
           - "metadata"
         classification: "public"
+        example: "PT1H"
+      
+      - name: firstConsumerPartyName
+        description: "Name of primary consumer at this metering point"
+        logicalType: string
+        required: false
+        tags:
+          - "consumer"
+        classification: "confidential"
+      
+      - name: secondConsumerPartyName
+        description: "Name of secondary consumer at this metering point"
+        logicalType: string
+        required: false
+        tags:
+          - "consumer"
+        classification: "confidential"
       
       - name: meterNumber
         description: "Physical meter number"
@@ -162,11 +180,12 @@ schema:
       
       - name: consumerStartDate
         description: "Date when consumer started at this metering point"
-        logicalType: timestamp
+        logicalType: string
         required: false
         tags:
           - "temporal"
         classification: "confidential"
+        example: "2025-06-12T22:00:00.000Z"
       
       - name: streetCode
         description: "Street code for the metering point location"
@@ -208,6 +227,31 @@ schema:
           - "geographic"
         classification: "confidential"
       
+      - name: citySubDivisionName
+        description: "City subdivision or district name"
+        logicalType: string
+        required: false
+        tags:
+          - "geographic"
+        classification: "confidential"
+      
+      - name: municipalityCode
+        description: "Municipality code"
+        logicalType: string
+        required: false
+        tags:
+          - "geographic"
+        classification: "public"
+        example: "740"
+      
+      - name: locationDescription
+        description: "Additional location description"
+        logicalType: string
+        required: false
+        tags:
+          - "geographic"
+        classification: "confidential"
+      
       - name: cityName
         description: "City name"
         logicalType: string
@@ -224,6 +268,16 @@ schema:
           - "geographic"
         classification: "confidential"
         pattern: "^[0-9]{4}$"
+        example: "8600"
+      
+      - name: balanceSupplierName
+        description: "Name of the balance supplier/energy company"
+        logicalType: string
+        required: false
+        tags:
+          - "supplier"
+        classification: "public"
+        example: "Strømlinet A/S"
       
       - name: hasRelation
         description: "Whether the user has an active relation to this metering point"
@@ -232,180 +286,147 @@ schema:
         tags:
           - "status"
         classification: "confidential"
+      
+      - name: consumerCVR
+        description: "CVR number (company registration) of consumer"
+        logicalType: string
+        required: false
+        tags:
+          - "identifier"
+        classification: "confidential"
+      
+      - name: dataAccessCVR
+        description: "CVR number with data access rights"
+        logicalType: string
+        required: false
+        tags:
+          - "identifier"
+        classification: "confidential"
+      
+      - name: childMeteringPoints
+        description: "List of child metering points (if any)"
+        logicalType: array
+        required: false
+        tags:
+          - "relationship"
+        classification: "confidential"
 
-  # - name: TimeSeriesData
-  #   description: "Hourly electricity consumption time series data"
-  #   type: table
-  #   customProperties:
-  #     - property: scd_type
-  #       value: 1  # Append-only for time series data
-  #     - property: keys
-  #       value: ["meteringPointId", "position"]
-  #     - property: sequence_column
-  #       value: "position"
-  #     - property: loadtype
-  #       value: "rest_api_workflow_ds"
-  #     - property: mode
-  #       value: "batch"
-  #     - property: timestamp_field
-  #       value: "position"
-  #     - property: initial_timestamp
-  #       value: "2025-01-01T00:00:00"
-  #     - property: table_name
-  #       value: "meterdata/gettimeseries/{dateFrom}/{dateTo}/{aggregation}"
-  #     - property: method
-  #       value: "POST"  # Use POST for body parameters
-  #     - property: workflow_step
-  #       value: 2
-  #     - property: depends_on
-  #       value: "MeteringPoints"
-  #     - property: dependency_mapping
-  #       value:
-  #         meteringPointId: "meteringPointId"  # Map parent field to parameter
-  #     - property: body_params_template
-  #       value:
-  #         meteringPoints:
-  #           meteringPoint:
-  #             - "${meteringPointId}"
-  #     - property: static_body_params
-  #       value:
-  #         # Static parameters in body (empty, all params go to URL path)
-  #     - property: url_params_template
-  #       value:
-  #         dateFrom: "2025-01-01"
-  #         dateTo: "2025-12-18"
-  #         aggregation: "Actual"  # Hour, Day, Month, or Year
-  #     - property: data_path
-  #       value: "result.MyEnergyData_MarketDocument.TimeSeries.Period.Point"
-  #     - property: field_mapping
-  #       value:
-  #         "out_Quantity.quantity": "quantity"
-  #         "out_Quantity.quality": "quality"
-  #     - property: include_parent_context
-  #       value: true
-  #   properties:
-  #     - name: meteringPointId
-  #       description: "Metering point identifier"
-  #       type: string
-  #       required: true
-  #       tags:
-  #         - "identifier"
-  #         - "primary_key"
-  #         - "foreign_key"
-  #       classification: "confidential"
-  #       example: "571313174012345678"
+  - name: TimeSeriesData
+    description: "Hourly electricity consumption time series data"
+    type: table
+    customProperties:
+      - property: scd_type
+        value: 1  # Append-only for time series data
+      - property: keys
+        value: ["meteringPointId", "position"]
+      - property: sequence_column
+        value: "position"
+      - property: loadtype
+        value: "eloverblik_api"
+      - property: mode
+        value: "streaming"  # Batch with append (custom datasources not supported for streaming)
+      - property: timestamp_field
+        value: "position"
+      - property: initial_timestamp
+        value: "2025-08-01"
+      - property: table_name
+        value: "meterdata/gettimeseries/{dateFrom}/{dateTo}/{aggregation}"
+      - property: dependency_table
+        value: "meteringpoints/meteringpoints"
+      - property: method
+        value: "POST"  # Use POST for body parameters
+      - property: depends_on
+        value: "MeteringPoints"
+      - property: dependency_mapping
+        value:
+          meteringPointId: "meteringPointId"  # Map parent field to parameter
+      - property: body_params_template
+        value:
+          meteringPoints:
+            meteringPoint:
+              - "${meteringPointId}"
+      - property: static_body_params
+        value:
+          # Static parameters in body (empty, all params go to URL path)
+      - property: url_params_template
+        value:
+          dateFrom: "2025-01-01"
+          dateTo: "2025-12-18"
+          aggregation: "Actual"  # Hour, Day, Month, or Year
+      - property: data_path
+        value: "result.MyEnergyData_MarketDocument.TimeSeries.Period.Point"
+      - property: field_mapping
+        value:
+          "out_Quantity.quantity": "quantity"
+          "out_Quantity.quality": "quality"
+      - property: include_parent_context
+        value: true
+    properties:
+      - name: meteringPointId
+        description: "Metering point identifier"
+        type: string
+        required: true
+        tags:
+          - "identifier"
+          - "primary_key"
+          - "foreign_key"
+        classification: "confidential"
+        example: "571313174012345678"
       
-  #     - name: position
-  #       description: "Position/hour index in the period (1-based)"
-  #       type: string
-  #       required: true
-  #       tags:
-  #         - "temporal"
-  #         - "primary_key"
-  #       classification: "public"
-  #       example: "1"
+      - name: position
+        description: "Position/hour index in the period (1-based)"
+        type: string
+        required: true
+        tags:
+          - "temporal"
+          - "primary_key"
+        classification: "public"
+        example: "1"
       
-  #     - name: quantity
-  #       description: "Electricity consumption quantity in kWh"
-  #       type: string
-  #       required: true
-  #       tags:
-  #         - "measure"
-  #         - "consumption"
-  #       classification: "confidential"
-  #       example: "1.234"
+      - name: quantity
+        description: "Electricity consumption quantity in kWh"
+        type: string
+        required: true
+        tags:
+          - "measure"
+          - "consumption"
+        classification: "confidential"
+        example: "1.234"
       
-  #     - name: quality
-  #       description: "Data quality indicator (e.g., Measured, Estimated)"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "quality"
-  #         - "metadata"
-  #       classification: "public"
-  #       example: "Measured"
+      - name: quality
+        description: "Data quality indicator (e.g., Measured, Estimated)"
+        type: string
+        required: false
+        tags:
+          - "quality"
+          - "metadata"
+        classification: "public"
+        example: "Measured" 
       
-  #     - name: mRID
-  #       description: "Market participant identifier for the time series"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "metadata"
-  #       classification: "public"
+      - name: period_start
+        description: "Start timestamp of the period"
+        type: string
+        required: false
+        tags:
+          - "temporal"
+        classification: "public"
       
-  #     - name: businessType
-  #       description: "Business type of the time series (e.g., A01, A04)"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "metadata"
-  #       classification: "public"
-      
-  #     - name: curveType
-  #       description: "Curve type (e.g., A01 for Sequential fixed time period)"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "metadata"
-  #       classification: "public"
-      
-  #     - name: measurement_Unit.name
-  #       description: "Unit of measurement (e.g., kWh)"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "metadata"
-  #       classification: "public"
-      
-  #     - name: MarketEvaluationPoint.mRID
-  #       description: "Metering point identifier in market format"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "identifier"
-  #       classification: "confidential"
-      
-  #     - name: Period.resolution
-  #       description: "Time resolution of the period (e.g., PT1H for hourly)"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "temporal"
-  #         - "metadata"
-  #       classification: "public"
-      
-  #     - name: Period.timeInterval.start
-  #       description: "Start timestamp of the period"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "temporal"
-  #       classification: "public"
-      
-  #     - name: Period.timeInterval.end
-  #       description: "End timestamp of the period"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "temporal"
-  #       classification: "public"
-      
-  #     - name: createdDateTime
-  #       description: "When the document was created"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "temporal"
-  #         - "metadata"
-  #       classification: "public"
-      
-  #     - name: sender_MarketParticipant.name
-  #       description: "Name of the sending market participant"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "metadata"
-  #       classification: "public"
+      - name: period_end
+        description: "End timestamp of the period"
+        type: string
+        required: false
+        tags:
+          - "temporal"
+        classification: "public"
+
+      - name: resolution
+        description: "Time resolution of the period (e.g., PT1H for hourly)"
+        type: string
+        required: false
+        tags:
+          - "temporal"
+          - "metadata"
+        classification: "public"        
 
   # - name: Charges
   #   description: "Electricity charges, tariffs, and fees for metering points"

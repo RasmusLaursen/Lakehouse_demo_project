@@ -29,7 +29,7 @@ class RestApiConfigBuilder(BaseConfigBuilder):
         context = {}
         
         # Workflow datasources with dependent calls need raw catalog/schema for Delta reads
-        if self.config.connector_type == "rest_api_workflow_ds":
+        if self.config.connector_type == "eloverblik_api":
             context = {
                 "raw_catalog": self.pipeline_config.raw_catalog,
                 "raw_schema": self.pipeline_config.raw_schema,

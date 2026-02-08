@@ -126,9 +126,9 @@ class ConnectorConfig:
                 elif prop_name == "loadtype":
                     config_dict["loadtype"] = prop_value
                     logger.debug(f"Set loadtype: {prop_value}")
-                elif prop_name == "secret_keys" and isinstance(prop_value, list):
+                elif prop_name == "secret_keys": # and isinstance(prop_value, list):
                     config_dict.setdefault("secret_keys", []).extend(prop_value)
-                    logger.debug(f"Added secret_keys from server config: {prop_value}")
+                    logger.info(f"Added secret_keys from server config: {prop_value}")
         
         logger.info(f"Created ConnectorConfig from server config: type={connector_type}, keys={list(config_dict.keys())}")
         return ConnectorConfig(connector_type, config_dict)

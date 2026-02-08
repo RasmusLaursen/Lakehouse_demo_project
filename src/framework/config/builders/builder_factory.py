@@ -16,8 +16,8 @@ BUILDER_MAPPING = {
     "volume": VolumeConfigBuilder,
     "autoloader": AutoLoaderConfigBuilder,
     "rest_api": RestApiConfigBuilder,
-    "rest_api_ds": RestApiConfigBuilder,
-    "rest_api_workflow_ds": RestApiConfigBuilder,
+    "eloverblik_api": RestApiConfigBuilder,
+    "energidataservice_api": RestApiConfigBuilder,
     "jdbc": JdbcConfigBuilder,
 }
 

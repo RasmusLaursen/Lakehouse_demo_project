@@ -12,8 +12,8 @@ resources:
       libraries:
         - glob:
             include: ../../src/solution/raw/raw_ingest_eloverblik.py
-        # - glob:
-        #     include: ../../src/solution/base/base_ingest_eloverblik.py
+        - glob:
+            include: ../../src/solution/base/base_ingest_eloverblik.py
 
       environment:
         dependencies:

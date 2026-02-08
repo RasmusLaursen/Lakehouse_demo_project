@@ -169,9 +169,15 @@ class RestApiDataSource(BasePySparkDataSource):
         Spark calls this method to get a schema (StructType)
         for the DataFrame.
         
-        We perform a quick API call to infer the columns by examining the first JSON object.
+        If a schema is provided in config (from data contract), use it directly.
+        Otherwise, perform a quick API call to infer the columns by examining the first JSON object.
         Each field is flattened and its type is inferred (if enabled) or set as a string.
         """
+        # Check if schema is already provided in config
+        if "schema" in self.config and isinstance(self.config["schema"], StructType):
+            logger.info(f"Using predefined schema from config for {self.name()}")
+            return self.config["schema"]
+        
         try:
             url = self._build_endpoint()
             auth_type = self.config.get("auth_type", "none").lower()
@@ -263,7 +269,10 @@ class RestApiDataSource(BasePySparkDataSource):
             return StructType(fields)
         except Exception as e:
             logger.error(f"Error inferring schema from REST API: {str(e)}")
-            raise
+            logger.warning("Returning generic fallback schema with single 'data' column")
+            # Return a generic fallback schema instead of failing
+            # The actual data reading will use different methods that don't rely on this
+            return StructType([StructField("data", StringType(), True)])
     
     @staticmethod
     def _parse_dict_config(config_value: Any, config_name: str) -> Dict[str, Any]:
@@ -500,9 +509,10 @@ class RestApiDataSource(BasePySparkDataSource):
         print(msg, flush=True)
         
         # Register the DataSource with Spark if not already registered
+        # Use self.__class__ to register the specific subclass (e.g., EloverblikDataSource)
         try:
-            spark.dataSource.register(RestApiDataSource)
-            logger.debug(f"Registered DataSource: {self.name()}")
+            spark.dataSource.register(self.__class__)
+            logger.debug(f"Registered DataSource: {self.name()} (class: {self.__class__.__name__})")
         except Exception as e:
             logger.debug(f"DataSource may already be registered: {e}")
         
