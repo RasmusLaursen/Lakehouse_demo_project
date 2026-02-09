@@ -25,6 +25,7 @@ from src.framework.connectors.pyspark_datasource_adapter import (
     BaseDataSourceStreamReader,
     SimpleInputPartition,
 )
+from src.framework.connectors.json_response_extractor import JSONResponseExtractor
 from src.framework.connectors.partition_strategies import (
     RangeInputPartition,
     FileInputPartition,
@@ -76,6 +77,8 @@ __all__ = [
     "BaseDataSourceReader",
     "BaseDataSourceStreamReader",
     "SimpleInputPartition",
+    # JSON extraction utility
+    "JSONResponseExtractor",
     # Partition strategies
     "RangeInputPartition",
     "FileInputPartition",

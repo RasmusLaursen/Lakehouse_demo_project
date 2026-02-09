@@ -359,6 +359,9 @@ schema:
         value:
           "out_Quantity.quantity": "quantity"
           "out_Quantity.quality": "quality"
+          "mRID": "meteringPointId"
+          "timeInterval.start": "period_start"
+          "timeInterval.end": "period_end"
       - property: include_parent_context
         value: true
     properties:
@@ -426,7 +429,7 @@ schema:
         tags:
           - "temporal"
           - "metadata"
-        classification: "public"        
+        classification: "public"
 
   # - name: Charges
   #   description: "Electricity charges, tariffs, and fees for metering points"

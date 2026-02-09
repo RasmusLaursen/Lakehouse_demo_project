@@ -19,6 +19,7 @@ from src.framework.connectors.pyspark_datasource_adapter import (
     SimpleInputPartition
 )
 from src.framework.connectors.api_helper import APIClient, BearerTokenAuth
+from src.framework.connectors.json_response_extractor import JSONResponseExtractor
 from src.framework.helper import logging_helper
 
 logger = logging_helper.get_logger(__name__)
@@ -134,7 +135,11 @@ class EloverblikDataSource(BasePySparkDataSource):
         }
         for k, v in self.config.items():
             if k not in excluded_keys and not k.endswith('_catalog') and not k.endswith('_schema') and not isinstance(v, StructType):
-                datasource_config[str(k)] = str(v)
+                # Serialize dicts/lists as JSON so they survive Spark options
+                if isinstance(v, (dict, list)):
+                    datasource_config[str(k)] = json.dumps(v)
+                else:
+                    datasource_config[str(k)] = str(v)
 
         # Use Spark's read API
         df = spark.read.format(self.name()).options(**datasource_config).load()
@@ -186,7 +191,11 @@ class EloverblikDataSource(BasePySparkDataSource):
         }
         for k, v in self.config.items():
             if k not in excluded_keys and not k.endswith('_catalog') and not k.endswith('_schema') and not isinstance(v, StructType):
-                datasource_config[str(k)] = str(v)
+                # Serialize dicts/lists as JSON so they survive Spark options
+                if isinstance(v, (dict, list)):
+                    datasource_config[str(k)] = json.dumps(v)
+                else:
+                    datasource_config[str(k)] = str(v)
 
         logger.info(f"DataSource config keys for streaming: {list(datasource_config.keys())}")
         
@@ -258,19 +267,40 @@ class EloverblikBatchReader(BaseDataSourceReader):
         """Create single partition for batch read."""
         return [SimpleInputPartition(0)]
 
+    def _build_extractor(self) -> JSONResponseExtractor:
+        """Build a JSONResponseExtractor from config."""
+        data_path = self.config.get("data_path", "result")
+        field_mapping = self.config.get("field_mapping")
+        
+        # field_mapping may arrive as JSON string from Spark options
+        if isinstance(field_mapping, str):
+            try:
+                field_mapping = json.loads(field_mapping)
+            except (json.JSONDecodeError, TypeError):
+                field_mapping = None
+        
+        # Get column names from schema so only contract-defined fields survive
+        schema_fields = [f.name for f in self.schema_struct.fields] if self.schema_struct else None
+        
+        return JSONResponseExtractor(
+            data_path=data_path,
+            field_mapping=field_mapping,
+            store_raw="_raw_json" in (schema_fields or []),
+            schema_fields=schema_fields,
+        )
+
     def read_partition(self, partition: InputPartition) -> Iterator[Row]:
         """
-        Fetch metering points from API.
+        Fetch data from API and extract using JSONResponseExtractor.
         
         Args:
             partition: Input partition (single partition)
             
         Yields:
-            Row objects with metering point data
+            Row objects with extracted data
         """
-   
         try:
-            logger.info(f"Fetching metering points from Eloverblik API: {self.target_endpoint}")
+            logger.info(f"Fetching data from Eloverblik API: {self.target_endpoint}")
             response = self.api_client.get(self.target_endpoint)
             
             # Check if response is empty
@@ -285,14 +315,17 @@ class EloverblikBatchReader(BaseDataSourceReader):
                 logger.error(f"Failed to parse JSON. Response text: {response.text[:1000]}")
                 raise ValueError(f"API returned non-JSON response: {json_err}")
             
-            response = data.get("result", [])
+            # Use generic extractor driven by data_path from config
+            extractor = self._build_extractor()
+            records = extractor.extract(data)
             
-            # Yield rows matching schema
-            for mp in response:
-                yield Row(**mp)
+            logger.info(f"Extracted {len(records)} records from {self.target_endpoint}")
+            
+            for rec in records:
+                yield Row(**rec)
                 
         except Exception as e:
-            logger.error(f"Error fetching {self.target_endpoint} points: {e}")
+            logger.error(f"Error fetching {self.target_endpoint}: {e}")
             raise
 
 class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
@@ -421,16 +454,41 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
             logger.error(f"Error fetching metering points: {e}")
             raise
     
+    def _build_extractor(self) -> JSONResponseExtractor:
+        """Build a JSONResponseExtractor from config."""
+        data_path = self.config.get("data_path", "result")
+        field_mapping = self.config.get("field_mapping")
+        
+        # field_mapping may arrive as JSON string from Spark options
+        if isinstance(field_mapping, str):
+            try:
+                field_mapping = json.loads(field_mapping)
+            except (json.JSONDecodeError, TypeError):
+                field_mapping = None
+        
+        # Get column names from schema so only contract-defined fields survive
+        schema_fields = [f.name for f in self.schema_struct.fields] if self.schema_struct else None
+        
+        return JSONResponseExtractor(
+            data_path=data_path,
+            field_mapping=field_mapping,
+            store_raw="_raw_json" in (schema_fields or []),
+            schema_fields=schema_fields,
+        )
+
     def _get_timeseries_data(self, date_from: str, date_to: str) -> List[Dict[str, Any]]:
         """
         Fetch time series data for a date range.
+        
+        Uses JSONResponseExtractor with data_path from config to navigate
+        and explode the nested response structure automatically.
         
         Args:
             date_from: Start date (YYYY-MM-DD)
             date_to: End date (YYYY-MM-DD)
             
         Returns:
-            List of time series records
+            List of extracted records
         """
         # Get metering points (cached)
         metering_point_ids = self._metering_points_cache
@@ -463,11 +521,10 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
         
         try:
             response = api_client.post(url, json_body=body)
-
-            self._test_record_structure(response.json())
             
-            # Extract records from nested structure
-            records = self._extract_records(response.json(), date_from, date_to)
+            # Use generic extractor driven by data_path from config
+            extractor = self._build_extractor()
+            records = extractor.extract(response.json())
             logger.info(f"Extracted {len(records)} records for {date_from} to {date_to}")
             
             return records
@@ -475,75 +532,6 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
         except Exception as e:
             logger.error(f"Error fetching time series data: {e}")
             raise
-    
-    def _test_record_structure(self, response: dict) -> None:
-            result = response.get("result", [])
-
-            for mp in result:
-                logger.info(f"ololo {Row(**mp)}")
-
-    def _extract_records(self, data: dict, date_from: str, date_to: str) -> List[Dict[str, Any]]:
-        """
-        Extract time series points from nested API response.
-        
-        Navigates: result[].MyEnergyData_MarketDocument.TimeSeries[].Period[].Point[]
-        
-        Args:
-            data: API response data
-            date_from: Start date for this batch
-            date_to: End date for this batch
-            
-        Returns:
-            List of flattened records
-        """
-        records = []
-        
-        try:
-            result = data.get("result", [])
-            
-            if not isinstance(result, list):
-                result = [result] if result else []
-            
-            for result_item in result:
-                market_doc = result_item.get("MyEnergyData_MarketDocument", {})
-                
-                time_series_list = market_doc.get("TimeSeries", [])
-                if not isinstance(time_series_list, list):
-                    time_series_list = [time_series_list] if time_series_list else []
-                
-                for time_series in time_series_list:
-                    metering_point_id = time_series.get("mRID")
-                    
-                    periods = time_series.get("Period", [])
-                    if not isinstance(periods, list):
-                        periods = [periods] if periods else []
-                    
-                    for period in periods:
-                        period_start = period.get("timeInterval", {}).get("start")
-                        period_end = period.get("timeInterval", {}).get("end")
-                        resolution = period.get("resolution")
-                        
-                        points = period.get("Point", [])
-                        if not isinstance(points, list):
-                            points = [points] if points else []
-                        
-                        for point in points:
-                            # Extract nested out_Quantity fields
-                            record = {
-                                "meteringPointId": metering_point_id,
-                                "position": point.get("position"),
-                                "quantity": point.get("out_Quantity.quantity") ,
-                                "quality": point.get("out_Quantity.quality"),
-                                "period_start": period_start,
-                                "period_end": period_end,
-                                "resolution": resolution
-                            }
-                            records.append(record)
-        
-        except Exception as e:
-            logger.error(f"Error extracting records: {e}")
-        
-        return records
     
     def read_data(self, partition: InputPartition) -> Iterator[Row]:
         """
