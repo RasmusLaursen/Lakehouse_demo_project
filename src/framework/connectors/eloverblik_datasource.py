@@ -98,7 +98,7 @@ class EloverblikDataSource(BasePySparkDataSource):
         """Determine the target API endpoint based on config."""
         target_endpoint = self._get_base_url() + self._get_schema_url()
         logger.debug(f"Constructed target endpoint: {target_endpoint}")
-        return target_endpoint       
+        return target_endpoint   
     
     def read_batch(self, spark: "SparkSession") -> "DataFrame":
         """Convenience method for batch reading."""
@@ -136,10 +136,6 @@ class EloverblikDataSource(BasePySparkDataSource):
             if k not in excluded_keys and not k.endswith('_catalog') and not k.endswith('_schema') and not isinstance(v, StructType):
                 datasource_config[str(k)] = str(v)
 
-        logger.info(f"DataSource config keys for batch: {datasource_config}")
-
-        logger.info(f"DataSource config keys for batch: {list(datasource_config.keys())}")
-        
         # Use Spark's read API
         df = spark.read.format(self.name()).options(**datasource_config).load()
         logger.info(f"Created batch DataFrame for {self.name()}")
@@ -176,7 +172,7 @@ class EloverblikDataSource(BasePySparkDataSource):
         else:
             schema_json = schema  # Already a JSON string
 
-        logger.info(f"utilizing the following config {self.config}")
+        logger.info(f"utilizing the following config  {self.config}")
 
         # Build datasource_config with required fields
         datasource_config = {
@@ -210,7 +206,6 @@ class EloverblikBatchReader(BaseDataSourceReader):
     def __init__(self, config: Dict[str, Any], schema: StructType):
         """Initialize batch reader."""
         super().__init__(config, schema)
-        logger.info(f"Initializing EloverblikBatchReader with config: {self.config}")
         self.validate_config()
         self._setup_api_client()
     
@@ -330,15 +325,21 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
         else:
             raise ValueError("Endpoint URL must be provided in config for streaming")
         
-        # Metering points dependency endpoint
-        self.metering_points_url = config.get("metering_points_url",
-            "https://api.eloverblik.dk/customerapi/api/meteringpoints/meteringpoints")
+        self.dependency_url = self._dependency_url()
         
         # Cache for deterministic replay and metering points
         self._offset_cache = {}
         self._metering_points_cache = self._get_metering_points()
         
         logger.info(f"Initialized EloverblikStreamReader: start_date={self.start_date}, days_per_batch={self.days_per_batch}")
+
+    def _dependency_url(self) -> str:
+        """Get the API URL for fetching dependencies if needed."""
+        dependency_table = str(self.config.get("endpoint")) + str(self.config.get("dependency_table"))
+        if not dependency_table:
+            raise ValueError("Dependency URL must be provided in config (as 'dependency_table')")
+        logger.debug(f"Using dependency URL: {dependency_table}")
+        return dependency_table
 
     def get_initial_offset(self) -> dict:
         """Return the initial offset (starting date)."""
@@ -400,9 +401,11 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
             max_retries=3,
             retry_delay=1
         )
+
+        logger.info(f"Using dependency URL to fetch metering points: {self.dependency_url}")
         
         try:
-            response = api_client.get(self.metering_points_url)
+            response = api_client.get(self.dependency_url)
             metering_points_data = response.json().get("result", [])
             
             # Extract metering point IDs
@@ -460,6 +463,8 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
         
         try:
             response = api_client.post(url, json_body=body)
+
+            self._test_record_structure(response.json())
             
             # Extract records from nested structure
             records = self._extract_records(response.json(), date_from, date_to)
@@ -471,6 +476,12 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
             logger.error(f"Error fetching time series data: {e}")
             raise
     
+    def _test_record_structure(self, response: dict) -> None:
+            result = response.get("result", [])
+
+            for mp in result:
+                logger.info(f"ololo {Row(**mp)}")
+
     def _extract_records(self, data: dict, date_from: str, date_to: str) -> List[Dict[str, Any]]:
         """
         Extract time series points from nested API response.

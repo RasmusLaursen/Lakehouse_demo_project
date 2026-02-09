@@ -26,7 +26,7 @@ class BaseConfigBuilder(ABC):
         "timestamp_field", "timestamp_param", "initial_timestamp",
         "table_name", "is_root_call", "workflow_step", "depends_on",
         "provides_dependencies", "url_params_template", "body_params_template",
-        "method", "dependency_mapping", "static_url_params", "static_body_params",
+        "method", "dependency_mapping","dependency_table", "static_url_params", "static_body_params",
         "data_path", "field_mapping", "include_parent_context"
     }
     

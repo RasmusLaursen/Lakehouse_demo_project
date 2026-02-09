@@ -44,6 +44,9 @@ def schema_to_table_config(schema: SchemaObject) -> Dict[str, Any]:
     ignore_null_updates = get_custom_property(schema, "ignore_null_updates", False)
     data_quality = get_custom_property(schema, "data_quality", False)
 
+    #Rest api sepcific properties
+    dependency_table = get_custom_property(schema, "dependency_table")
+
     config = {
         "keys": keys if isinstance(keys, list) else [keys] if keys else [],
         "sequence_column": sequence_column,
@@ -67,6 +70,11 @@ def schema_to_table_config(schema: SchemaObject) -> Dict[str, Any]:
         config["apply_as_deletes"] = apply_as_deletes
     if apply_as_truncates:
         config["apply_as_truncates"] = apply_as_truncates
+    if dependency_table:
+        config["dependency_table"] = dependency_table
+
+
+
 
     return config
 
