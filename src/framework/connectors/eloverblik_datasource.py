@@ -363,7 +363,7 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
         
         # Cache for deterministic replay and metering points
         self._offset_cache = {}
-        self._metering_points_cache = self._get_dependency_url()
+        self._body_params = self._get_dependency_url()
         
         logger.info(f"Initialized EloverblikStreamReader: start_date={self.start_date}, days_per_batch={self.days_per_batch}")
 
@@ -495,7 +495,32 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
             schema_fields=schema_fields,
         )
 
-    def _get_url_data(self, date_from: str, date_to: str) -> List[Dict[str, Any]]:
+    def _build_url(self, **overrides) -> str:
+        """
+        Build the API URL by merging url_params_template defaults
+        with runtime overrides, then formatting the target_endpoint.
+
+        Args:
+            **overrides: Runtime values that take precedence over template defaults
+                         (e.g. dateFrom, dateTo)
+
+        Returns:
+            Fully formatted URL string
+        """
+        url_params_template = self.config.get("url_params_template", {})
+
+        # Deserialize if it arrived as JSON string from Spark options
+        if isinstance(url_params_template, str):
+            url_params_template = json.loads(url_params_template)
+
+        # Merge: template defaults ← runtime overrides
+        params = {**url_params_template, **overrides}
+
+        url = self.target_endpoint.format(**params)
+        logger.debug(f"Built URL: {url}")
+        return url
+
+    def _get_url_data(self, url: str) -> List[Dict[str, Any]]:
         """
         Fetch time series data for a date range.
         
@@ -510,18 +535,11 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
             List of extracted records
         """
         # Get metering points (cached)
-        body_params = self._metering_points_cache
+        body_params = self._body_params
         
         if not body_params:
             logger.warning("No metering points available")
             return []
-        
-        # Build URL with path parameters
-        url = self.target_endpoint.format(
-            dateFrom=date_from,
-            dateTo=date_to,
-            aggregation=self.aggregation
-        )
 
         body_params_template = self.config.get("body_params_template")
         if body_params_template:
@@ -547,7 +565,6 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
             # Use generic extractor driven by data_path from config
             extractor = self._build_extractor()
             records = extractor.extract(response.json())
-            logger.info(f"Extracted {len(records)} records for {date_from} to {date_to}")
             
             return records
             
@@ -601,7 +618,8 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
         date_to = date_to_obj.strftime("%Y-%m-%d")
         
         # Fetch time series data
-        records = self._get_url_data(date_from, date_to)
+        url = self._build_url(dateFrom=date_from, dateTo=date_to)
+        records = self._get_url_data(url)
         
         logger.info(f"[EloverblikStream] Fetched {len(records)} records for {date_from} to {date_to}")
         
@@ -654,4 +672,5 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
         """
         logger.info("[EloverblikStream] Cleaning up caches")
         self._offset_cache.clear()
-        self._metering_points_cache = None
+        self._body_params = None
+        

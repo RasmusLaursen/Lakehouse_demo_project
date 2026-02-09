@@ -319,7 +319,7 @@ schema:
       - property: timestamp_field
         value: "position"
       - property: initial_timestamp
-        value: "2025-08-01"
+        value: "2025-12-01"
       - property: table_name
         value: "meterdata/gettimeseries/{dateFrom}/{dateTo}/{aggregation}"
       - property: dependency_table
@@ -422,111 +422,83 @@ schema:
           - "metadata"
         classification: "public"
 
-  # - name: Charges
-  #   description: "Electricity charges, tariffs, and fees for metering points"
-  #   type: table
-  #   customProperties:
-  #     - property: scd_type
-  #       value: 2  # Track changes to charges over time
-  #     - property: keys
-  #       value: ["meteringPointId", "chargeTypeCode", "validFrom"]
-  #     - property: loadtype
-  #       value: "rest_api_workflow_ds"
-  #     - property: mode
-  #       value: "batch"
-  #     - property: table_name
-  #       value: "meteringpoints/meteringpoint/getcharges"
-  #     - property: method
-  #       value: "POST"  # Use POST for body parameters
-  #     - property: workflow_step
-  #       value: 3
-  #     - property: depends_on
-  #       value: "MeteringPoints"
-  #     - property: dependency_mapping
-  #       value:
-  #         meteringPointId: "meteringPointId"  # Map parent field to parameter
-  #     - property: body_params_template
-  #       value:
-  #         # Dynamic parameter substitution using ${variable} syntax
-  #         meteringPoints:
-  #           meteringPoint: ["${meteringPointId}"]  # Use metering point from parent call
-  #   properties:
-  #     - name: meteringPointId
-  #       description: "Metering point identifier"
-  #       type: string
-  #       required: true
-  #       tags:
-  #         - "identifier"
-  #         - "primary_key"
-  #         - "foreign_key"
-  #       classification: "confidential"
+  - name: Charges
+    description: "Electricity charges, tariffs, and fees for metering points"
+    type: table
+    customProperties:
+      - property: scd_type
+        value: 2  # Track changes to charges over time
+      - property: keys
+        value: ["meteringPointId"]
+      - property: sequence_column
+        value: "meteringPointId"
+      - property: loadtype
+        value: "eloverblik_api"
+      - property: mode
+        value: "streaming"
+      - property: timestamp_field
+        value: "validFrom"
+      - property: initial_timestamp
+        value: "2025-12-01"
+      - property: table_name
+        value: "meteringpoints/meteringpoint/getcharges"
+      - property: dependency_table
+        value: "meteringpoints/meteringpoints"
+      - property: method
+        value: "POST"
+      - property: depends_on
+        value: "MeteringPoints"
+      - property: dependency_mapping
+        value:
+          meteringPointId: "meteringPointId"
+      - property: body_params_template
+        value:
+          meteringPoints:
+            meteringPoint:
+              "body_params"
+      - property: data_path
+        value: "result.result"
+      - property: field_mapping
+        value:
+          "meteringPointId": "meteringPointId"
+          "subscriptions": "subscriptions"
+          "tariffs": "tariffs"
+          "fees": "fees"
+      - property: include_parent_context
+        value: true
+    properties:
+      - name: meteringPointId
+        description: "Metering point identifier"
+        type: string
+        required: true
+        tags:
+          - "identifier"
+          - "primary_key"
+        classification: "confidential"
       
-  #     - name: chargeTypeCode
-  #       description: "Charge type code (e.g., tariff, subscription)"
-  #       type: string
-  #       required: true
-  #       tags:
-  #         - "identifier"
-  #         - "primary_key"
-  #       classification: "public"
+      - name: subscriptions
+        description: "Subscription charges as JSON array. Each element has name, description, owner, validFromDate, validToDate, price, quantity, periodType."
+        type: string
+        required: false
+        tags:
+          - "charges"
+        classification: "confidential"
       
-  #     - name: validFrom
-  #       description: "Date when the charge becomes valid"
-  #       type: timestamp
-  #       required: true
-  #       tags:
-  #         - "temporal"
-  #         - "primary_key"
-  #       classification: "public"
+      - name: tariffs
+        description: "Tariff charges as JSON array. Each element has name, description, owner, validFromDate, validToDate, periodType, and prices[] array of position/price pairs."
+        type: string
+        required: false
+        tags:
+          - "charges"
+        classification: "confidential"
       
-  #     - name: validTo
-  #       description: "Date when the charge expires"
-  #       type: timestamp
-  #       required: false
-  #       tags:
-  #         - "temporal"
-  #       classification: "public"
-      
-  #     - name: name
-  #       description: "Charge name/description"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "metadata"
-  #       classification: "public"
-      
-  #     - name: description
-  #       description: "Detailed charge description"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "metadata"
-  #       classification: "public"
-      
-  #     - name: owner
-  #       description: "Charge owner (e.g., grid company)"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "metadata"
-  #       classification: "public"
-      
-  #     - name: price
-  #       description: "Charge price/rate"
-  #       type: double
-  #       required: false
-  #       tags:
-  #         - "measure"
-  #         - "financial"
-  #       classification: "confidential"
-      
-  #     - name: periodType
-  #       description: "Charge period type (e.g., hourly, daily, monthly)"
-  #       type: string
-  #       required: false
-  #       tags:
-  #         - "temporal"
-  #       classification: "public"
+      - name: fees
+        description: "Fee charges as JSON array. Each element has name, description, owner, validFromDate, validToDate, price, quantity."
+        type: string
+        required: false
+        tags:
+          - "charges"
+        classification: "confidential"
 
 tags:
   - "electricity"
