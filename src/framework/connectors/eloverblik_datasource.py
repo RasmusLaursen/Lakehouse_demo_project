@@ -142,6 +142,7 @@ class EloverblikDataSource(BasePySparkDataSource):
                     datasource_config[str(k)] = str(v)
 
         # Use Spark's read API
+        logger.info(f"running with self.config {self.config}")
         df = spark.read.format(self.name()).options(**datasource_config).load()
         logger.info(f"Created batch DataFrame for {self.name()}")
         
@@ -362,7 +363,7 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
         
         # Cache for deterministic replay and metering points
         self._offset_cache = {}
-        self._metering_points_cache = self._get_metering_points()
+        self._metering_points_cache = self._get_dependency_url()
         
         logger.info(f"Initialized EloverblikStreamReader: start_date={self.start_date}, days_per_batch={self.days_per_batch}")
 
@@ -416,7 +417,7 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
             logger.error(f"Failed to setup Eloverblik API client for streaming: {e}")
             raise
     
-    def _get_metering_points(self) -> List[str]:
+    def _get_dependency_url(self) -> List[str]:
         """
         Fetch metering points from API with caching.
         
@@ -453,6 +454,24 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
         except Exception as e:
             logger.error(f"Error fetching metering points: {e}")
             raise
+
+    def _resolve_template(self, template: Any, values: List[str]) -> Any:
+        """
+        Recursively walk *template* and replace the placeholder
+        string ``"body_params"`` with *values* (the actual list).
+
+        Works regardless of nesting depth so the YAML template
+        can have any shape.
+        """
+        if isinstance(template, str):
+            if template == "body_params":
+                return values
+            return template
+        if isinstance(template, dict):
+            return {k: self._resolve_template(v, values) for k, v in template.items()}
+        if isinstance(template, list):
+            return [self._resolve_template(item, values) for item in template]
+        return template
     
     def _build_extractor(self) -> JSONResponseExtractor:
         """Build a JSONResponseExtractor from config."""
@@ -476,7 +495,7 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
             schema_fields=schema_fields,
         )
 
-    def _get_timeseries_data(self, date_from: str, date_to: str) -> List[Dict[str, Any]]:
+    def _get_url_data(self, date_from: str, date_to: str) -> List[Dict[str, Any]]:
         """
         Fetch time series data for a date range.
         
@@ -491,9 +510,9 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
             List of extracted records
         """
         # Get metering points (cached)
-        metering_point_ids = self._metering_points_cache
+        body_params = self._metering_points_cache
         
-        if not metering_point_ids:
+        if not body_params:
             logger.warning("No metering points available")
             return []
         
@@ -503,13 +522,16 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
             dateTo=date_to,
             aggregation=self.aggregation
         )
-        
-        # Build request body
-        body = {
-            "meteringPoints": {
-                "meteringPoint": metering_point_ids
-            }
-        }
+
+        body_params_template = self.config.get("body_params_template")
+        if body_params_template:
+            # Template arrives as JSON string from Spark options or dict from config
+            if isinstance(body_params_template, str):
+                body_params_template = json.loads(body_params_template)
+            # Recursively replace "body_params" placeholder with actual list
+            body = self._resolve_template(body_params_template, body_params)
+        else:    
+            raise ValueError("body_params_template must be provided in config")
         
         # Make API call
         auth = BearerTokenAuth(self.access_token)
@@ -579,7 +601,7 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
         date_to = date_to_obj.strftime("%Y-%m-%d")
         
         # Fetch time series data
-        records = self._get_timeseries_data(date_from, date_to)
+        records = self._get_url_data(date_from, date_to)
         
         logger.info(f"[EloverblikStream] Fetched {len(records)} records for {date_from} to {date_to}")
         

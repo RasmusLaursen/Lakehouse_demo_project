@@ -26,7 +26,6 @@ servers:
       - property: connector_config
         value:
           endpoint: "https://api.eloverblik.dk/customerapi/api/"
-          #gettimeseries/{dateFrom}/{dateTo}/{aggregation}
           method: "GET"
           
           # OAuth2 refresh token authentication
@@ -48,10 +47,6 @@ servers:
           # Workflow configuration
           workflow_config:
             # Table name mapping for dependency resolution
-            table_names:
-              MeteringPoints: "meteringpoints/meteringpoints"
-              TimeSeriesData: "meterdata/gettimeseries/{dateFrom}/{dateTo}/{aggregation}"
-              Charges: "meteringpoints/meteringpoint/getcharges/"
             
             # Adaptive concurrency control
             initial_concurrent_calls: 3
@@ -107,10 +102,6 @@ schema:
         value: "batch"  # Batch with append (custom datasources not supported for streaming)
       - property: table_name
         value: "meteringpoints/meteringpoints"
-      - property: workflow_step
-        value: 1
-      - property: is_root_call
-        value: true
       - property: provides_dependencies
         value: ["meteringPointId"]  # Fields available for dependent calls
       - property: data_path
@@ -344,7 +335,7 @@ schema:
         value:
           meteringPoints:
             meteringPoint:
-              - "${meteringPointId}"
+               "body_params"
       - property: static_body_params
         value:
           # Static parameters in body (empty, all params go to URL path)
