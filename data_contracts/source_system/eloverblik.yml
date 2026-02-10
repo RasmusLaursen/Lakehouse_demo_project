@@ -99,13 +99,19 @@ schema:
       - property: loadtype
         value: "eloverblik_api"
       - property: mode
-        value: "batch"  # Batch with append (custom datasources not supported for streaming)
+        value: "streaming"
+      - property: timestamp_field
+        value: "consumerStartDate"
+      - property: initial_timestamp
+        value: "2025-01-01"
       - property: table_name
         value: "meteringpoints/meteringpoints"
       - property: provides_dependencies
         value: ["meteringPointId"]  # Fields available for dependent calls
       - property: data_path
         value: "result"
+      - property: method
+        value: "GET"        
     properties:
       - name: meteringPointId
         description: "Unique identifier for the metering point (18-digit number)"
@@ -498,6 +504,521 @@ schema:
         required: false
         tags:
           - "charges"
+        classification: "confidential"
+
+  - name: MeteringPointDetails
+    description: "Detailed metering point information including technical specifications, address, contacts, and relationships"
+    type: table
+    customProperties:
+      - property: scd_type
+        value: 2  # Track changes to metering point details
+      - property: keys
+        value: ["meteringPointId"]
+      - property: sequence_column
+        value: "meteringPointId"
+      - property: loadtype
+        value: "eloverblik_api"
+      - property: mode
+        value: "streaming"
+      - property: timestamp_field
+        value: "consumerStartDate"
+      - property: initial_timestamp
+        value: "2025-01-01"
+      - property: table_name
+        value: "meteringpoints/meteringpoint/getdetails"
+      - property: dependency_table
+        value: "meteringpoints/meteringpoints"
+      - property: method
+        value: "POST"
+      - property: depends_on
+        value: "MeteringPoints"
+      - property: dependency_mapping
+        value:
+          meteringPointId: "meteringPointId"
+      - property: body_params_template
+        value:
+          meteringPoints:
+            meteringPoint:
+              "body_params"
+      - property: data_path
+        value: "result.result"
+      - property: include_parent_context
+        value: true
+    properties:
+      - name: meteringPointId
+        description: "Unique identifier for the metering point"
+        type: string
+        required: true
+        tags:
+          - "identifier"
+          - "primary_key"
+        classification: "confidential"
+      
+      - name: parentMeteringPointId
+        description: "Parent metering point identifier if this is a child"
+        type: string
+        required: false
+        tags:
+          - "identifier"
+          - "relationship"
+        classification: "confidential"
+      
+      - name: typeOfMP
+        description: "Type of metering point"
+        type: string
+        required: false
+        tags:
+          - "classification"
+        classification: "public"
+      
+      - name: energyTimeSeriesMeasureUnit
+        description: "Measurement unit for energy time series"
+        type: string
+        required: false
+        tags:
+          - "metadata"
+        classification: "public"
+      
+      - name: estimatedAnnualVolume
+        description: "Estimated annual consumption volume"
+        type: string
+        required: false
+        tags:
+          - "measure"
+        classification: "confidential"
+      
+      - name: settlementMethod
+        description: "Settlement method"
+        type: string
+        required: false
+        tags:
+          - "metadata"
+        classification: "public"
+      
+      - name: meterNumber
+        description: "Physical meter number"
+        type: string
+        required: false
+        tags:
+          - "identifier"
+        classification: "confidential"
+      
+      - name: gridOperatorName
+        description: "Name of the grid operator"
+        type: string
+        required: false
+        tags:
+          - "operator"
+        classification: "public"
+      
+      - name: meteringGridAreaIdentification
+        description: "Grid area identification code"
+        type: string
+        required: false
+        tags:
+          - "geographic"
+        classification: "public"
+      
+      - name: netSettlementGroup
+        description: "Net settlement group"
+        type: string
+        required: false
+        tags:
+          - "metadata"
+        classification: "public"
+      
+      - name: physicalStatusOfMP
+        description: "Physical status of metering point"
+        type: string
+        required: false
+        tags:
+          - "status"
+        classification: "public"
+      
+      - name: consumerCategory
+        description: "Consumer category classification"
+        type: string
+        required: false
+        tags:
+          - "classification"
+        classification: "public"
+      
+      - name: powerLimitKW
+        description: "Power limit in kilowatts (string)"
+        type: string
+        required: false
+        tags:
+          - "technical"
+        classification: "confidential"
+      
+      - name: powerLimitKWDecimal
+        description: "Power limit in kilowatts (decimal)"
+        type: double
+        required: false
+        tags:
+          - "technical"
+        classification: "confidential"
+      
+      - name: powerLimitA
+        description: "Power limit in amperes"
+        type: string
+        required: false
+        tags:
+          - "technical"
+        classification: "confidential"
+      
+      - name: subTypeOfMP
+        description: "Sub-type of metering point"
+        type: string
+        required: false
+        tags:
+          - "classification"
+        classification: "public"
+      
+      - name: productionObligation
+        description: "Production obligation indicator"
+        type: string
+        required: false
+        tags:
+          - "metadata"
+        classification: "public"
+      
+      - name: mpCapacity
+        description: "Metering point capacity"
+        type: string
+        required: false
+        tags:
+          - "technical"
+        classification: "confidential"
+      
+      - name: mpConnectionType
+        description: "Metering point connection type"
+        type: string
+        required: false
+        tags:
+          - "technical"
+        classification: "public"
+      
+      - name: disconnectionType
+        description: "Disconnection type"
+        type: string
+        required: false
+        tags:
+          - "technical"
+        classification: "public"
+      
+      - name: product
+        description: "Product type"
+        type: string
+        required: false
+        tags:
+          - "metadata"
+        classification: "public"
+      
+      - name: consumerCVR
+        description: "CVR number of consumer"
+        type: string
+        required: false
+        tags:
+          - "identifier"
+        classification: "confidential"
+      
+      - name: dataAccessCVR
+        description: "CVR number with data access rights"
+        type: string
+        required: false
+        tags:
+          - "identifier"
+        classification: "confidential"
+      
+      - name: consumerStartDate
+        description: "Date when consumer started at this metering point"
+        type: string
+        required: false
+        tags:
+          - "temporal"
+        classification: "confidential"
+      
+      - name: meterReadingOccurrence
+        description: "Meter reading frequency"
+        type: string
+        required: false
+        tags:
+          - "metadata"
+        classification: "public"
+      
+      - name: mpReadingCharacteristics
+        description: "Metering point reading characteristics"
+        type: string
+        required: false
+        tags:
+          - "metadata"
+        classification: "public"
+      
+      - name: meterCounterDigits
+        description: "Number of digits on meter counter"
+        type: string
+        required: false
+        tags:
+          - "technical"
+        classification: "public"
+      
+      - name: meterCounterMultiplyFactor
+        description: "Meter counter multiplication factor"
+        type: string
+        required: false
+        tags:
+          - "technical"
+        classification: "public"
+      
+      - name: meterCounterUnit
+        description: "Meter counter unit"
+        type: string
+        required: false
+        tags:
+          - "technical"
+        classification: "public"
+      
+      - name: meterCounterType
+        description: "Meter counter type"
+        type: string
+        required: false
+        tags:
+          - "technical"
+        classification: "public"
+      
+      - name: taxReduction
+        description: "Tax reduction indicator"
+        type: string
+        required: false
+        tags:
+          - "financial"
+        classification: "confidential"
+      
+      - name: taxSettlementDate
+        description: "Tax settlement date"
+        type: string
+        required: false
+        tags:
+          - "temporal"
+          - "financial"
+        classification: "confidential"
+      
+      - name: mpRelationType
+        description: "Metering point relation type"
+        type: string
+        required: false
+        tags:
+          - "relationship"
+        classification: "public"
+      
+      - name: firstConsumerPartyName
+        description: "Name of primary consumer"
+        type: string
+        required: false
+        tags:
+          - "consumer"
+        classification: "confidential"
+      
+      - name: secondConsumerPartyName
+        description: "Name of secondary consumer"
+        type: string
+        required: false
+        tags:
+          - "consumer"
+        classification: "confidential"
+      
+      - name: occurrence
+        description: "Occurrence information"
+        type: string
+        required: false
+        tags:
+          - "metadata"
+        classification: "public"
+      
+      - name: meteringPointAlias
+        description: "Alias name for metering point"
+        type: string
+        required: false
+        tags:
+          - "identifier"
+        classification: "confidential"
+      
+      - name: gridOperatorID
+        description: "Grid operator ID"
+        type: string
+        required: false
+        tags:
+          - "identifier"
+        classification: "public"
+      
+      - name: gridOperatorID_SchemeAgencyIdentifier
+        description: "Grid operator ID scheme agency identifier"
+        type: string
+        required: false
+        tags:
+          - "identifier"
+        classification: "public"
+      
+      - name: assetType
+        description: "Asset type classification"
+        type: string
+        required: false
+        tags:
+          - "classification"
+        classification: "public"
+      
+      - name: mpAddressWashInstructions
+        description: "Address wash instructions"
+        type: string
+        required: false
+        tags:
+          - "metadata"
+        classification: "public"
+      
+      - name: darReference
+        description: "DAR (Danish Address Register) reference"
+        type: string
+        required: false
+        tags:
+          - "identifier"
+          - "geographic"
+        classification: "public"
+      
+      - name: streetCode
+        description: "Street code"
+        type: string
+        required: false
+        tags:
+          - "geographic"
+        classification: "confidential"
+      
+      - name: streetName
+        description: "Street name"
+        type: string
+        required: false
+        tags:
+          - "geographic"
+        classification: "confidential"
+      
+      - name: buildingNumber
+        description: "Building number"
+        type: string
+        required: false
+        tags:
+          - "geographic"
+        classification: "confidential"
+      
+      - name: floorId
+        description: "Floor identifier"
+        type: string
+        required: false
+        tags:
+          - "geographic"
+        classification: "confidential"
+      
+      - name: roomId
+        description: "Room identifier"
+        type: string
+        required: false
+        tags:
+          - "geographic"
+        classification: "confidential"
+      
+      - name: postcode
+        description: "Postal code"
+        type: string
+        required: false
+        tags:
+          - "geographic"
+        classification: "confidential"
+      
+      - name: cityName
+        description: "City name"
+        type: string
+        required: false
+        tags:
+          - "geographic"
+        classification: "confidential"
+      
+      - name: citySubDivisionName
+        description: "City subdivision name"
+        type: string
+        required: false
+        tags:
+          - "geographic"
+        classification: "confidential"
+      
+      - name: municipalityCode
+        description: "Municipality code"
+        type: string
+        required: false
+        tags:
+          - "geographic"
+        classification: "public"
+      
+      - name: locationDescription
+        description: "Location description"
+        type: string
+        required: false
+        tags:
+          - "geographic"
+        classification: "confidential"
+      
+      - name: contactAddresses
+        description: "Contact addresses as JSON array. Each element contains contact name, address details, phone/email, and contact type."
+        type: string
+        required: false
+        tags:
+          - "contact"
+        classification: "confidential"
+      
+      - name: childMeteringPoints
+        description: "Child metering points as JSON array. Each element contains parentMeteringPointId, meteringPointId, typeOfMP, meterReadingOccurrence, meterNumber."
+        type: string
+        required: false
+        tags:
+          - "relationship"
+        classification: "confidential"
+      
+      - name: balanceSupplierName
+        description: "Balance supplier name"
+        type: string
+        required: false
+        tags:
+          - "supplier"
+        classification: "public"
+      
+      - name: balanceSupplierId
+        description: "Balance supplier ID"
+        type: string
+        required: false
+        tags:
+          - "identifier"
+        classification: "public"
+      
+      - name: balanceSupplierStartDate
+        description: "Balance supplier start date"
+        type: string
+        required: false
+        tags:
+          - "temporal"
+        classification: "public"
+      
+      - name: balanceSupplierId_SchemeAgencyIdentifier
+        description: "Balance supplier ID scheme agency identifier"
+        type: string
+        required: false
+        tags:
+          - "identifier"
+        classification: "public"
+      
+      - name: protectedName
+        description: "Protected name indicator"
+        type: string
+        required: false
+        tags:
+          - "privacy"
         classification: "confidential"
 
 tags:

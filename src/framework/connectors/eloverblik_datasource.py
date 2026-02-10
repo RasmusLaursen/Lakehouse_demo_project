@@ -340,7 +340,7 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
     def __init__(self, config: Dict[str, Any], schema: StructType):
         """Initialize streaming reader."""
         super().__init__(config, schema)
-        self.validate_config()
+        self._validate_config()
         self._setup_api_client()
         
         # Streaming parameters
@@ -361,25 +361,29 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
         
         self.dependency_url = self._dependency_url()
         
-        # Cache for deterministic replay and metering points
+        # Cache for dependencies
         self._offset_cache = {}
-        self._body_params = self._get_dependency_url()
+        # only extract dependencies if dependency_url is provided in config
+        if self.dependency_url:
+            self._body_params = self._get_dependency_url()
+        
+        # URL template for time series endpoint
+        if config.get("method"):
+            self.method = self.config.get("method").upper()
+        else:
+            raise ValueError("HTTP method must be provided in config for streaming (e.g. GET or POST)")
         
         logger.info(f"Initialized EloverblikStreamReader: start_date={self.start_date}, days_per_batch={self.days_per_batch}")
 
-    def _dependency_url(self) -> str:
+    def _dependency_url(self) -> Optional[str]:
         """Get the API URL for fetching dependencies if needed."""
         dependency_table = str(self.config.get("endpoint")) + str(self.config.get("dependency_table"))
-        if not dependency_table:
-            raise ValueError("Dependency URL must be provided in config (as 'dependency_table')")
+        if str(self.config.get("dependency_table")) == "None" or not self.config.get("dependency_table"):
+            return None
         logger.debug(f"Using dependency URL: {dependency_table}")
         return dependency_table
 
-    def get_initial_offset(self) -> dict:
-        """Return the initial offset (starting date)."""
-        return {"date": self.start_date}            
-    
-    def validate_config(self) -> None:
+    def _validate_config(self) -> None:
         """Validate required configuration fields."""
         required = ["auth_token", "token_endpoint"]
         missing = [f for f in required if f not in self.config]
@@ -533,34 +537,37 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
             
         Returns:
             List of extracted records
-        """
-        # Get metering points (cached)
-        body_params = self._body_params
-        
-        if not body_params:
-            logger.warning("No metering points available")
-            return []
-
-        body_params_template = self.config.get("body_params_template")
-        if body_params_template:
-            # Template arrives as JSON string from Spark options or dict from config
-            if isinstance(body_params_template, str):
-                body_params_template = json.loads(body_params_template)
-            # Recursively replace "body_params" placeholder with actual list
-            body = self._resolve_template(body_params_template, body_params)
-        else:    
-            raise ValueError("body_params_template must be provided in config")
-        
+        """      
         # Make API call
         auth = BearerTokenAuth(self.access_token)
         api_client = APIClient(
             authenticator=auth,
-            max_retries=3,
+            max_retries=1,
             retry_delay=1
-        )
+        )        
         
         try:
-            response = api_client.post(url, json_body=body)
+            if self.method == "GET":
+                response = api_client.get(url)
+            elif self.method == "POST":         
+                body_params = self._body_params
+        
+                if not body_params:
+                    logger.warning("No metering points available")
+                    return []
+
+                body_params_template = self.config.get("body_params_template")
+                if body_params_template:
+                    # Template arrives as JSON string from Spark options or dict from config
+                    if isinstance(body_params_template, str):
+                        body_params_template = json.loads(body_params_template)
+                    # Recursively replace "body_params" placeholder with actual list
+                    body = self._resolve_template(body_params_template, body_params)
+                else:    
+                    raise ValueError("body_params_template must be provided in config")                
+                response = api_client.post(url, json_body=body)
+            else:
+                raise ValueError(f"Unsupported HTTP method: {self.method}")
             
             # Use generic extractor driven by data_path from config
             extractor = self._build_extractor()
@@ -571,7 +578,11 @@ class EloverblikStreamReaderSimple(BaseSimpleDataSourceStreamReader):
         except Exception as e:
             logger.error(f"Error fetching time series data: {e}")
             raise
-    
+
+    def get_initial_offset(self) -> dict:
+        """Return the initial offset (starting date)."""
+        return {"date": self.start_date}            
+        
     def read_data(self, partition: InputPartition) -> Iterator[Row]:
         """
         Fetch data for the partition's offset range.
