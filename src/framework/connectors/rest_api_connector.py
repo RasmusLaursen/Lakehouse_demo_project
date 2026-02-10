@@ -1,353 +1,734 @@
 """
-REST API connector for reading data from HTTP/HTTPS endpoints.
+Eloverblik API connector following framework patterns.
 
-This connector implements the BaseConnector interface for API-based
-data ingestion with support for authentication, pagination, rate limiting,
-and incremental loading.
+Implements batch and streaming reading from Danish Eloverblik Customer API
+using the framework's BasePySparkDataSource adapter and APIClient utilities.
 """
 
-import time
-import requests
-from typing import Dict, Any, Optional, List
-from pyspark.sql import SparkSession, DataFrame
+from typing import Dict, Any, List, Iterator, Tuple, Optional
+from datetime import datetime, timedelta
+import json
+from pyspark.sql import Row, SparkSession, DataFrame
+from pyspark.sql.datasource import InputPartition
 from pyspark.sql.types import StructType
-from src.framework.connectors.base_connector import BaseConnector
-from src.framework.helper import logging_helper, add_audit_columns
+
+from src.framework.connectors.pyspark_datasource_adapter import (
+    BasePySparkDataSource,
+    BaseDataSourceReader,
+    BaseSimpleDataSourceStreamReader,
+    SimpleInputPartition
+)
+from src.framework.connectors.api_helper import APIClient, BearerTokenAuth, NoAuth
+from src.framework.connectors.json_response_extractor import JSONResponseExtractor
+from src.framework.helper import logging_helper
 
 logger = logging_helper.get_logger(__name__)
 
+class RESTAPIDataSource(BasePySparkDataSource):
+    """
+    DataSource for Eloverblik Customer API with OAuth2 authentication.
+    
+    Supports both batch reading (metering points) and streaming reading (time series data).
+    """
+    
+    @classmethod
+    def name(cls) -> str:
+        """Return the short name for this data source."""
+        return "eloverblik"
+    
+    def schema(self) -> StructType:
+        """
+        Return schema from configuration.
+        
+        Schema can be provided as:
+        - StructType object directly (from read_batch/read_stream methods)
+        - JSON string (from spark.readStream.format() options)
+        """
+        schema = self.config.get("schema")
+        
+        # If schema is already a StructType, return it
+        if isinstance(schema, StructType):
+            return schema
+        
+        # If schema is a JSON string, parse it
+        if isinstance(schema, str):
+            try:
+                schema_dict = json.loads(schema)
+                return StructType.fromJson(schema_dict)
+            except Exception as e:
+                logger.error(f"Failed to parse schema JSON: {e}")
+                raise ValueError(f"Invalid schema JSON: {e}")
+        
+        # Schema not provided
+        raise ValueError("Schema must be provided in options as StructType or JSON string")
+    
+    def create_reader(self, schema: StructType) -> "RESTAPIBatchReader":
+        """Create a batch reader for metering points."""
+        return RESTAPIBatchReader(self.config, schema)
+    
+    def create_stream_reader(self, schema: StructType) -> "RESTAPIStreamReaderSimple":
+        """Create a streaming reader for time series data."""
+        return RESTAPIStreamReaderSimple(self.config, schema)
+    
+    def reader(self, schema: StructType):
+        """Return batch reader."""
+        return self.create_reader(schema)
+    
+    def simpleStreamReader(self, schema: StructType):
+        """Return streaming reader."""
+        return RESTAPIStreamReaderSimple(self.config, schema)
+    
+    def _get_base_url(self) -> str:
+        """Build the API URL for fetching metering points."""
+        base_url = self.config.get("endpoint")
+        if not base_url:
+            raise ValueError("Endpoint URL must be provided in config (as 'endpoint')")
+        logger.debug(f"Using base URL: {base_url}")
+        return base_url
 
-class RestApiConnector(BaseConnector):
-    """
-    Connector for reading data from REST APIs.
+    def _get_schema_url(self) -> str:
+        """Get the API URL for fetching schema if needed."""
+        schema_url = self.config.get("table_name")
+        if not schema_url:
+            raise ValueError("Schema URL must be provided in config (as 'table_name')")
+        logger.debug(f"Using schema URL: {schema_url}")
+        return schema_url
     
-    Supports:
-    - Multiple authentication methods (Bearer, API Key, OAuth, Basic)
-    - Pagination (offset-based, cursor-based, page-based)
-    - Rate limiting
-    - Incremental loading with watermark tracking
-    - Custom headers and query parameters
-    """
+    def _get_target_endpoint(self) -> str:
+        """Determine the target API endpoint based on config."""
+        target_endpoint = self._get_base_url() + self._get_schema_url()
+        logger.debug(f"Constructed target endpoint: {target_endpoint}")
+        return target_endpoint   
     
-    def validate_config(self, config: Dict[str, Any]) -> None:
-        """
-        Validate REST API connector configuration.
+    def read_batch(self, spark: "SparkSession") -> "DataFrame":
+        """Convenience method for batch reading."""
+        logger.info(f"read_batch called for {self.name()}")
+        logger.debug(f"Available config keys: {list(self.config.keys())}")
         
-        Required fields:
-            - endpoint: Base URL of the API
-            - method: HTTP method (GET, POST, etc.)
-            
-        Optional fields:
-            - auth_type: Authentication type (bearer, api_key, oauth, basic, none)
-            - auth_token: Token for Bearer or API Key auth
-            - auth_header: Header name for API Key (default: "X-API-Key")
-            - username/password: For Basic auth
-            - headers: Additional HTTP headers
-            - params: Query parameters
-            - pagination_type: Type of pagination (offset, cursor, page, none)
-            - pagination_config: Configuration for pagination
-            - rate_limit_requests: Max requests per rate_limit_period
-            - rate_limit_period: Time period in seconds for rate limiting
-            - schema: Optional Spark schema for the data
-            - data_path: JSON path to extract data from response (e.g., "data.items")
-            - add_audit_columns: Whether to add audit columns (default: False)
+        # Register this DataSource with Spark
+        try:
+            spark.dataSource.register(self.__class__)
+            logger.debug(f"Registered DataSource for batch: {self.name()}")
+        except Exception as e:
+            logger.debug(f"DataSource may already be registered: {e}")
         
-        Args:
-            config: Configuration dictionary
-            
-        Raises:
-            ValueError: If required fields are missing
-        """
-        required_fields = ["endpoint", "method"]
-        missing = [f for f in required_fields if f not in config]
+        # Get schema from config and serialize to JSON
+        schema = self.config.get("schema")
+        if not schema:
+            raise ValueError("Schema must be provided in config for batch reading")
         
-        if missing:
-            raise ValueError(
-                f"RestApiConnector missing required config fields: {', '.join(missing)}. "
-                f"Required: {', '.join(required_fields)}"
-            )
+        if isinstance(schema, StructType):
+            schema_json = json.dumps(schema.jsonValue())
+        else:
+            schema_json = schema  # Already a JSON string
         
-        # Validate method
-        valid_methods = ["GET", "POST", "PUT", "PATCH"]
-        method = config["method"].upper()
-        if method not in valid_methods:
-            raise ValueError(
-                f"Invalid HTTP method: '{method}'. Valid methods: {', '.join(valid_methods)}"
-            )
+        # Build datasource_config with required fields
+        datasource_config = {
+            "schema": schema_json,
+            "target_endpoint": self._get_target_endpoint()
+        }
         
-        # Validate auth_type if provided
-        if "auth_type" in config:
-            valid_auth_types = ["bearer", "api_key", "oauth", "basic", "none"]
-            auth_type = config["auth_type"].lower()
-            if auth_type not in valid_auth_types:
-                raise ValueError(
-                    f"Invalid auth_type: '{auth_type}'. Valid types: {', '.join(valid_auth_types)}"
-                )
+        # Add any additional options from config (excluding framework-specific keys)
+        excluded_keys = {
+            'catalog', 'volume', 'source_system', 'model_name', 'format', 'schema'
+        }
+        for k, v in self.config.items():
+            if k not in excluded_keys and not k.endswith('_catalog') and not k.endswith('_schema') and not isinstance(v, StructType):
+                # Serialize dicts/lists as JSON so they survive Spark options
+                if isinstance(v, (dict, list)):
+                    datasource_config[str(k)] = json.dumps(v)
+                else:
+                    datasource_config[str(k)] = str(v)
+
+        # Use Spark's read API
+        logger.info(f"running with self.config {self.config}")
+        df = spark.read.format(self.name()).options(**datasource_config).load()
+        logger.info(f"Created batch DataFrame for {self.name()}")
         
-        logger.info(f"RestApiConnector config validated: {config['endpoint']}")
-    
-    def read_stream(self, spark: SparkSession) -> DataFrame:
+        return df
+
+    def read_stream(self, spark: "SparkSession") -> "DataFrame":
         """
         Read data as a streaming DataFrame.
         
-        Note: REST API streaming uses micro-batch processing with rate limiting.
-        For true streaming, consider using a message queue connector (Kafka, etc.).
-        
         Args:
             spark: Active SparkSession
             
         Returns:
-            Streaming DataFrame from the API
-            
-        Raises:
-            NotImplementedError: REST API streaming requires custom implementation
+            Streaming DataFrame from the Eloverblik API
         """
-        raise NotImplementedError(
-            "REST API streaming is not yet implemented. "
-            "Use read_batch() for periodic API polling, or implement custom streaming logic."
-        )
-    
-    def read_batch(self, spark: SparkSession) -> DataFrame:
-        """
-        Read data as a batch DataFrame from REST API.
+        logger.info(f"read_stream called for {self.name()}")
+        logger.debug(f"Available config keys: {list(self.config.keys())}")
         
-        Handles pagination, rate limiting, and authentication automatically.
+        # Register this DataSource with Spark
+        try:
+            spark.dataSource.register(self.__class__)
+            logger.debug(f"Registered DataSource for streaming: {self.name()}")
+        except Exception as e:
+            logger.debug(f"DataSource may already be registered: {e}")
         
-        Args:
-            spark: Active SparkSession
-            
-        Returns:
-            Batch DataFrame from the API
-        """
-        endpoint = self.config["endpoint"]
-        method = self.config["method"].upper()
-        
-        logger.info(f"Reading batch data from REST API: {method} {endpoint}")
-        
-        # Fetch all data from API with pagination
-        all_data = self._fetch_all_data()
-        
-        if not all_data:
-            logger.warning("No data returned from API")
-            # Return empty DataFrame with schema if provided
-            schema = self.config.get("schema")
-            if schema:
-                return spark.createDataFrame(spark.sparkContext.emptyRDD(), schema)  # type: ignore
-            else:
-                raise ValueError("No data returned and no schema provided")
-        
-        # Create DataFrame from fetched data
+        # Get schema from config and serialize to JSON
         schema = self.config.get("schema")
-        if schema:
-            df = spark.createDataFrame(all_data, schema)  # type: ignore
+        if not schema:
+            raise ValueError("Schema must be provided in config for streaming")
+        
+        if isinstance(schema, StructType):
+            schema_json = json.dumps(schema.jsonValue())
         else:
-            df = spark.createDataFrame(all_data)  # type: ignore
+            schema_json = schema  # Already a JSON string
+
+        logger.info(f"utilizing the following config  {self.config}")
+
+        # Build datasource_config with required fields
+        datasource_config = {
+            "schema": schema_json,
+            "target_endpoint": self._get_target_endpoint()
+        }
         
-        # Add audit columns if requested
-        if self.config.get("add_audit_columns", False):
-            df = add_audit_columns(df=df)
-            logger.info("Added audit columns to batch DataFrame")
+        # Add any additional options from config (excluding framework-specific keys)
+        excluded_keys = {
+            'catalog', 'volume', 'source_system', 'model_name', 'format'
+        }
+        for k, v in self.config.items():
+            if k not in excluded_keys and not k.endswith('_catalog') and not k.endswith('_schema') and not isinstance(v, StructType):
+                # Serialize dicts/lists as JSON so they survive Spark options
+                if isinstance(v, (dict, list)):
+                    datasource_config[str(k)] = json.dumps(v)
+                else:
+                    datasource_config[str(k)] = str(v)
+
+        logger.info(f"Using datasource_config for streaming: {self.config.get('endpoint')}, {self.config.get('table_name')}, {self.config.get('url_params_template')} ")
+        logger.info(f"DataSource config keys for streaming: {list(datasource_config.keys())}")
         
-        logger.info(f"Successfully fetched {df.count()} records from API")
-        return df
+        # Use Spark's readStream API
+        df = spark.readStream.format(self.name()).options(**datasource_config).load()
+        logger.info(f"Created streaming DataFrame for {self.name()}")
+        
+        return df    
+
+class RESTAPIBatchReader(BaseDataSourceReader):
+    """
+    Batch reader for Eloverblik metering points.
     
-    def _fetch_all_data(self) -> List[Dict[str, Any]]:
-        """
-        Fetch all data from API with pagination and rate limiting.
+    Fetches list of metering points from the Customer API using OAuth2 authentication.
+    """
+    
+    def __init__(self, config: Dict[str, Any], schema: StructType):
+        """Initialize batch reader."""
+        super().__init__(config, schema)
+        self._setup_api_client()
+    
+    def _setup_api_client(self) -> None:
+        """Initialize API client with OAuth2 authentication."""
+        # Get access token by exchanging refresh token
+        self.endpoint = self.config["endpoint"]
+        self.target_endpoint = self.config["target_endpoint"]
         
-        Returns:
-            List of records from API
-        """
-        all_records = []
-        pagination_type = self.config.get("pagination_type", "none").lower()
-        
-        if pagination_type == "none":
-            # Single request, no pagination
-            data = self._make_request()
-            all_records.extend(self._extract_data(data))
-        elif pagination_type == "offset":
-            all_records = self._fetch_offset_pagination()
-        elif pagination_type == "cursor":
-            all_records = self._fetch_cursor_pagination()
-        elif pagination_type == "page":
-            all_records = self._fetch_page_pagination()
+        # Exchange refresh token for access token
+        if self.config.get("auth_type") == "oauth2_refresh":
+            self.token_endpoint = self.config["token_endpoint"]            
+            refresh_token = self.config["auth_token"]            
+            auth = BearerTokenAuth(refresh_token)
+
+            token_client = APIClient(
+                authenticator=auth,
+                max_retries=3,
+                retry_delay=1
+            )            
+        elif self.config.get("auth_type") == "none":
+            auth = NoAuth()
         else:
-            raise ValueError(f"Unknown pagination_type: '{pagination_type}'")
-        
-        return all_records
-    
-    def _make_request(self, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """
-        Make a single HTTP request with authentication and rate limiting.
-        
-        Args:
-            params: Query parameters for the request
-            
-        Returns:
-            JSON response as dictionary
-        """
-        endpoint = self.config["endpoint"]
-        method = self.config["method"].upper()
-        
-        # Build headers
-        headers = self.config.get("headers", {}).copy()
-        self._add_auth_headers(headers)
-        
-        # Merge params
-        all_params = self.config.get("params", {}).copy()
-        if params:
-            all_params.update(params)
-        
-        # Rate limiting
-        self._apply_rate_limit()
-        
-        # Make request
-        logger.debug(f"Making request: {method} {endpoint} with params: {all_params}")
+            raise ValueError(f"Unsupported auth_type: {self.config.get('auth_type')}")
         
         try:
-            response = requests.request(
-                method=method,
-                url=endpoint,
-                headers=headers,
-                params=all_params,
-                timeout=self.config.get("timeout", 30)
+           
+            logger.info("Successfully obtained Eloverblik access token")
+            
+            # Exchange refresh token for access token
+            if self.config.get("auth_type") == "oauth2_refresh":
+                token_response = token_client.get(self.token_endpoint)
+                access_token = token_response.json().get("result")
+                
+                if not access_token:
+                    raise ValueError("Failed to obtain access token from Eloverblik API")                
+                auth = BearerTokenAuth(access_token)
+            elif self.config.get("auth_type") == "none":
+                auth = NoAuth()
+            else:
+                raise ValueError(f"Unsupported auth_type: {self.config.get('auth_type')}")
+        
+            self.api_client = APIClient(
+                authenticator=auth,
+                max_retries=3,
+                retry_delay=1
             )
-            response.raise_for_status()
-            return response.json()
+            
         except Exception as e:
-            logger.error(f"API request failed: {e}")
+            logger.error(f"Failed to setup Eloverblik API client: {e}")
             raise
     
-    def _add_auth_headers(self, headers: Dict[str, str]) -> None:
-        """Add authentication headers based on auth_type."""
-        auth_type = self.config.get("auth_type", "none").lower()
+    def create_partitions(self) -> List[InputPartition]:
+        """Create single partition for batch read."""
+        return [SimpleInputPartition(0)]
+
+    def _build_extractor(self) -> JSONResponseExtractor:
+        """Build a JSONResponseExtractor from config."""
+        data_path = self.config.get("data_path", "result")
+        field_mapping = self.config.get("field_mapping")
         
-        if auth_type == "bearer":
-            token = self.config.get("auth_token")
-            if token:
-                headers["Authorization"] = f"Bearer {token}"
-        elif auth_type == "api_key":
-            token = self.config.get("auth_token")
-            header_name = self.config.get("auth_header", "X-API-Key")
-            if token:
-                headers[header_name] = token
-        elif auth_type == "basic":
-            # Basic auth handled by requests library
-            pass
-        # OAuth would require more complex token refresh logic
-    
-    def _apply_rate_limit(self) -> None:
-        """Apply rate limiting if configured."""
-        # Simple rate limiting implementation
-        # For production, use a token bucket or similar algorithm
-        if "rate_limit_delay" in self.config:
-            delay = self.config["rate_limit_delay"]
-            logger.debug(f"Applying rate limit delay: {delay}s")
-            time.sleep(delay)
-    
-    def _extract_data(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Extract data from API response using data_path."""
-        data_path = self.config.get("data_path")
+        # field_mapping may arrive as JSON string from Spark options
+        if isinstance(field_mapping, str):
+            try:
+                field_mapping = json.loads(field_mapping)
+            except (json.JSONDecodeError, TypeError):
+                field_mapping = None
         
-        if not data_path:
-            # Assume entire response is the data
-            if isinstance(response, list):
-                return response
+        # Get column names from schema so only contract-defined fields survive
+        schema_fields = [f.name for f in self.schema_struct.fields] if self.schema_struct else None
+        
+        return JSONResponseExtractor(
+            data_path=data_path,
+            field_mapping=field_mapping,
+            store_raw="_raw_json" in (schema_fields or []),
+            schema_fields=schema_fields,
+        )
+
+    def read_partition(self, partition: InputPartition) -> Iterator[Row]:
+        """
+        Fetch data from API and extract using JSONResponseExtractor.
+        
+        Args:
+            partition: Input partition (single partition)
+            
+        Yields:
+            Row objects with extracted data
+        """
+        try:
+            logger.info(f"Fetching data from Eloverblik API: {self.target_endpoint}")
+            response = self.api_client.get(self.target_endpoint)
+            
+            # Check if response is empty
+            if not response.text or response.text.strip() == "":
+                logger.error("API returned empty response body")
+                raise ValueError(f"Empty response from Eloverblik API {self.target_endpoint}")
+            
+            # Try to parse JSON
+            try:
+                data = response.json()
+            except ValueError as json_err:
+                logger.error(f"Failed to parse JSON. Response text: {response.text[:1000]}")
+                raise ValueError(f"API returned non-JSON response: {json_err}")
+            
+            # Use generic extractor driven by data_path from config
+            extractor = self._build_extractor()
+            records = extractor.extract(data)
+            
+            logger.info(f"Extracted {len(records)} records from {self.target_endpoint}")
+            
+            for rec in records:
+                yield Row(**rec)
+                
+        except Exception as e:
+            logger.error(f"Error fetching {self.target_endpoint}: {e}")
+            raise
+
+class RESTAPIStreamReaderSimple(BaseSimpleDataSourceStreamReader):
+    """
+    Streaming reader for Eloverblik time series data with date-based incremental loading.
+    
+    Uses BaseSimpleDataSourceStreamReader pattern for date-based offset management.
+    Fetches metering points once and caches them for subsequent batches.
+    """
+    
+    def __init__(self, config: Dict[str, Any], schema: StructType):
+        """Initialize streaming reader."""
+        super().__init__(config, schema)
+
+        self._setup_api_client()
+        
+        # Streaming parameters
+        self.aggregation = config.get("aggregation", "Actual")
+
+        if config.get("initial_timestamp"):
+            self.start_date = config.get("initial_timestamp")
+        else:
+            raise ValueError("initial_timestamp must be provided in config for streaming")
+        
+        self.days_per_batch = int(config.get("days_per_batch", "30"))
+        self._current_offset = None  # Track current offset for incremental advancement
+        
+        # URL template for time series endpoint
+        if config.get("endpoint"):
+            self.endpoint = config.get("endpoint") 
+        else:
+            raise ValueError("Endpoint URL must be provided in config for streaming")
+        
+        self.dependency_url = self._dependency_url()
+        
+        # Cache for dependencies
+        self._offset_cache = {}
+        # only extract dependencies if dependency_url is provided in config
+        if self.dependency_url:
+            self._body_params = self._get_dependency_url()
+        
+        # URL template for time series endpoint
+        if config.get("method"):
+            self.method = self.config.get("method").upper()
+        else:
+            raise ValueError("HTTP method must be provided in config for streaming (e.g. GET or POST)")
+        
+        logger.info(f"Initialized EloverblikStreamReader: start_date={self.start_date}, days_per_batch={self.days_per_batch}")
+
+    def _dependency_url(self) -> Optional[str]:
+        """Get the API URL for fetching dependencies if needed."""
+        dependency_table = str(self.config.get("endpoint")) + str(self.config.get("dependency_table"))
+        if str(self.config.get("dependency_table")) == "None" or not self.config.get("dependency_table"):
+            return None
+        logger.debug(f"Using dependency URL: {dependency_table}")
+        return dependency_table
+    
+    def _setup_api_client(self) -> None:
+        """Initialize API client with OAuth2 authentication."""
+        self.target_endpoint = self.config["target_endpoint"]        
+        
+        # Exchange refresh token for access token
+        try:
+            if self.config.get("auth_type") == "oauth2_refresh":
+                self.token_endpoint = self.config["token_endpoint"]
+                refresh_token = self.config["auth_token"]
+                auth = BearerTokenAuth(refresh_token)
+                token_client = APIClient(
+                    authenticator=auth,
+                    max_retries=3,
+                    retry_delay=1
+                )                
+                token_response = token_client.get(self.token_endpoint)
+                access_token = token_response.json().get("result")
+                
+                if not access_token:
+                    raise ValueError("Failed to obtain access token from Eloverblik API")
+                
+                logger.info("Successfully obtained Eloverblik access token for streaming")
+                
+                # Store access token for API calls
+                self.access_token = access_token
+            elif self.config.get("auth_type") == "none":
+                auth = NoAuth()
             else:
-                return [response]
-        
-        # Navigate JSON path (e.g., "data.items")
-        data = response
-        for key in data_path.split("."):
-            data = data.get(key, [])
-        
-        return data if isinstance(data, list) else [data]
+                raise ValueError(f"Unsupported auth_type: {self.config.get('auth_type')}")                    
+            
+        except Exception as e:
+            logger.error(f"Failed to setup Eloverblik API client for streaming: {e}")
+            raise
     
-    def _fetch_offset_pagination(self) -> List[Dict[str, Any]]:
-        """Fetch data using offset-based pagination."""
-        all_records = []
-        pagination_config = self.config.get("pagination_config", {})
-        offset = pagination_config.get("start_offset", 0)
-        limit = pagination_config.get("limit", 100)
-        offset_param = pagination_config.get("offset_param", "offset")
-        limit_param = pagination_config.get("limit_param", "limit")
+    def _get_dependency_url(self) -> List[str]:
+        """
+        Fetch metering points from API with caching.
         
-        while True:
-            params = {offset_param: offset, limit_param: limit}
-            data = self._make_request(params)
-            records = self._extract_data(data)
-            
-            if not records:
-                break
-            
-            all_records.extend(records)
-            offset += limit
-            
-            logger.info(f"Fetched {len(records)} records (total: {len(all_records)})")
-            
-            # Check if we've reached the end
-            if len(records) < limit:
-                break
+        Fetches metering points once and caches the result for subsequent calls.
         
-        return all_records
+        Returns:
+            List of metering point IDs
+        """       
+        # Fetch from API
+        logger.info("Fetching metering points from API (first time)")
+
+        # Exchange refresh token for access token
+        if self.config.get("auth_type") == "oauth2_refresh":
+            auth = BearerTokenAuth(self.access_token)
+        elif self.config.get("auth_type") == "none":
+            auth = NoAuth()
+        else:
+            raise ValueError(f"Unsupported auth_type: {self.config.get('auth_type')}")        
+                
+        api_client = APIClient(
+            authenticator=auth,
+            max_retries=3,
+            retry_delay=1
+        )
+
+        logger.info(f"Using dependency URL to fetch metering points: {self.dependency_url}")
+        
+        try:
+            response = api_client.get(self.dependency_url)
+            metering_points_data = response.json().get("result", [])
+            
+            # Extract metering point IDs
+            metering_point_ids = [mp.get("meteringPointId") for mp in metering_points_data if mp.get("meteringPointId")]
+            
+            # Cache the result
+            # self._metering_points_cache = metering_point_ids
+            logger.info(f"Cached {len(metering_point_ids)} metering point IDs")
+            
+            return metering_point_ids
+            
+        except Exception as e:
+            logger.error(f"Error fetching metering points: {e}")
+            raise
+
+    def _resolve_template(self, template: Any, values: List[str]) -> Any:
+        """
+        Recursively walk *template* and replace the placeholder
+        string ``"body_params"`` with *values* (the actual list).
+
+        Works regardless of nesting depth so the YAML template
+        can have any shape.
+        """
+        if isinstance(template, str):
+            if template == "body_params":
+                return values
+            return template
+        if isinstance(template, dict):
+            return {k: self._resolve_template(v, values) for k, v in template.items()}
+        if isinstance(template, list):
+            return [self._resolve_template(item, values) for item in template]
+        return template
     
-    def _fetch_cursor_pagination(self) -> List[Dict[str, Any]]:
-        """Fetch data using cursor-based pagination."""
-        all_records = []
-        pagination_config = self.config.get("pagination_config", {})
-        cursor_param = pagination_config.get("cursor_param", "cursor")
-        cursor_path = pagination_config.get("cursor_path", "next_cursor")
-        cursor = None
+    def _build_extractor(self) -> JSONResponseExtractor:
+        """Build a JSONResponseExtractor from config."""
+        data_path = self.config.get("data_path", "result")
+        field_mapping = self.config.get("field_mapping")
         
-        while True:
-            params = {cursor_param: cursor} if cursor else {}
-            data = self._make_request(params)
-            records = self._extract_data(data)
-            
-            if not records:
-                break
-            
-            all_records.extend(records)
-            
-            # Extract next cursor
-            cursor_data = data
-            for key in cursor_path.split("."):
-                cursor_data = cursor_data.get(key)
-                if cursor_data is None:
-                    break
-            
-            cursor = cursor_data
-            logger.info(f"Fetched {len(records)} records (total: {len(all_records)})")
-            
-            if not cursor:
-                break
+        # field_mapping may arrive as JSON string from Spark options
+        if isinstance(field_mapping, str):
+            try:
+                field_mapping = json.loads(field_mapping)
+            except (json.JSONDecodeError, TypeError):
+                field_mapping = None
         
-        return all_records
+        # Get column names from schema so only contract-defined fields survive
+        schema_fields = [f.name for f in self.schema_struct.fields] if self.schema_struct else None
+        
+        return JSONResponseExtractor(
+            data_path=data_path,
+            field_mapping=field_mapping,
+            store_raw="_raw_json" in (schema_fields or []),
+            schema_fields=schema_fields,
+        )
+
+    def _build_url(self, **overrides) -> str:
+        """
+        Build the API URL by merging url_params_template defaults
+        with runtime overrides, then formatting the target_endpoint.
+
+        Handles both path parameters (e.g., {dateFrom}) and query parameters.
+
+        Args:
+            **overrides: Runtime values that take precedence over template defaults
+                         (e.g. dateFrom, dateTo)
+
+        Returns:
+            Fully formatted URL string
+        """
+        from urllib.parse import urlencode
+        
+        url_params_template = self.config.get("url_params_template", {})
+
+        # Deserialize if it arrived as JSON string from Spark options
+        if isinstance(url_params_template, str):
+            url_params_template = json.loads(url_params_template)
+
+        # Merge: template defaults ← runtime overrides
+        params = {**url_params_template, **overrides}
+
+        # Check if target_endpoint has path parameters (curly braces)
+        if '{' in self.target_endpoint and '}' in self.target_endpoint:
+            # Path parameters: format directly into URL path
+            url = self.target_endpoint.format(**params)
+        else:
+            # Query parameters: append as query string
+            if params:
+                query_string = urlencode(params)
+                url = f"{self.target_endpoint}?{query_string}"
+            else:
+                url = self.target_endpoint
+        
+        logger.debug(f"Built URL: {url}")
+        return url
+
+    def _get_url_data(self, url: str) -> List[Dict[str, Any]]:
+        """
+        Fetch time series data for a date range.
+        
+        Uses JSONResponseExtractor with data_path from config to navigate
+        and explode the nested response structure automatically.
+        
+        Args:
+            date_from: Start date (YYYY-MM-DD)
+            date_to: End date (YYYY-MM-DD)
+            
+        Returns:
+            List of extracted records
+        """      
+        # Exchange refresh token for access token
+        if self.config.get("auth_type") == "oauth2_refresh":
+            auth = BearerTokenAuth(self.access_token)
+        elif self.config.get("auth_type") == "none":
+            auth = NoAuth()
+        else:
+            raise ValueError(f"Unsupported auth_type: {self.config.get('auth_type')}")        
+                
+        api_client = APIClient(
+            authenticator=auth,
+            max_retries=1,
+            retry_delay=1
+        )        
+        
+        try:
+            if self.method == "GET":
+                response = api_client.get(url)
+            elif self.method == "POST":         
+                body_params = self._body_params
+        
+                if not body_params:
+                    logger.warning("No metering points available")
+                    return []
+
+                body_params_template = self.config.get("body_params_template")
+                if body_params_template:
+                    # Template arrives as JSON string from Spark options or dict from config
+                    if isinstance(body_params_template, str):
+                        body_params_template = json.loads(body_params_template)
+                    # Recursively replace "body_params" placeholder with actual list
+                    body = self._resolve_template(body_params_template, body_params)
+                else:    
+                    raise ValueError("body_params_template must be provided in config")                
+                response = api_client.post(url, json_body=body)
+            else:
+                raise ValueError(f"Unsupported HTTP method: {self.method}")
+            
+            # Use generic extractor driven by data_path from config
+            extractor = self._build_extractor()
+            records = extractor.extract(response.json())
+            
+            return records
+            
+        except Exception as e:
+            logger.error(f"Error fetching time series data: {e}")
+            raise
+
+    def get_initial_offset(self) -> dict:
+        """Return the initial offset (starting date)."""
+        return {"date": self.start_date}            
+        
+    def read_data(self, partition: InputPartition) -> Iterator[Row]:
+        """
+        Fetch data for the partition's offset range.
+        
+        Args:
+            partition: SimpleInputPartition containing start and end offsets
+            
+        Returns:
+            Iterator of Row objects
+        """
+        # Extract offsets from partition
+        start = partition.value["start"]
+        end = partition.value["end"]
+        
+        # Handle None offsets
+        if start is None or "date" not in start:
+            start = self.get_initial_offset()
+        
+        if end is None or "date" not in end:
+            end = self.get_latest_offset()
+        
+        current_date = start["date"]
+        end_date = end["date"]
+        logger.info(f"[EloverblikStream] Reading from {current_date} to {end_date}")
+        
+        # Calculate date range for this batch
+        date_from_obj = datetime.strptime(current_date, "%Y-%m-%d")
+        date_to_obj = datetime.strptime(end_date, "%Y-%m-%d")
+        
+        # Get current date (today) - strip time for comparison
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Check if we've reached current date
+        if date_from_obj >= today:
+            logger.info("[EloverblikStream] Reached current date, no new data available")
+            return iter([])
+        
+        # Cap date_to to current date if it would go beyond
+        if date_to_obj > today:
+            date_to_obj = today
+            logger.info(f"[EloverblikStream] Capping end date to current date: {date_to_obj.strftime('%Y-%m-%d')}")
+        
+        date_from = date_from_obj.strftime("%Y-%m-%d")
+        date_to = date_to_obj.strftime("%Y-%m-%d")
+        
+        # Fetch time series data
+        url = self._build_url(dateFrom=date_from, dateTo=date_to)
+        records = self._get_url_data(url)
+        
+        logger.info(f"[EloverblikStream] Fetched {len(records)} records for {date_from} to {date_to}")
+        
+        # Convert records to Rows
+        rows = [Row(**r) for r in records]
+        
+        # Cache for replay with automatic size limiting
+        self._offset_cache[current_date] = rows
+        
+        # Keep only recent 5 batches to prevent memory growth
+        if len(self._offset_cache) > 5:
+            oldest_key = min(self._offset_cache.keys())
+            del self._offset_cache[oldest_key]
+            logger.debug(f"[EloverblikStream] Removed old cache entry: {oldest_key}")
+        
+        return iter(rows)
     
-    def _fetch_page_pagination(self) -> List[Dict[str, Any]]:
-        """Fetch data using page-based pagination."""
-        all_records = []
-        pagination_config = self.config.get("pagination_config", {})
-        page = pagination_config.get("start_page", 1)
-        page_size = pagination_config.get("page_size", 100)
-        page_param = pagination_config.get("page_param", "page")
-        size_param = pagination_config.get("size_param", "size")
+    def commit(self, end: dict) -> None:
+        """
+        Clean up old cached data.
         
-        while True:
-            params = {page_param: page, size_param: page_size}
-            data = self._make_request(params)
-            records = self._extract_data(data)
-            
-            if not records:
-                break
-            
-            all_records.extend(records)
-            page += 1
-            
-            logger.info(f"Fetched {len(records)} records (total: {len(all_records)})")
-            
-            # Check if we've reached the end
-            if len(records) < page_size:
-                break
+        Args:
+            end: The offset that has been committed
+        """
+        if end is None or "date" not in end:
+            return
         
-        return all_records
+        # Keep only recent batches (prevent memory growth)
+        batches_to_keep = 5
+        all_dates = sorted(self._offset_cache.keys())
+        
+        if len(all_dates) > batches_to_keep:
+            dates_to_remove = all_dates[:-batches_to_keep]
+            for date in dates_to_remove:
+                del self._offset_cache[date]
+                logger.debug(f"[EloverblikStream] Cleaned up cache for {date}")
+    
+    def get_latest_offset(self) -> dict:
+        """
+        Return the latest available offset, advancing incrementally by days_per_batch.
+        
+        Implementation of abstract method from BaseSimpleDataSourceStreamReader.
+        Advances by days_per_batch on each call, capped at today's date.
+        
+        Returns:
+            dict: The latest offset as {"date": "YYYY-MM-DD"}
+        """
+        # Initialize current offset if needed
+        if self._current_offset is None:
+            start_obj = datetime.strptime(self.start_date, "%Y-%m-%d")
+            self._current_offset = start_obj + timedelta(days=self.days_per_batch)
+        else:
+            # Advance by days_per_batch
+            current_obj = datetime.strptime(self._current_offset.strftime("%Y-%m-%d"), "%Y-%m-%d")
+            self._current_offset = current_obj + timedelta(days=self.days_per_batch)
+        
+        # Cap at today
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        if self._current_offset > today:
+            self._current_offset = today
+        
+        return {"date": self._current_offset.strftime("%Y-%m-%d")}
+    
+    def cleanup(self) -> None:
+        """
+        Cleanup resources when the stream stops.
+        
+        Implementation of cleanup hook from BaseSimpleDataSourceStreamReader.
+        Clears caches to free memory.
+        """
+        logger.info("[EloverblikStream] Cleaning up caches")
+        self._offset_cache.clear()
+        self._body_params = None

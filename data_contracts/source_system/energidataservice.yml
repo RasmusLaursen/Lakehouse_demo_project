@@ -1,14 +1,14 @@
 kind: DataContract
 apiVersion: v3.0.0
-id: "urn:datacontract:energidataservice:re-coverage-municipality"
+id: "urn:datacontract:energidataservice:declaration-production"
 status: active
 
-name: "Energy Data Service - RE Coverage Municipality"
+name: "Energy Data Service - Declaration Production"
 version: "1.0.0"
 description:
-  purpose: "Data contract for renewable energy coverage data per municipality from Danish Energy Data Service"
+  purpose: "Data contract for electricity production declaration data from Danish Energy Data Service"
   limitations: "Public data from Energinet. No authentication required. Data updates hourly."
-  usage: "Data can be used for renewable energy analytics, municipality comparison, and sustainability reporting"
+  usage: "Data can be used for production analytics, emission tracking, and energy source monitoring"
 
 servers:
   - server: dev
@@ -17,778 +17,726 @@ servers:
     format: "json"
     customProperties:
       - property: loadtype
-        value: "energidataservice_api"
+        value: "rest_api"
       - property: connector_type
-        value: "energidataservice_api"
+        value: "rest_api"
       - property: connector_config
         value:
-          endpoint: "https://api.energidataservice.dk/dataset"
+          endpoint: "https://api.energidataservice.dk/"
           method: "GET"
           auth_type: "none"
-          pagination_type: "offset"
-          data_path: "records"
+          pagination_type: "none"
           add_audit_columns: true
-          rate_limit_delay: 0.1  # 100ms delay between requests
+          timeout: 60
+          
+          # Rate limiting
+          rate_limit_delay: 0.5  # 500ms delay between requests to avoid overwhelming API
 
 schema:
-  - name: ReCoverageMunicipality
-    description: "Hourly renewable energy coverage data per Danish municipality"
+  - name: DeclarationProduction
+    description: "Hourly electricity production declarations by fuel type and delivery method"
     type: table
     customProperties:
       - property: scd_type
-        value: 1
+        value: 1  # Append-only for time series data
       - property: keys
-        value: ["HourUTC", "MunicipalityNo"]
+        value: ["HourUTC", "PriceArea", "ProductionType", "ReportGrpCode"]
       - property: sequence_column
         value: "HourUTC"
       - property: loadtype
-        value: "energidataservice_api"
+        value: "eloverblik_api"
       - property: mode
-        value: "batch"  # Batch mode (custom datasources not supported for streaming)
-      - property: table_name
-        value: "ReCoverageMunicipality"
+        value: "streaming"
       - property: timestamp_field
         value: "HourUTC"
-      - property: timestamp_param
-        value: "start"
       - property: initial_timestamp
-        value: "2025-11-01T00:00:00"
-      - property: pagination_config
+        value: "2026-01-01"
+      - property: days_per_batch
+        value: 1
+      - property: table_name
+        value: "dataset/DeclarationProduction"
+      - property: method
+        value: "GET"
+      - property: url_params_template
         value:
-          limit: 10000
-          offset_param: "offset"
-          limit_param: "limit"
-          total_records: 9377522
-      - property: params
-        value:
-          sort: "HourUTC DESC"
+          start: "2026-01-01"
+          end: "2026-12-31"
+          limit: 0
+      - property: data_path
+        value: "records"
     properties:
       - name: HourUTC
-        description: "Timestamp in UTC for the hourly measurement"
+        description: "Timestamp in UTC"
         type: timestamp
         required: true
         tags:
           - "temporal"
           - "primary_key"
-          - "utc"
         classification: "public"
-        example: "2025-12-01T22:00:00"
+        example: "2026-02-10T06:00:00"
       
       - name: HourDK
-        description: "Timestamp in Danish time zone (CET/CEST) for the hourly measurement"
+        description: "Timestamp in Danish time"
         type: timestamp
-        required: true
+        required: false
         tags:
           - "temporal"
-          - "local_time"
         classification: "public"
-        example: "2025-12-01T23:00:00"
-      
-      - name: MunicipalityNo
-        description: "Danish municipality number (kommunenummer)"
-        type: string
-        required: true
-        tags:
-          - "identifier"
-          - "primary_key"
-          - "geographic"
-        classification: "public"
-        example: "101"
-        pattern: "^[0-9]{3}$"
-      
-      - name: REshare
-        description: "Renewable energy share as percentage of total consumption for the hour"
-        type: double
-        required: true
-        tags:
-          - "metric"
-          - "percentage"
-          - "renewable"
-        classification: "public"
-        example: "9.264297"
-        minimum: 0.0
-      
-      - name: REekWhKeep
-        description: "Renewable energy in kWh that stays within the municipality"
-        type: double
-        required: true
-        tags:
-          - "metric"
-          - "energy"
-          - "kwh"
-        classification: "public"
-        example: "22531.773438"
-        minimum: 0.0
-      
-      - name: ConsumptionkWh
-        description: "Total electricity consumption in kWh for the municipality during the hour"
-        type: double
-        required: true
-        tags:
-          - "metric"
-          - "energy"
-          - "kwh"
-          - "consumption"
-        classification: "public"
-        example: "243210.828125"
-        minimum: 0.0
-
-  # - name: ElectricityProdex5MinRealtime
-  #   description: "Real-time electricity production data at 5-minute intervals for Danish price areas"
-  #   type: table
-  #   customProperties:
-  #     - property: scd_type
-  #       value: 1
-  #     - property: keys
-  #       value: ["Minutes5UTC", "PriceArea"]
-  #     - property: sequence_column
-  #       value: "Minutes5UTC"
-  #     - property: loadtype
-  #       value: "rest_api_ds"
-  #     - property: mode
-  #       value: "streaming"
-  #     - property: timestamp_field
-  #       value: "Minutes5UTC"
-  #     - property: timestamp_param
-  #       value: "start"
-  #     - property: initial_timestamp
-  #       value: "2025-11-01T00:00:00"
-  #     - property: pagination_config
-  #       value:
-  #         limit: 10000
-  #         offset_param: "offset"
-  #         limit_param: "limit"
-  #         total_records: 2300850
-  #     - property: params
-  #       value:
-  #         sort: "Minutes5UTC DESC"
-  #   properties:
-  #     - name: Minutes5UTC
-  #       description: "5-minute interval timestamp in UTC"
-  #       type: timestamp
-  #       required: true
-  #       tags:
-  #         - "temporal"
-  #         - "primary_key"
-  #         - "utc"
-  #       classification: "public"
-  #       example: "2025-12-10T20:35:00"
-      
-  #     - name: Minutes5DK
-  #       description: "5-minute interval timestamp in Danish time zone"
-  #       type: timestamp
-  #       required: true
-  #       tags:
-  #         - "temporal"
-  #         - "local_time"
-  #       classification: "public"
-  #       example: "2025-12-10T21:35:00"
-      
-  #     - name: PriceArea
-  #       description: "Danish electricity price area (DK1 or DK2)"
-  #       type: string
-  #       required: true
-  #       tags:
-  #         - "identifier"
-  #         - "primary_key"
-  #         - "geographic"
-  #       classification: "public"
-  #       example: "DK1"
-  #       pattern: "^DK[12]$"
-      
-  #     - name: ProductionLt100MW
-  #       description: "Production from plants less than 100MW in MW"
-  #       type: double
-  #       required: false
-  #       tags:
-  #         - "metric"
-  #         - "power"
-  #         - "production"
-  #       classification: "public"
-  #       example: "262.269989"
-  #       minimum: 0.0
-      
-  #     - name: ProductionGe100MW
-  #       description: "Production from plants 100MW or greater in MW"
-  #       type: double
-  #       required: false
-  #       tags:
-  #         - "metric"
-  #         - "power"
-  #         - "production"
-  #       classification: "public"
-  #       example: "193.199997"
-  #       minimum: 0.0
-      
-  #     - name: OffshoreWindPower
-  #       description: "Offshore wind power production in MW"
-  #       type: double
-  #       required: false
-  #       tags:
-  #         - "metric"
-  #         - "power"
-  #         - "renewable"
-  #         - "wind"
-  #         - "production"
-  #       classification: "public"
-  #       example: "1488.390015"
-  #       minimum: 0.0
-      
-  #     - name: OnshoreWindPower
-  #       description: "Onshore wind power production in MW"
-  #       type: double
-  #       required: false
-  #       tags:
-  #         - "metric"
-  #         - "power"
-  #         - "renewable"
-  #         - "wind"
-  #         - "production"
-  #       classification: "public"
-  #       example: "2980.719971"
-  #       minimum: 0.0
-      
-  #     - name: SolarPower
-  #       description: "Solar power production in MW"
-  #       type: double
-  #       required: false
-  #       tags:
-  #         - "metric"
-  #         - "power"
-  #         - "renewable"
-  #         - "production"
-  #       classification: "public"
-  #       example: "11.020000"
-  #       minimum: 0.0
-      
-  #     - name: ExchangeGreatBelt
-  #       description: "Electricity exchange via Great Belt cable in MW"
-  #       type: double
-  #       required: false
-  #       tags:
-  #         - "metric"
-  #         - "power"
-  #         - "exchange"
-  #       classification: "public"
-  #       example: "593.289978"
-      
-  #     - name: ExchangeGermany
-  #       description: "Electricity exchange with Germany in MW"
-  #       type: double
-  #       required: false
-  #       tags:
-  #         - "metric"
-  #         - "power"
-  #         - "exchange"
-  #       classification: "public"
-  #       example: "10.160000"
-      
-  #     - name: ExchangeNetherlands
-  #       description: "Electricity exchange with Netherlands in MW"
-  #       type: double
-  #       required: false
-  #       tags:
-  #         - "metric"
-  #         - "power"
-  #         - "exchange"
-  #       classification: "public"
-  #       example: "-699.289978"
-      
-  #     - name: ExchangeGreatBritain
-  #       description: "Electricity exchange with Great Britain in MW"
-  #       type: double
-  #       required: false
-  #       tags:
-  #         - "metric"
-  #         - "power"
-  #         - "exchange"
-  #       classification: "public"
-  #       example: "-1456.000000"
-      
-  #     - name: ExchangeNorway
-  #       description: "Electricity exchange with Norway in MW"
-  #       type: double
-  #       required: false
-  #       tags:
-  #         - "metric"
-  #         - "power"
-  #         - "exchange"
-  #       classification: "public"
-  #       example: "-759.000000"
-      
-  #     - name: ExchangeSweden
-  #       description: "Electricity exchange with Sweden in MW"
-  #       type: double
-  #       required: false
-  #       tags:
-  #         - "metric"
-  #         - "power"
-  #         - "exchange"
-  #       classification: "public"
-  #       example: "714.000000"
-      
-  #     - name: BornholmSE4
-  #       description: "Electricity exchange for Bornholm SE4 connection in MW"
-  #       type: double
-  #       required: false
-  #       tags:
-  #         - "metric"
-  #         - "power"
-  #         - "exchange"
-  #       classification: "public"
-  #       example: "0.530000"
-
-  - name: Forecasts_5Min
-    description: "5-minute interval forecasts for renewable energy production (wind, solar)"
-    type: table
-    customProperties:
-      - property: scd_type
-        value: 1
-      - property: keys
-        value: ["Minutes5UTC", "PriceArea", "ForecastType"]
-      - property: sequence_column
-        value: "Minutes5UTC"
-      - property: loadtype
-        value: "energidataservice_api"
-      - property: mode
-        value: "batch"  # Batch mode (custom datasources not supported for streaming)
-      - property: table_name
-        value: "Forecasts_5Min"
-      - property: timestamp_field
-        value: "Minutes5UTC"
-      - property: timestamp_param
-        value: "start"
-      - property: initial_timestamp
-        value: "2025-11-01T00:00:00"
-      - property: pagination_config
-        value:
-          limit: 10000
-          offset_param: "offset"
-          limit_param: "limit"
-          total_records: 3883219
-      - property: params
-        value:
-          sort: "Minutes5UTC DESC"
-    properties:
-      - name: Minutes5UTC
-        description: "5-minute forecast interval timestamp in UTC"
-        type: timestamp
-        required: true
-        tags:
-          - "temporal"
-          - "primary_key"
-          - "utc"
-        classification: "public"
-        example: "2025-12-11T22:55:00"
-      
-      - name: Minutes5DK
-        description: "5-minute forecast interval timestamp in Danish time zone"
-        type: timestamp
-        required: true
-        tags:
-          - "temporal"
-          - "local_time"
-        classification: "public"
-        example: "2025-12-11T23:55:00"
+        example: "2026-02-10T07:00:00"
       
       - name: PriceArea
-        description: "Danish electricity price area (DK1 or DK2)"
+        description: "Price area (DK1 or DK2)"
         type: string
         required: true
         tags:
-          - "identifier"
-          - "primary_key"
           - "geographic"
+          - "primary_key"
         classification: "public"
         example: "DK1"
-        pattern: "^DK[12]$"
-      
-      - name: ForecastType
-        description: "Type of renewable energy forecast (Offshore Wind, Onshore Wind, Solar)"
-        type: string
-        required: true
-        tags:
-          - "identifier"
-          - "primary_key"
-          - "category"
-        classification: "public"
-        example: "Offshore Wind"
-      
-      - name: ForecastDayAhead
-        description: "Day-ahead forecast production in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "forecast"
-        classification: "public"
-        example: "713.000000"
-        minimum: 0.0
-      
-      - name: Forecast5Hour
-        description: "5-hour ahead forecast production in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "forecast"
-        classification: "public"
-        example: "700.000000"
-        minimum: 0.0
-      
-      - name: Forecast1Hour
-        description: "1-hour ahead forecast production in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "forecast"
-        classification: "public"
-        example: "720.000000"
-        minimum: 0.0
-      
-      - name: ForecastCurrent
-        description: "Current/most recent forecast production in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "forecast"
-        classification: "public"
-        example: "707.000000"
-        minimum: 0.0
-      
-      - name: TimestampUTC
-        description: "Timestamp when forecast was made in UTC"
-        type: timestamp
-        required: false
-        tags:
-          - "temporal"
-          - "utc"
-          - "metadata"
-        classification: "public"
-        example: "2025-12-10T20:35:25"
-      
-      - name: TimestampDK
-        description: "Timestamp when forecast was made in Danish time zone"
-        type: timestamp
-        required: false
-        tags:
-          - "temporal"
-          - "local_time"
-          - "metadata"
-        classification: "public"
-        example: "2025-12-10T21:35:25"
-
-  - name: GenerationProdTypeExchange
-    description: "Hourly generation by production type and exchange data with CO2 emissions per kWh"
-    type: table
-    customProperties:
-      - property: scd_type
-        value: 1
-      - property: keys
-        value: ["TimeUTC", "PriceArea", "Version"]
-      - property: sequence_column
-        value: "TimeUTC"
-      - property: loadtype
-        value: "energidataservice_api"
-      - property: mode
-        value: "batch"  # Batch mode (custom datasources not supported for streaming)
-      - property: table_name
-        value: "GenerationProdTypeExchange"
-      - property: timestamp_field
-        value: "TimeUTC"
-      - property: timestamp_param
-        value: "start"
-      - property: initial_timestamp
-        value: "2025-11-01T00:00:00"
-      - property: pagination_config
-        value:
-          limit: 10000
-          offset_param: "offset"
-          limit_param: "limit"
-          total_records: 191850
-      - property: params
-        value:
-          sort: "TimeUTC DESC"
-    properties:
-      - name: TimeUTC
-        description: "Hourly timestamp in UTC"
-        type: timestamp
-        required: true
-        tags:
-          - "temporal"
-          - "primary_key"
-          - "utc"
-        classification: "public"
-        example: "2025-12-10T19:00:00"
-      
-      - name: TimeDK
-        description: "Hourly timestamp in Danish time zone"
-        type: timestamp
-        required: true
-        tags:
-          - "temporal"
-          - "local_time"
-        classification: "public"
-        example: "2025-12-10T20:00:00"
-      
-      - name: PriceArea
-        description: "Danish electricity price area (DK1 or DK2)"
-        type: string
-        required: true
-        tags:
-          - "identifier"
-          - "primary_key"
-          - "geographic"
-        classification: "public"
-        example: "DK1"
-        pattern: "^DK[12]$"
       
       - name: Version
-        description: "Data version (Initial, Final, etc.)"
+        description: "Data version (Initial, Revised, etc.)"
         type: string
-        required: true
+        required: false
         tags:
-          - "identifier"
-          - "primary_key"
           - "metadata"
         classification: "public"
         example: "Initial"
       
-      - name: GrossCon
-        description: "Gross consumption in MW"
-        type: double
+      - name: FuelAllocationMethod
+        description: "Fuel allocation method percentage"
+        type: string
         required: false
         tags:
-          - "metric"
-          - "power"
-          - "consumption"
+          - "metadata"
         classification: "public"
-        example: "-338.738279"
+        example: "125%"
       
-      - name: OffshoreWindPower
-        description: "Offshore wind power production in MW"
+      - name: ReportGrpCode
+        description: "Reporting group code"
+        type: string
+        required: true
+        tags:
+          - "identifier"
+          - "primary_key"
+        classification: "public"
+        example: "R01-1"
+      
+      - name: ProductionType
+        description: "Type of energy production (BioGas, Straw, Wind, etc.)"
+        type: string
+        required: true
+        tags:
+          - "classification"
+          - "primary_key"
+        classification: "public"
+        example: "BioGas"
+      
+      - name: DeliveryType
+        description: "Delivery type (Grid, etc.)"
+        type: string
+        required: false
+        tags:
+          - "classification"
+        classification: "public"
+        example: "Grid"
+      
+      - name: Production_MWh
+        description: "Production in MWh"
         type: double
         required: false
         tags:
-          - "metric"
-          - "power"
-          - "renewable"
-          - "wind"
+          - "measure"
           - "production"
         classification: "public"
-        example: "368.762430"
-        minimum: 0.0
       
-      - name: OnshoreWindPower
-        description: "Onshore wind power production in MW"
+      - name: ShareTotal
+        description: "Share of total production percentage"
         type: double
         required: false
         tags:
-          - "metric"
-          - "power"
-          - "renewable"
-          - "wind"
-          - "production"
+          - "measure"
         classification: "public"
-        example: "759.539303"
-        minimum: 0.0
       
-      - name: HydroPower
-        description: "Hydro power production in MW"
+      - name: ShareGrid
+        description: "Share of grid production percentage"
         type: double
         required: false
         tags:
-          - "metric"
-          - "power"
-          - "renewable"
-          - "production"
+          - "measure"
         classification: "public"
-        example: "0.000000"
-        minimum: 0.0
       
-      - name: SolarPower
-        description: "Solar power production in MW"
+      - name: FuelConsumptionGJ
+        description: "Fuel consumption in GJ"
         type: double
         required: false
         tags:
-          - "metric"
-          - "power"
-          - "renewable"
-          - "production"
+          - "measure"
         classification: "public"
-        example: "2.764081"
-        minimum: 0.0
-      
-      - name: SolarPowerSelfCon
-        description: "Solar power self-consumption in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "renewable"
-          - "consumption"
-        classification: "public"
-        example: "0.000000"
-        minimum: 0.0
-      
-      - name: Biomass
-        description: "Biomass power production in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "renewable"
-          - "production"
-        classification: "public"
-        example: "77.117623"
-        minimum: 0.0
-      
-      - name: Biogas
-        description: "Biogas power production in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "renewable"
-          - "production"
-        classification: "public"
-        example: "20.850465"
-        minimum: 0.0
-      
-      - name: Waste
-        description: "Waste power production in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "production"
-        classification: "public"
-        example: "20.790985"
-        minimum: 0.0
-      
-      - name: FossilGas
-        description: "Fossil gas power production in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "fossil"
-          - "production"
-        classification: "public"
-        example: "14.473802"
-        minimum: 0.0
-      
-      - name: FossilOil
-        description: "Fossil oil power production in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "fossil"
-          - "production"
-        classification: "public"
-        example: "0.767705"
-        minimum: 0.0
-      
-      - name: FossilHardCoal
-        description: "Fossil hard coal power production in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "fossil"
-          - "production"
-        classification: "public"
-        example: "0.770705"
-        minimum: 0.0
-      
-      - name: ExchangeGreatBelt
-        description: "Electricity exchange via Great Belt cable in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "exchange"
-        classification: "public"
-        example: "488.599019"
-      
-      - name: ExchangeGermany
-        description: "Electricity exchange with Germany in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "exchange"
-        classification: "public"
-        example: "-2.083811"
-      
-      - name: ExchangeSweden
-        description: "Electricity exchange with Sweden in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "exchange"
-        classification: "public"
-        example: "694.966667"
-      
-      - name: ExchangeNorway
-        description: "Electricity exchange with Norway in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "exchange"
-        classification: "public"
-        example: "-631.163889"
-      
-      - name: ExchangeNetherlands
-        description: "Electricity exchange with Netherlands in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "exchange"
-        classification: "public"
-        example: "-698.893365"
-      
-      - name: ExchangeGreatBritain
-        description: "Electricity exchange with Great Britain in MW"
-        type: double
-        required: false
-        tags:
-          - "metric"
-          - "power"
-          - "exchange"
-        classification: "public"
-        example: "-1456.000000"
       
       - name: CO2PerkWh
-        description: "CO2 emissions per kilowatt-hour in grams"
+        description: "CO2 emissions per kWh"
         type: double
         required: false
         tags:
-          - "metric"
+          - "measure"
           - "emissions"
-          - "environmental"
         classification: "public"
-        example: "9.969637"
-        minimum: 0.0
+      
+      - name: CO2originPerkWh
+        description: "CO2 origin emissions per kWh"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "emissions"
+        classification: "public"
+      
+      - name: SO2PerkWh
+        description: "SO2 emissions per kWh"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "emissions"
+        classification: "public"
+      
+      - name: NOxPerkWh
+        description: "NOx emissions per kWh"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "emissions"
+        classification: "public"
+      
+      - name: NMvocPerkWh
+        description: "NMVOC emissions per kWh"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "emissions"
+        classification: "public"
+      
+      - name: CH4PerkWh
+        description: "CH4 emissions per kWh"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "emissions"
+        classification: "public"
+      
+      - name: COPerkWh
+        description: "CO emissions per kWh"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "emissions"
+        classification: "public"
+      
+      - name: N2OPerkWh
+        description: "N2O emissions per kWh"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "emissions"
+        classification: "public"
+      
+      - name: SlagPerkWh
+        description: "Slag per kWh"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "waste"
+        classification: "public"
+      
+      - name: FlyAshPerkWh
+        description: "Fly ash per kWh"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "waste"
+        classification: "public"
+      
+      - name: ParticlesPerkWh
+        description: "Particles per kWh"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "emissions"
+        classification: "public"
+      
+      - name: WastePerkWh
+        description: "Waste per kWh"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "waste"
+        classification: "public"
+      
+      - name: DesulpPerkWh
+        description: "Desulphurisation per kWh"
+        type: double
+        required: false
+        tags:
+          - "measure"
+        classification: "public"
+
+  - name: DatahubPricelist
+    description: "Datahub price list for electricity charges and tariffs by grid operator"
+    type: table
+    customProperties:
+      - property: scd_type
+        value: 2  # Track changes to prices over time
+      - property: keys
+        value: ["GLN_Number", "ChargeTypeCode", "ValidFrom"]
+      - property: sequence_column
+        value: "ValidFrom"
+      - property: loadtype
+        value: "eloverblik_api"
+      - property: mode
+        value: "streaming"
+      - property: timestamp_field
+        value: "ValidFrom"
+      - property: initial_timestamp
+        value: "2025-01-01"
+      - property: days_per_batch
+        value: 7
+      - property: table_name
+        value: "dataset/DatahubPricelist"
+      - property: method
+        value: "GET"
+      - property: url_params_template
+        value:
+          start: "2025-01-01"
+          end: "2025-12-31"
+          limit: 0
+      - property: data_path
+        value: "records"
+    properties:
+      - name: ChargeOwner
+        description: "Name of the charge owner (grid company)"
+        type: string
+        required: false
+        tags:
+          - "owner"
+        classification: "public"
+        example: "TREFOR El-net A/S"
+      
+      - name: GLN_Number
+        description: "Global Location Number (GLN) of the charge owner"
+        type: string
+        required: true
+        tags:
+          - "identifier"
+          - "primary_key"
+        classification: "public"
+        example: "5790000392261"
+      
+      - name: ChargeType
+        description: "Type of charge (D01=Subscription, D02=Fee, D03=Tariff)"
+        type: string
+        required: false
+        tags:
+          - "classification"
+        classification: "public"
+        example: "D01"
+      
+      - name: ChargeTypeCode
+        description: "Charge type code identifier"
+        type: string
+        required: true
+        tags:
+          - "identifier"
+          - "primary_key"
+        classification: "public"
+        example: "E-150"
+      
+      - name: Note
+        description: "Additional note about the charge"
+        type: string
+        required: false
+        tags:
+          - "metadata"
+        classification: "public"
+      
+      - name: Description
+        description: "Detailed description of the charge"
+        type: string
+        required: false
+        tags:
+          - "metadata"
+        classification: "public"
+      
+      - name: ValidFrom
+        description: "Start date when the charge is valid"
+        type: timestamp
+        required: true
+        tags:
+          - "temporal"
+          - "primary_key"
+        classification: "public"
+        example: "2018-01-01T00:00:00"
+      
+      - name: ValidTo
+        description: "End date when the charge is no longer valid"
+        type: timestamp
+        required: false
+        tags:
+          - "temporal"
+        classification: "public"
+        example: "2019-01-01T00:00:00"
+      
+      - name: VATClass
+        description: "VAT classification code"
+        type: string
+        required: false
+        tags:
+          - "financial"
+        classification: "public"
+        example: "D02"
+      
+      - name: Price1
+        description: "Price for position 1 (hour/month depending on resolution)"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price2
+        description: "Price for position 2"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price3
+        description: "Price for position 3"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price4
+        description: "Price for position 4"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price5
+        description: "Price for position 5"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price6
+        description: "Price for position 6"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price7
+        description: "Price for position 7"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price8
+        description: "Price for position 8"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price9
+        description: "Price for position 9"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price10
+        description: "Price for position 10"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price11
+        description: "Price for position 11"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price12
+        description: "Price for position 12"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price13
+        description: "Price for position 13"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price14
+        description: "Price for position 14"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price15
+        description: "Price for position 15"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price16
+        description: "Price for position 16"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price17
+        description: "Price for position 17"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price18
+        description: "Price for position 18"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price19
+        description: "Price for position 19"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price20
+        description: "Price for position 20"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price21
+        description: "Price for position 21"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price22
+        description: "Price for position 22"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price23
+        description: "Price for position 23"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: Price24
+        description: "Price for position 24"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "price"
+        classification: "public"
+      
+      - name: TransparentInvoicing
+        description: "Transparent invoicing indicator (1=Yes, 0=No)"
+        type: integer
+        required: false
+        tags:
+          - "financial"
+        classification: "public"
+        example: 1
+      
+      - name: TaxIndicator
+        description: "Tax indicator (1=Taxable, 0=Non-taxable)"
+        type: integer
+        required: false
+        tags:
+          - "financial"
+        classification: "public"
+        example: 0
+      
+      - name: ResolutionDuration
+        description: "Time resolution (P1M=Monthly, PT1H=Hourly)"
+        type: string
+        required: false
+        tags:
+          - "temporal"
+        classification: "public"
+        example: "P1M"
+
+  - name: DayAheadPrices
+    description: "Day-ahead electricity spot prices for Danish and neighboring price areas"
+    type: table
+    customProperties:
+      - property: scd_type
+        value: 1  # Append-only for time series data
+      - property: keys
+        value: ["TimeUTC", "PriceArea"]
+      - property: sequence_column
+        value: "TimeUTC"
+      - property: loadtype
+        value: "eloverblik_api"
+      - property: mode
+        value: "streaming"
+      - property: timestamp_field
+        value: "TimeUTC"
+      - property: initial_timestamp
+        value: "2025-01-01"
+      - property: days_per_batch
+        value: 7
+      - property: table_name
+        value: "dataset/DayAheadPrices"
+      - property: method
+        value: "GET"
+      - property: url_params_template
+        value:
+          start: "2025-01-01"
+          end: "2026-12-31"
+          limit: 0
+      - property: data_path
+        value: "records"
+    properties:
+      - name: TimeUTC
+        description: "Timestamp in UTC"
+        type: timestamp
+        required: true
+        tags:
+          - "temporal"
+          - "primary_key"
+        classification: "public"
+        example: "2026-02-01T22:45:00"
+      
+      - name: TimeDK
+        description: "Timestamp in Danish time"
+        type: timestamp
+        required: false
+        tags:
+          - "temporal"
+        classification: "public"
+        example: "2026-02-01T23:45:00"
+      
+      - name: PriceArea
+        description: "Price area code (DK1, DK2, DE, etc.)"
+        type: string
+        required: true
+        tags:
+          - "identifier"
+          - "primary_key"
+          - "geography"
+        classification: "public"
+        example: "DK1"
+      
+      - name: DayAheadPriceEUR
+        description: "Day-ahead electricity price in EUR per MWh"
+        type: decimal
+        required: false
+        tags:
+          - "price"
+          - "currency"
+        classification: "public"
+        example: "76.74"
+      
+      - name: DayAheadPriceDKK
+        description: "Day-ahead electricity price in DKK per MWh"
+        type: decimal
+        required: false
+        tags:
+          - "price"
+          - "currency"
+        classification: "public"
+        example: "573.05"
+
+tags:
+  - "energy"
+  - "production"
+  - "emissions"
+  - "renewable"
+  - "denmark"
+  - "time-series"
+  - "pricing"
+  - "tariffs"
+  - "spot-prices"
+  - "day-ahead"

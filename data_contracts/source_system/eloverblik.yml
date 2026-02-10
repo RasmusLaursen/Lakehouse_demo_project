@@ -17,9 +17,9 @@ servers:
     format: "json"
     customProperties:
       - property: loadtype
-        value: "eloverblik_api"
+        value: "rest_api"
       - property: connector_type
-        value: "eloverblik_api"
+        value: "rest_api"
       - property: secret_keys
         value:
           - "auth_token"
@@ -315,17 +315,17 @@ schema:
       - property: scd_type
         value: 1  # Append-only for time series data
       - property: keys
-        value: ["meteringPointId", "position"]
+        value: ["meteringPointId","period_start" , "position"]
       - property: sequence_column
         value: "position"
       - property: loadtype
-        value: "eloverblik_api"
+        value: "rest_api"
       - property: mode
         value: "streaming"  # Batch with append (custom datasources not supported for streaming)
       - property: timestamp_field
         value: "position"
       - property: initial_timestamp
-        value: "2025-12-01"
+        value: "2025-08-01"
       - property: table_name
         value: "meterdata/gettimeseries/{dateFrom}/{dateTo}/{aggregation}"
       - property: dependency_table

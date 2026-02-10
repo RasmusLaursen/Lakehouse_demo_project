@@ -16,7 +16,7 @@ Available connectors:
 from src.framework.connectors.base_connector import BaseConnector
 from src.framework.connectors.connector_factory import ConnectorFactory
 from src.framework.connectors.autoloader_connector import AutoLoaderConnector
-from src.framework.connectors.rest_api_connector import RestApiConnector
+from src.framework.connectors.rest_api_connector import RESTAPIDataSource
 from src.framework.connectors.jdbc_connector import JdbcConnector
 from src.framework.connectors.dataframe_connector import DataFrameConnector
 from src.framework.connectors.pyspark_datasource_adapter import (
@@ -35,8 +35,7 @@ from src.framework.connectors.partition_strategies import (
     HashInputPartition,
 )
 # PySpark DataSource implementations (Spark 4.0+) for non-Databricks sources
-from src.framework.connectors.eloverblik_datasource import EloverblikDataSource
-from src.framework.connectors.energidataservice_datasource import EnergidataserviceDataSource
+from src.framework.connectors.rest_api_connector import RESTAPIDataSource
 
 # Auto-register all connectors
 ConnectorFactory.register("autoloader", AutoLoaderConnector)
@@ -47,13 +46,9 @@ ConnectorFactory.register("adls", AutoLoaderConnector)
 ConnectorFactory.register("gcs", AutoLoaderConnector)
 ConnectorFactory.register("kafka", AutoLoaderConnector)
 ConnectorFactory.register("eventhub", AutoLoaderConnector)
-ConnectorFactory.register("rest_api", RestApiConnector)
-ConnectorFactory.register("http", RestApiConnector)  # Alias
-ConnectorFactory.register("https", RestApiConnector)  # Alias
-
-# Source-specific REST API DataSources (PySpark 4.0+)
-ConnectorFactory.register("eloverblik_api", EloverblikDataSource)
-ConnectorFactory.register("energidataservice_api", EnergidataserviceDataSource)
+ConnectorFactory.register("rest_api", RESTAPIDataSource)
+ConnectorFactory.register("http", RESTAPIDataSource)  # Alias
+ConnectorFactory.register("https", RESTAPIDataSource)  # Alias
 
 ConnectorFactory.register("jdbc", JdbcConnector)
 ConnectorFactory.register("database", JdbcConnector)  # Alias
@@ -68,8 +63,6 @@ __all__ = [
     "ConnectorFactory",
     # Legacy connectors
     "AutoLoaderConnector",
-    "VolumeConnector",  # Backward compatibility
-    "RestApiConnector",
     "JdbcConnector",
     "DataFrameConnector",
     # PySpark DataSource API (Spark 4.0+)
@@ -87,6 +80,5 @@ __all__ = [
     "TablePartition",
     "HashInputPartition",
     # PySpark DataSource implementations (non-Databricks native)
-    "EloverblikDataSource",
-    "EnergidataserviceDataSource",
+    "RESTAPIDataSource"
 ]
