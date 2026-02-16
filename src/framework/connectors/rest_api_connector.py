@@ -21,6 +21,7 @@ from src.framework.connectors.pyspark_datasource_adapter import (
 from src.framework.connectors.api_helper import APIClient, BearerTokenAuth, NoAuth
 from src.framework.connectors.json_response_extractor import JSONResponseExtractor
 from src.framework.helper import logging_helper
+import time
 
 logger = logging_helper.get_logger(__name__)
 
@@ -350,12 +351,13 @@ class RESTAPIStreamReaderSimple(BaseSimpleDataSourceStreamReader):
         self.aggregation = config.get("aggregation", "Actual")
 
         if config.get("initial_timestamp"):
-            self.start_date = config.get("initial_timestamp")
+            self.initial_timestamp = config.get("initial_timestamp")  # ← Changed from self.start_date
         else:
             raise ValueError("initial_timestamp must be provided in config for streaming")
         
+        # Track the next offset to return (this gets updated after each batch)
+        
         self.days_per_batch = int(config.get("days_per_batch", "30"))
-        self._current_offset = None  # Track current offset for incremental advancement
         
         # URL template for time series endpoint
         if config.get("endpoint"):
@@ -377,7 +379,7 @@ class RESTAPIStreamReaderSimple(BaseSimpleDataSourceStreamReader):
         else:
             raise ValueError("HTTP method must be provided in config for streaming (e.g. GET or POST)")
         
-        logger.info(f"Initialized EloverblikStreamReader: start_date={self.start_date}, days_per_batch={self.days_per_batch}")
+        logger.info(f"Initialized EloverblikStreamReader: initial_timestamp={self.initial_timestamp}, days_per_batch={self.days_per_batch}")
 
     def _dependency_url(self) -> Optional[str]:
         """Get the API URL for fetching dependencies if needed."""
@@ -581,7 +583,7 @@ class RESTAPIStreamReaderSimple(BaseSimpleDataSourceStreamReader):
                 body_params = self._body_params
         
                 if not body_params:
-                    logger.warning("No metering points available")
+                    logger.error("No metering points available")
                     return []
 
                 body_params_template = self.config.get("body_params_template")
@@ -594,6 +596,7 @@ class RESTAPIStreamReaderSimple(BaseSimpleDataSourceStreamReader):
                 else:    
                     raise ValueError("body_params_template must be provided in config")                
                 response = api_client.post(url, json_body=body)
+
             else:
                 raise ValueError(f"Unsupported HTTP method: {self.method}")
             
@@ -609,126 +612,61 @@ class RESTAPIStreamReaderSimple(BaseSimpleDataSourceStreamReader):
 
     def get_initial_offset(self) -> dict:
         """Return the initial offset (starting date)."""
-        return {"date": self.start_date}            
+        latest = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() - 360*24*60*60))
+        return {"offset": latest}  # Use immutable initial_timestamp
         
     def read_data(self, partition: InputPartition) -> Iterator[Row]:
-        """
-        Fetch data for the partition's offset range.
-        
-        Args:
-            partition: SimpleInputPartition containing start and end offsets
-            
-        Returns:
-            Iterator of Row objects
-        """
-        # Extract offsets from partition
+        """Fetch data for the partition's offset range."""
         start = partition.value["start"]
-        end = partition.value["end"]
+        end = partition.value["end"]  # This is what get_latest_offset() returned
         
-        # Handle None offsets
-        if start is None or "date" not in start:
+        if start is None or "offset" not in start:
             start = self.get_initial_offset()
         
-        if end is None or "date" not in end:
-            end = self.get_latest_offset()
+        # Use the end date from partition (which came from get_latest_offset)
+        date_from = start["offset"]
+        date_to = end["offset"]
+
+        # Compare only the date part (ignore time component)
+        date_from_obj = datetime.strptime(date_from.split()[0], "%Y-%m-%d")
+        date_to_obj = datetime.strptime(date_to.split()[0], "%Y-%m-%d")
         
-        current_date = start["date"]
-        end_date = end["date"]
-        logger.info(f"[EloverblikStream] Reading from {current_date} to {end_date}")
-        
-        # Calculate date range for this batch
-        date_from_obj = datetime.strptime(current_date, "%Y-%m-%d")
-        date_to_obj = datetime.strptime(end_date, "%Y-%m-%d")
-        
-        # Get current date (today) - strip time for comparison
-        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        
-        # Check if we've reached current date
-        if date_from_obj >= today:
-            logger.info("[EloverblikStream] Reached current date, no new data available")
+        if date_from_obj == date_to_obj:
+            logger.info(f"[read_data] date_from equals date_to ({date_from_obj.date()}), returning empty iterator")
             return iter([])
         
-        # Cap date_to to current date if it would go beyond
-        if date_to_obj > today:
-            date_to_obj = today
-            logger.info(f"[EloverblikStream] Capping end date to current date: {date_to_obj.strftime('%Y-%m-%d')}")
+        logger.info(f"[read_data] Processing batch: {date_from} to {date_to}")
         
-        date_from = date_from_obj.strftime("%Y-%m-%d")
-        date_to = date_to_obj.strftime("%Y-%m-%d")
-        
-        # Fetch time series data
+        # Fetch data
         url = self._build_url(dateFrom=date_from, dateTo=date_to)
-        records = self._get_url_data(url)
         
-        logger.info(f"[EloverblikStream] Fetched {len(records)} records for {date_from} to {date_to}")
-        
-        # Convert records to Rows
-        rows = [Row(**r) for r in records]
-        
-        # Cache for replay with automatic size limiting
-        self._offset_cache[current_date] = rows
-        
-        # Keep only recent 5 batches to prevent memory growth
-        if len(self._offset_cache) > 5:
-            oldest_key = min(self._offset_cache.keys())
-            del self._offset_cache[oldest_key]
-            logger.debug(f"[EloverblikStream] Removed old cache entry: {oldest_key}")
-        
-        return iter(rows)
-    
-    def commit(self, end: dict) -> None:
-        """
-        Clean up old cached data.
-        
-        Args:
-            end: The offset that has been committed
-        """
-        if end is None or "date" not in end:
-            return
-        
-        # Keep only recent batches (prevent memory growth)
-        batches_to_keep = 5
-        all_dates = sorted(self._offset_cache.keys())
-        
-        if len(all_dates) > batches_to_keep:
-            dates_to_remove = all_dates[:-batches_to_keep]
-            for date in dates_to_remove:
-                del self._offset_cache[date]
-                logger.debug(f"[EloverblikStream] Cleaned up cache for {date}")
+        try:
+            records = self._get_url_data(url)
+            
+            if not records:
+                logger.error(f"[read_data] No records for {date_from} to {date_to}")
+                return iter([])
+            
+            logger.info(f"[read_data] Fetched {len(records)} records")
+            return iter([Row(**r) for r in records])
+            
+        except Exception as e:
+            logger.error(f"[read_data] Error: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            raise
     
     def get_latest_offset(self) -> dict:
         """
-        Return the latest available offset, advancing incrementally by days_per_batch.
+        Return the latest available offset.
         
-        Implementation of abstract method from BaseSimpleDataSourceStreamReader.
-        Advances by days_per_batch on each call, capped at today's date.
+        This calculates the end of the NEXT batch to process, advancing by days_per_batch.
+        It's called by Spark to determine if new data is available.
         
         Returns:
-            dict: The latest offset as {"date": "YYYY-MM-DD"}
+            dict: End date of next batch as {"date": "YYYY-MM-DD"}
         """
-        # Initialize current offset if needed
-        if self._current_offset is None:
-            start_obj = datetime.strptime(self.start_date, "%Y-%m-%d")
-            self._current_offset = start_obj + timedelta(days=self.days_per_batch)
-        else:
-            # Advance by days_per_batch
-            current_obj = datetime.strptime(self._current_offset.strftime("%Y-%m-%d"), "%Y-%m-%d")
-            self._current_offset = current_obj + timedelta(days=self.days_per_batch)
+        # If _next_offset is already set, return it (idempotent within same micro-batch)
+        latest =  (time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() )))
         
-        # Cap at today
-        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-        if self._current_offset > today:
-            self._current_offset = today
-        
-        return {"date": self._current_offset.strftime("%Y-%m-%d")}
-    
-    def cleanup(self) -> None:
-        """
-        Cleanup resources when the stream stops.
-        
-        Implementation of cleanup hook from BaseSimpleDataSourceStreamReader.
-        Clears caches to free memory.
-        """
-        logger.info("[EloverblikStream] Cleaning up caches")
-        self._offset_cache.clear()
-        self._body_params = None
+        return {"offset": latest}

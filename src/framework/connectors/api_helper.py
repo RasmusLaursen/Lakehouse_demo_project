@@ -429,7 +429,6 @@ class APIClient:
                     if raise_on_error:
                         raise APICallError(error_msg, response.status_code, response.text)
                     return response
-                    return response
                 
                 # Success!
                 logger.info(f"API call successful: {method} {url} -> {response.status_code}")
