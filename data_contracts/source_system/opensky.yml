@@ -1,0 +1,297 @@
+kind: DataContract
+apiVersion: v3.0.0
+id: "urn:datacontract:opensky:aircraft-states"
+status: active
+
+name: "OpenSky Network - Aircraft State Vectors"
+version: "1.0.0"
+description:
+  purpose: "Data contract for real-time aircraft position and state data from OpenSky Network API for Danish airspace"
+  limitations: "Anonymous users get 400 API credits per day with 10-second resolution. Rate limit: 1 credit per request for Denmark bounding box (<25 square degrees). Data is real-time with 10-second refresh for anonymous users."
+  usage: "Track aircraft movements over Denmark, analyze flight patterns, monitor air traffic density, and provide real-time flight tracking capabilities"
+
+servers:
+  - server: dev
+    type: "rest_api"
+    environment: "development"
+    format: "json"
+    customProperties:
+      - property: loadtype
+        value: "rest_api"
+      - property: connector_type
+        value: "rest_api"
+      - property: connector_config
+        value:
+          endpoint: "https://opensky-network.org/api/"
+          method: "GET"
+          auth_type: "none"  # Anonymous access for now
+          pagination_type: "none"
+          add_audit_columns: true
+          timeout: 60
+          
+          # Rate limiting - important for OpenSky API
+          # Anonymous users: 400 credits/day, 10-second resolution
+          # Denmark bounding box uses 1 credit per request
+          rate_limit_delay: 10.0  # 10 seconds between requests (API enforces this for anonymous users)
+
+schema:
+  - name: AircraftStates
+    description: "Real-time aircraft state vectors for all aircraft currently in Danish airspace"
+    type: table
+    customProperties:
+      # SCD Type 1: append-only for time series tracking
+      - property: scd_type
+        value: 1
+      
+      # Primary keys: combination of timestamp and aircraft identifier
+      - property: keys
+        value: ["time", "icao24"]
+      
+      # Sequence column for ordering
+      - property: sequence_column
+        value: "time"
+      
+      # Connector type
+      - property: loadtype
+        value: "eloverblik_api"
+      
+      # Streaming mode for continuous data ingestion
+      - property: mode
+        value: "streaming"
+      
+      # Timestamp field for incremental loading
+      - property: timestamp_field
+        value: "time"
+      
+      # Initial load timestamp
+      - property: initial_timestamp
+        value: "2026-02-16"
+      
+      # Request every 10 seconds (minimum for anonymous users)
+      # Using days_per_batch=1 and API will be called at intervals
+      - property: days_per_batch
+        value: 1
+      
+      # API endpoint with Denmark bounding box
+      # Denmark coordinates: approximately 54.5°N to 57.8°N, 8.0°E to 15.2°E
+      # Using slightly wider box to capture all Danish airspace
+      - property: table_name
+        value: "states/all"
+      
+      # HTTP method
+      - property: method
+        value: "GET"
+      
+      # URL parameters for Denmark bounding box
+      # lamin: 54.5 (southernmost point near German border)
+      # lamax: 58.0 (northernmost point near Skagen)
+      # lomin: 8.0 (westernmost point)
+      # lomax: 15.5 (easternmost point near Bornholm)
+      - property: url_params_template
+        value:
+          lamin: "54.5"
+          lamax: "58.0"
+          lomin: "8.0"
+          lomax: "15.5"
+      
+      # Response structure: { "time": timestamp, "states": [[array of values]] }
+      # OpenSky returns array of arrays, not objects
+      - property: data_path
+        value: "states"
+      
+      # Array-to-object mapping for OpenSky's array format
+      # Maps array indices to field names based on schema properties below
+      - property: array_field_mapping
+        value: ["icao24", "callsign", "origin_country", "time_position", "last_contact", "longitude", "latitude", "baro_altitude", "on_ground", "velocity", "true_track", "vertical_rate", "sensors", "geo_altitude", "squawk", "spi", "position_source"]
+    
+    properties:
+      # Field 0: ICAO24 address
+      - name: icao24
+        description: "Unique ICAO 24-bit transponder address in hex format (e.g., 'abc9f3')"
+        type: string
+        required: true
+        tags:
+          - "primary_key"
+          - "identifier"
+        classification: "public"
+        example: "abc9f3"
+      
+      # Field 1: Callsign
+      - name: callsign
+        description: "Aircraft callsign (8 characters). Can be null if not received"
+        type: string
+        required: false
+        tags:
+          - "identifier"
+        classification: "public"
+        example: "SAS123  "
+      
+      # Field 2: Origin country
+      - name: origin_country
+        description: "Country name inferred from ICAO 24-bit address"
+        type: string
+        required: false
+        tags:
+          - "geographic"
+        classification: "public"
+        example: "Denmark"
+      
+      # Field 3: Time position
+      - name: time_position
+        description: "Unix timestamp for last position update. Null if no position received in past 15s"
+        type: integer
+        required: false
+        tags:
+          - "temporal"
+        classification: "public"
+        example: "1708084800"
+      
+      # Field 4: Last contact
+      - name: last_contact
+        description: "Unix timestamp for last update from transponder"
+        type: integer
+        required: true
+        tags:
+          - "temporal"
+        classification: "public"
+        example: "1708084800"
+      
+      # Field 5: Longitude
+      - name: longitude
+        description: "WGS-84 longitude in decimal degrees"
+        type: double
+        required: false
+        tags:
+          - "geographic"
+          - "coordinate"
+        classification: "public"
+        example: "12.5683"
+      
+      # Field 6: Latitude
+      - name: latitude
+        description: "WGS-84 latitude in decimal degrees"
+        type: double
+        required: false
+        tags:
+          - "geographic"
+          - "coordinate"
+        classification: "public"
+        example: "55.6761"
+      
+      # Field 7: Barometric altitude
+      - name: baro_altitude
+        description: "Barometric altitude in meters. Can be null"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "altitude"
+        classification: "public"
+        example: "10668.0"
+      
+      # Field 8: On ground
+      - name: on_ground
+        description: "Boolean indicating if position from surface position report"
+        type: boolean
+        required: false
+        tags:
+          - "status"
+        classification: "public"
+        example: "false"
+      
+      # Field 9: Velocity
+      - name: velocity
+        description: "Velocity over ground in m/s. Can be null"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "speed"
+        classification: "public"
+        example: "250.5"
+      
+      # Field 10: True track
+      - name: true_track
+        description: "True track in decimal degrees clockwise from north (0°=north)"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "direction"
+        classification: "public"
+        example: "45.5"
+      
+      # Field 11: Vertical rate
+      - name: vertical_rate
+        description: "Vertical rate in m/s. Positive=climbing, negative=descending"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "rate"
+        classification: "public"
+        example: "5.2"
+      
+      # Field 12: Sensors
+      - name: sensors
+        description: "Array of receiver IDs contributing to this state vector. Null if no filtering"
+        type: array
+        required: false
+        tags:
+          - "metadata"
+        classification: "internal"
+        example: "[1, 2, 3]"
+      
+      # Field 13: Geometric altitude
+      - name: geo_altitude
+        description: "Geometric altitude in meters. Can be null"
+        type: double
+        required: false
+        tags:
+          - "measure"
+          - "altitude"
+        classification: "public"
+        example: "10700.0"
+      
+      # Field 14: Squawk
+      - name: squawk
+        description: "Transponder code (Squawk). Can be null"
+        type: string
+        required: false
+        tags:
+          - "identifier"
+          - "transponder"
+        classification: "public"
+        example: "7000"
+      
+      # Field 15: SPI flag
+      - name: spi
+        description: "Special purpose indicator flag"
+        type: boolean
+        required: false
+        tags:
+          - "status"
+        classification: "public"
+        example: "false"
+      
+      # Field 16: Position source
+      - name: position_source
+        description: "Origin of position: 0=ADS-B, 1=ASTERIX, 2=MLAT, 3=FLARM"
+        type: integer
+        required: false
+        tags:
+          - "metadata"
+          - "quality"
+        classification: "internal"
+        example: "0"
+      
+      # Response time field (from response root)
+      - name: time
+        description: "Unix timestamp when state vectors were generated"
+        type: integer
+        required: true
+        tags:
+          - "temporal"
+          - "primary_key"
+        classification: "public"
+        example: "1708084800"

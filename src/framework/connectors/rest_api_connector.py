@@ -287,11 +287,20 @@ class RESTAPIBatchReader(BaseDataSourceReader):
         # Get column names from schema so only contract-defined fields survive
         schema_fields = [f.name for f in self.schema_struct.fields] if self.schema_struct else None
         
+        # Get array_field_mapping if provided (for APIs like OpenSky that return arrays)
+        array_field_mapping = self.config.get("array_field_mapping")
+        if isinstance(array_field_mapping, str):
+            try:
+                array_field_mapping = json.loads(array_field_mapping)
+            except (json.JSONDecodeError, TypeError):
+                array_field_mapping = None
+        
         return JSONResponseExtractor(
             data_path=data_path,
             field_mapping=field_mapping,
             store_raw="_raw_json" in (schema_fields or []),
             schema_fields=schema_fields,
+            array_to_object_mapping=array_field_mapping,
         )
 
     def read_partition(self, partition: InputPartition) -> Iterator[Row]:
@@ -501,11 +510,20 @@ class RESTAPIStreamReaderSimple(BaseSimpleDataSourceStreamReader):
         # Get column names from schema so only contract-defined fields survive
         schema_fields = [f.name for f in self.schema_struct.fields] if self.schema_struct else None
         
+        # Get array_field_mapping if provided (for APIs like OpenSky that return arrays)
+        array_field_mapping = self.config.get("array_field_mapping")
+        if isinstance(array_field_mapping, str):
+            try:
+                array_field_mapping = json.loads(array_field_mapping)
+            except (json.JSONDecodeError, TypeError):
+                array_field_mapping = None
+        
         return JSONResponseExtractor(
             data_path=data_path,
             field_mapping=field_mapping,
             store_raw="_raw_json" in (schema_fields or []),
             schema_fields=schema_fields,
+            array_to_object_mapping=array_field_mapping,
         )
 
     def _build_url(self, **overrides) -> str:

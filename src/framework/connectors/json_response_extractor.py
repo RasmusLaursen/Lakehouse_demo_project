@@ -58,6 +58,11 @@ class JSONResponseExtractor:
         provided, every extracted record is filtered to contain
         **only** these keys (applied after field mapping).  Keys
         not present in *schema_fields* are silently dropped.
+    array_to_object_mapping : list of str, optional
+        For APIs that return arrays instead of objects (e.g. OpenSky),
+        this list maps array indices to field names. Each position in
+        the list corresponds to that array index.
+        Example: ["icao24", "callsign", "origin_country", ...]
     """
 
     def __init__(
@@ -67,6 +72,7 @@ class JSONResponseExtractor:
         store_raw: bool = True,
         parent_context_fields: Optional[List[str]] = None,
         schema_fields: Optional[List[str]] = None,
+        array_to_object_mapping: Optional[List[str]] = None,
     ) -> None:
         segments = data_path.split(".")
         self.root_key = segments[0]              # e.g. "result"
@@ -75,12 +81,14 @@ class JSONResponseExtractor:
         self.store_raw = store_raw
         self.parent_context_fields = parent_context_fields
         self.schema_fields: Optional[set] = set(schema_fields) if schema_fields else None
+        self.array_to_object_mapping = array_to_object_mapping
 
         logger.debug(
             f"JSONResponseExtractor: root_key={self.root_key}, "
             f"explode_segments={self.explode_segments}, "
             f"field_mapping={self.field_mapping}, "
-            f"schema_fields={self.schema_fields}"
+            f"schema_fields={self.schema_fields}, "
+            f"array_to_object_mapping={'enabled' if array_to_object_mapping else 'disabled'}"
         )
 
     # ------------------------------------------------------------------
@@ -97,6 +105,14 @@ class JSONResponseExtractor:
 
         Returns a flat list of dicts ready to be converted to ``Row``.
         """
+        # Extract root-level scalar fields before navigating to root_key
+        # This is important for APIs like OpenSky where 'time' is at root level
+        root_context = {}
+        if isinstance(response_data, dict):
+            for key, value in response_data.items():
+                if key != self.root_key and not isinstance(value, (dict, list)):
+                    root_context[key] = value
+        
         root_items = self._navigate_to_root(response_data)
 
         if not root_items:
@@ -115,8 +131,10 @@ class JSONResponseExtractor:
                 # Phase 1 only: first-layer extraction
                 leaf_records = [self._extract_first_layer(item)]
 
-            # Attach _raw_json, apply field mapping, and filter to schema
+            # Attach _raw_json, root context, apply field mapping, and filter to schema
             for rec in leaf_records:
+                # Add root-level context fields
+                rec.update(root_context)
                 if raw_json is not None:
                     rec["_raw_json"] = raw_json
                 rec = self._apply_field_mapping(rec)
@@ -124,10 +142,11 @@ class JSONResponseExtractor:
                 all_records.append(rec)
 
         logger.info(
-            "Extracted %d records (root items=%d, explode_segments=%s)",
+            "Extracted %d records (root items=%d, explode_segments=%s, root_context=%s)",
             len(all_records),
             len(root_items),
             self.explode_segments or "none",
+            list(root_context.keys()),
         )
         return all_records
 
@@ -149,21 +168,47 @@ class JSONResponseExtractor:
         # Unexpected type – wrap it
         return [root] if root else []
 
-    def _extract_first_layer(self, item: dict) -> Dict[str, Any]:
+    def _extract_first_layer(self, item: dict | list) -> Dict[str, Any]:
         """Auto-extract scalars; serialize nested values as JSON strings.
 
         Nested dicts and lists are stored as JSON strings so that the
         record can always be turned into a ``Row`` without requiring
         a complex schema.
+        
+        If item is a list and array_to_object_mapping is provided,
+        converts the array to an object using the mapping.
         """
-        record: Dict[str, Any] = {}
-        for key, value in item.items():
-            if isinstance(value, (dict, list)):
-                # Serialize complex types as JSON strings
-                record[key] = json.dumps(value, default=str)
-            else:
-                record[key] = value
-        return record
+        # Handle array-to-object conversion for APIs like OpenSky
+        if isinstance(item, list) and self.array_to_object_mapping:
+            record: Dict[str, Any] = {}
+            for idx, field_name in enumerate(self.array_to_object_mapping):
+                if idx < len(item):
+                    value = item[idx]
+                    # Keep None values as is, serialize nested structures
+                    if value is None:
+                        record[field_name] = None
+                    elif isinstance(value, (dict, list)):
+                        record[field_name] = json.dumps(value, default=str)
+                    else:
+                        record[field_name] = value
+                else:
+                    record[field_name] = None
+            return record
+        
+        # Original dict handling
+        if isinstance(item, dict):
+            record: Dict[str, Any] = {}
+            for key, value in item.items():
+                if isinstance(value, (dict, list)):
+                    # Serialize complex types as JSON strings
+                    record[key] = json.dumps(value, default=str)
+                else:
+                    record[key] = value
+            return record
+        
+        # Unexpected type
+        logger.warning(f"_extract_first_layer received unexpected type: {type(item)}")
+        return {}
 
     def _explode_path(
         self,

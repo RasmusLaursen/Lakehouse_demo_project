@@ -1,0 +1,15 @@
+variables:
+  source_system_opensky:
+    default: opensky
+
+resources:
+  schemas:
+    opensky_raw_schema:
+      name: ${var.source_system_opensky}
+      catalog_name: ${var.raw_catalog}
+      comment: Raw schema for OpenSky Network aircraft tracking data for Danish airspace
+    
+    opensky_base_schema:
+      name: ${var.source_system_opensky}
+      catalog_name: ${var.base_catalog}
+      comment: Base schema for OpenSky Network data with CDC

@@ -1,0 +1,43 @@
+variables:
+  environment:
+    default: dev
+
+resources:
+  pipelines:
+    opensky_pipeline:
+      name: opensky_pipeline_${var.environment}
+      catalog: ${resources.schemas.opensky_raw_schema.catalog_name}
+      schema: ${resources.schemas.opensky_raw_schema.name}
+      
+      libraries:
+        - glob:
+            include: ../../src/solution/raw/raw_ingest_opensky.py
+        - glob:
+            include: ../../src/solution/base/base_ingest_opensky.py
+
+      environment:
+        dependencies:
+          - ../../dist/*.whl
+
+      configuration:
+        bundle.sourcePath: ${workspace.file_path}/src
+        environment: ${var.environment}
+
+        catalogs: | 
+          {
+            "raw_catalog": "${resources.schemas.opensky_raw_schema.catalog_name}",
+            "base_catalog": "${resources.schemas.opensky_base_schema.catalog_name}"
+          }
+        
+        schemas: | 
+          {
+            "opensky_raw_schema": "${resources.schemas.opensky_raw_schema.name}",
+            "opensky_base_schema": "${resources.schemas.opensky_base_schema.name}"
+          }
+
+      serverless: true
+      channel: CURRENT
+      photon: false
+      continuous: false
+      
+      development: true
