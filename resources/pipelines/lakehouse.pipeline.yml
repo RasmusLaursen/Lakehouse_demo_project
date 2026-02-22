@@ -31,10 +31,10 @@ resources:
             include: ../../src/solution/curated/dimensions/dim_seller.py
         - glob:
             include: ../../src/solution/curated/dimensions/dim_lakehouse.py 
-        - glob:
-            include: ../../src/solution/curated/facts/fact_lakehouse_rentals.py
-        - glob:
-            include: ../../src/solution/curated/facts/fact_lakehouse_reviews.py
+        # - glob:
+        #     include: ../../src/solution/curated/facts/fact_lakehouse_rentals.py
+        # - glob:
+        #     include: ../../src/solution/curated/facts/fact_lakehouse_reviews.py
 
 
       environment:

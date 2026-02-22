@@ -23,3 +23,9 @@ resources:
         source_system: "eloverblik"
         data_classification: "confidential"
         owner: "data_engineering"
+
+  volumes:
+    eloverblik_log_volume:
+      catalog_name: ${resources.schemas.eloverblik_raw_schema.catalog_name}
+      name: eloverblik_log
+      schema_name: ${resources.schemas.eloverblik_raw_schema.name}

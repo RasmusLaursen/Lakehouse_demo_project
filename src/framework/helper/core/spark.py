@@ -62,7 +62,7 @@ def get_pipeline_configurations(spark, configuration_name: str) -> Any:
         parsed = json.loads(configuration)
         return parsed
     except (TypeError, json.JSONDecodeError):
-        return {configuration_name: configuration}
+        raise ValueError(f"Failed to parse configuration '{configuration_name}' as JSON. Returning raw string. {configuration}")
 
 
 def get_pipeline_configurations_from_spark(

@@ -1,14 +1,16 @@
-"""Curated dimension table for seller.
+"""Curated dimension table for Eloverblik metering points.
 
-This module uses the factory pattern for generic dimension logic,
-while keeping custom transformation logic (joins) in this file.
+This dimension processes metering point (electricity meter) data from Eloverblik,
+excluding metadata columns and standardizing column names to snake_case.
 """
 from pyspark.sql import DataFrame
-from src.framework.factory.dimension_factory import CuratedDimensionFactory
-from src.framework.helper import get_spark, get_pipeline_configurations
+from pyspark.sql.functions import col
+from src.framework.factory.dimension_factory import create_dimension
+from src.framework.helper import get_spark
 from src.framework.config import CentralizedPipelineConfig, CatalogSchemaManager
+import re
 
-def custom_seller_transform(df: DataFrame) -> DataFrame:
+def custom_seller_transform() -> DataFrame:
     """Apply seller-specific transformations.
     
     Joins with meta_region table to enrich with region name.
@@ -22,6 +24,9 @@ def custom_seller_transform(df: DataFrame) -> DataFrame:
     spark = get_spark()
     centralized_config = CentralizedPipelineConfig.from_spark(spark)
     catalog_manager = CatalogSchemaManager.from_pipeline_config(centralized_config)
+
+    df = spark.read.table(catalog_manager.base_catalog + "." + catalog_manager.base_schema + ".seller")
+
     
     # Read lookup table
     meta_region_df = spark.read.table(
@@ -38,17 +43,15 @@ def custom_seller_transform(df: DataFrame) -> DataFrame:
         meta_region_df["region_name"].alias("region_name")
     )
     
+    df = df.withColumnRenamed("seller_id", "seller_key")  # Rename business key to *_key convention
+
     return df
 
-
-# Create the dimension table using factory with custom transform
-spark = get_spark()
-factory = CuratedDimensionFactory(spark)
-
-factory.create_dimension(
+# Create dimension using new factory pattern
+create_dimension(
     dimension_name='dim_seller',
-    source_table='seller',
-    business_key_column='seller_id',
-    filter_active=False,  # No SCD for this dimension
-    additional_transforms=custom_seller_transform
+    keys=['seller_key'],  # Business key from data contract
+    sequence_column='created_at',  # Use CDC sequence column
+    transform_fn=custom_seller_transform,
+    scd_type=1  # Track history of changes
 )

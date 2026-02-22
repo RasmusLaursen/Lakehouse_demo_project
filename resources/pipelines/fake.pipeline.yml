@@ -1,0 +1,54 @@
+variables:
+  environment:
+    default: dev
+
+resources:
+  pipelines:
+    fake_pipeline:
+      name: fake_pipeline_${var.environment}
+      catalog: ${resources.schemas.eloverblik_raw_schema.catalog_name}
+      schema: ${resources.schemas.eloverblik_raw_schema.name}
+      
+      libraries:
+        - glob:
+            include: ../../src/solution/raw/raw_ingest_fake.py      
+        # - glob:
+        #     include: ../../src/framework/connectors/fake_connector.py
+        # - glob:
+        #     include: ../../src/solution/base/base_ingest_eloverblik.py
+
+      environment:
+        dependencies:
+          - ../../dist/*.whl
+
+      configuration:
+        bundle.sourcePath: ${workspace.file_path}/src
+        environment: ${var.environment}
+        spark.eloverblik-api-token: "{{secrets/scope-demo-dev/eloverblik-api-token}}"
+        spark.databricks-token: "{{secrets/scope-demo-dev/databricks-token}}"
+
+        catalogs: | 
+          {
+            "raw_catalog": "${resources.schemas.eloverblik_raw_schema.catalog_name}",
+            "base_catalog": "${resources.schemas.eloverblik_base_schema.catalog_name}",
+            "enriched_catalog": "${resources.schemas.enriched_schema.catalog_name}",
+            "curated_catalog": "${resources.schemas.dimensions_schema.catalog_name}"
+          }
+        
+        schemas: | 
+          {
+            "eloverblik_raw_schema": "${resources.schemas.eloverblik_raw_schema.name}",
+            "eloverblik_base_schema": "${resources.schemas.eloverblik_base_schema.name}"
+
+            "enriched_schema": "${resources.schemas.enriched_schema.name}",
+
+            "dimensions_schema": "${resources.schemas.dimensions_schema.name}",
+            "facts_schema": "${resources.schemas.facts_schema.name}"
+          }
+
+      serverless: true
+      channel: CURRENT
+      photon: false
+      continuous: false
+      
+      development: false

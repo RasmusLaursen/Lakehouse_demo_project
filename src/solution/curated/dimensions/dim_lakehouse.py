@@ -4,11 +4,11 @@ This module uses the factory pattern for generic dimension logic,
 while keeping custom transformation logic (joins) in this file.
 """
 from pyspark.sql import DataFrame
-from src.framework.factory.dimension_factory import CuratedDimensionFactory
-from src.framework.helper import get_spark, get_pipeline_configurations
+from src.framework.factory.dimension_factory import create_dimension
+from src.framework.helper import get_spark
 from src.framework.config import CentralizedPipelineConfig, CatalogSchemaManager
 
-def custom_lakehouse_transform(df: DataFrame) -> DataFrame:
+def custom_lakehouse_transform() -> DataFrame:
     """Apply lakehouse-specific transformations.
     
     Joins with meta_lakehouses table to enrich with lakehouse name.
@@ -22,6 +22,9 @@ def custom_lakehouse_transform(df: DataFrame) -> DataFrame:
     spark = get_spark()
     centralized_config = CentralizedPipelineConfig.from_spark(spark)
     catalog_manager = CatalogSchemaManager.from_pipeline_config(centralized_config)
+
+    df = spark.read.table(catalog_manager.base_catalog + "." + catalog_manager.base_schema + ".lakehouse")
+
     
     # Read lookup table
     meta_lakehouse_df = spark.read.table(
@@ -37,18 +40,16 @@ def custom_lakehouse_transform(df: DataFrame) -> DataFrame:
         df["*"],
         meta_lakehouse_df["lakehouse_name"].alias("name")
     )
+
+    df = df.withColumnRenamed("lakehouse_id", "lakehouse_key")  # Rename business key to *_key convention
     
     return df
 
-
-# Create the dimension table using factory with custom transform
-spark = get_spark()
-factory = CuratedDimensionFactory(spark)
-
-factory.create_dimension(
+# Create dimension using new factory pattern
+create_dimension(
     dimension_name='dim_lakehouse',
-    source_table='lakehouse',
-    business_key_column='lakehouse_id',
-    filter_active=False,  # No SCD for this dimension
-    additional_transforms=custom_lakehouse_transform
+    keys=['lakehouse_key'],  # Business key from data contract
+    sequence_column='created_at',  # Use CDC sequence column
+    transform_fn=custom_lakehouse_transform,
+    scd_type=1  # Track history of changes
 )

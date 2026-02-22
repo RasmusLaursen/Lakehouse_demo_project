@@ -23,6 +23,7 @@ servers:
       - property: secret_keys
         value:
           - "auth_token"
+          - "databricks_token"
       - property: connector_config
         value:
           endpoint: "https://api.eloverblik.dk/customerapi/api/"
@@ -31,6 +32,7 @@ servers:
           # OAuth2 refresh token authentication
           auth_type: "oauth2_refresh"
           auth_token: "{{spark.eloverblik-api-token}}"
+          databricks_token: "{{spark.databricks-token}}"          
           token_endpoint: "https://api.eloverblik.dk/customerapi/api/token"
           token_method: "GET"
           token_response_path: "result"
@@ -104,6 +106,12 @@ schema:
         value: "consumerStartDate"
       - property: initial_timestamp
         value: "2025-01-01"
+      - property: timestamp_format_code
+        value: days
+      - property: max_pr_partition_code
+        value: "months"
+      - property: max_pr_partition
+        value: 1    
       - property: table_name
         value: "meteringpoints/meteringpoints"
       - property: provides_dependencies
@@ -325,7 +333,13 @@ schema:
       - property: timestamp_field
         value: "position"
       - property: initial_timestamp
-        value: "2025-08-01"
+        value: "2025-06-01"
+      - property: timestamp_format_code
+        value: days
+      - property: max_pr_partition_code
+        value: "months"
+      - property: max_pr_partition
+        value: 36
       - property: table_name
         value: "meterdata/gettimeseries/{dateFrom}/{dateTo}/{aggregation}"
       - property: dependency_table
@@ -344,7 +358,7 @@ schema:
                "body_params"
       - property: static_body_params
         value:
-          # Static parameters in body (empty, all params go to URL path)
+          Static parameters in body (empty, all params go to URL path)
       - property: url_params_template
         value:
           dateFrom: "2025-01-01"
@@ -433,7 +447,7 @@ schema:
     type: table
     customProperties:
       - property: scd_type
-        value: 2  # Track changes to charges over time
+        value: 1  # Track changes to charges over time
       - property: keys
         value: ["meteringPointId"]
       - property: sequence_column
@@ -446,6 +460,12 @@ schema:
         value: "validFrom"
       - property: initial_timestamp
         value: "2025-12-01"
+      - property: timestamp_format_code
+        value: days
+      - property: max_pr_partition_code
+        value: "months"
+      - property: max_pr_partition
+        value: 1            
       - property: table_name
         value: "meteringpoints/meteringpoint/getcharges"
       - property: dependency_table
@@ -511,7 +531,7 @@ schema:
     type: table
     customProperties:
       - property: scd_type
-        value: 2  # Track changes to metering point details
+        value: 1  # Track changes to metering point details
       - property: keys
         value: ["meteringPointId"]
       - property: sequence_column
@@ -524,6 +544,12 @@ schema:
         value: "consumerStartDate"
       - property: initial_timestamp
         value: "2025-01-01"
+      - property: timestamp_format_code
+        value: days
+      - property: max_pr_partition_code
+        value: "months"
+      - property: max_pr_partition
+        value: 1            
       - property: table_name
         value: "meteringpoints/meteringpoint/getdetails"
       - property: dependency_table

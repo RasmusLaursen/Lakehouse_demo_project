@@ -19,6 +19,7 @@ BUILDER_MAPPING = {
     "eloverblik_api": RestApiConfigBuilder,
     "energidataservice_api": RestApiConfigBuilder,
     "jdbc": JdbcConfigBuilder,
+    "fake": RestApiConfigBuilder
 }
 
 

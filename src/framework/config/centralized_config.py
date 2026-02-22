@@ -60,7 +60,7 @@ class CentralizedPipelineConfig:
         schemas = databricks_helper.get_pipeline_configurations(spark, "schemas")
         
         logger.debug(f"Catalogs configuration: {catalogs}")
-        logger.debug(f"Schemas configuration: {schemas}")
+        logger.info(f"Schemas configuration: {schemas}")
         
         # Get source-system-specific base schema name
         base_schema_key = f"{source_system_name}_base_schema"
@@ -72,6 +72,8 @@ class CentralizedPipelineConfig:
                 f"Available schemas: {list(schemas.keys())}"
             )
             base_schema = f"{source_system_name}_base"  # Fallback
+
+        logger.info(f"Using dimensions schema: {schemas.get('dimensions_schema', 'dimensions')}")
         
         return cls(
             source_system_name=source_system_name,
