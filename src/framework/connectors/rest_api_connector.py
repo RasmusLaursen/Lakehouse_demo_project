@@ -20,9 +20,22 @@ from pyspark.sql.datasource import DataSource, DataSourceStreamReader, DataSourc
 
 from src.framework.connectors.api_helper import APIClient, BearerTokenAuth, NoAuth
 from src.framework.connectors.json_response_extractor import JSONResponseExtractor
+from src.framework.connectors.oauth2_token_manager import OAuth2TokenManager
 from src.framework.helper import logging_helper
 
 logger = logging_helper.get_logger(__name__)
+
+
+def _get_access_token(config: Dict[str, Any]) -> str:
+    """Return a pre-exchanged access token from config, or exchange (cached per process)."""
+    if config.get("access_token"):
+        return config["access_token"]
+    return OAuth2TokenManager.exchange_token(
+        refresh_token=config["auth_token"],
+        token_endpoint=config["token_endpoint"],
+        token_method=config.get("token_method", "GET"),
+        token_response_path=config.get("token_response_path", "result"),
+    )
 
 class RESTAPIDataSource(DataSource):
     """
@@ -159,6 +172,10 @@ class RESTAPIDataSource(DataSource):
                 else:
                     datasource_config[str(k)] = str(v)
 
+        # Exchange once on the driver so readers in Python workers don't each hit the token endpoint
+        if self.config.get("auth_type") == "oauth2_refresh":
+            datasource_config["access_token"] = _get_access_token(self.config)
+
         # Use Spark's read API
         logger.info(f"running with self.config {self.config}")
         df = spark.read.format(self.name()).options(**datasource_config).load()
@@ -216,6 +233,10 @@ class RESTAPIDataSource(DataSource):
                 else:
                     datasource_config[str(k)] = str(v)
 
+        # Exchange once on the driver so readers in Python workers don't each hit the token endpoint
+        if self.config.get("auth_type") == "oauth2_refresh":
+            datasource_config["access_token"] = _get_access_token(self.config)
+
         logger.info(f"Using datasource_config for streaming: {self.config.get('endpoint')}, {self.config.get('table_name')}, {self.config.get('url_params_template')} ")
         logger.info(f"DataSource config keys for streaming: {list(datasource_config.keys())}")
         
@@ -245,34 +266,9 @@ class RESTAPIBatchReader(DataSourceReader):
         self.endpoint = self.config["endpoint"]
         self.target_endpoint = self.config["target_endpoint"]
         
-        # Exchange refresh token for access token
-        if self.config.get("auth_type") == "oauth2_refresh":
-            self.token_endpoint = self.config["token_endpoint"]            
-            refresh_token = self.config["auth_token"]            
-            auth = BearerTokenAuth(refresh_token)
-
-            token_client = APIClient(
-                authenticator=auth,
-                max_retries=3,
-                retry_delay=1
-            )            
-        elif self.config.get("auth_type") == "none":
-            auth = NoAuth()
-        else:
-            raise ValueError(f"Unsupported auth_type: {self.config.get('auth_type')}")
-        
         try:
-           
-            logger.info("Successfully obtained Eloverblik access token")
-            
-            # Exchange refresh token for access token
             if self.config.get("auth_type") == "oauth2_refresh":
-                token_response = token_client.get(self.token_endpoint)
-                access_token = token_response.json().get("result")
-                
-                if not access_token:
-                    raise ValueError("Failed to obtain access token from Eloverblik API")                
-                auth = BearerTokenAuth(access_token)
+                auth = BearerTokenAuth(_get_access_token(self.config))
             elif self.config.get("auth_type") == "none":
                 auth = NoAuth()
             else:
@@ -443,7 +439,10 @@ class RESTAPIStreamReaderSimple(DataSourceStreamReader):
 
         self.timestamp_format = self._format_timestamp()       
 
-        logger.info(f"Initialized EloverblikStreamReader: initial_timestamp={self.initial_timestamp}")
+        self.lookback = int(self.config.get("lookback") or 0)
+        self.lookback_code = str(self.config.get("lookback_code") or "days").lower()
+
+        logger.info(f"Initialized EloverblikStreamReader: initial_timestamp={self.initial_timestamp}, lookback={self.lookback} {self.lookback_code}")
 
     # def _save_logs_to_volume2(self, offset) -> None:
     #     """Save executor logs to Databricks volume using Files API."""      
@@ -464,13 +463,8 @@ class RESTAPIStreamReaderSimple(DataSourceStreamReader):
     #     }
 
     #     f = io.BytesIO(json.dumps(log_payload).encode('utf-8'))
-        
-    #     # Create workspace client lazily to avoid module-import serialization issues
-    #     workspace_client = sdk.WorkspaceClient(
-    #         host = 'https://dbc-e3d11267-f1e6.cloud.databricks.com/',
-    #         token = '<redacted-databricks-token>'
-    #     )    
-    #     workspace_client.files.upload(file_path=file_path, contents=f, overwrite=True)           
+
+    #     WorkspaceClient().files.upload(file_path=file_path, contents=f, overwrite=True)
     
     def _setup_api_client(self) -> None:
         """Initialize API client with OAuth2 authentication."""
@@ -479,24 +473,7 @@ class RESTAPIStreamReaderSimple(DataSourceStreamReader):
         # Exchange refresh token for access token
         try:
             if self.config.get("auth_type") == "oauth2_refresh":
-                self.token_endpoint = self.config["token_endpoint"]
-                refresh_token = self.config["auth_token"]
-                auth = BearerTokenAuth(refresh_token)
-                token_client = APIClient(
-                    authenticator=auth,
-                    max_retries=3,
-                    retry_delay=1
-                )                
-                token_response = token_client.get(self.token_endpoint)
-                access_token = token_response.json().get("result")
-                
-                if not access_token:
-                    raise ValueError("Failed to obtain access token from Eloverblik API")
-                
-                logger.info("Successfully obtained Eloverblik access token for streaming")
-                
-                # Store access token for API calls
-                self.access_token = access_token
+                self.access_token = _get_access_token(self.config)
             elif self.config.get("auth_type") == "none":
                 auth = NoAuth()
             else:
@@ -672,8 +649,8 @@ class RESTAPIStreamReaderSimple(DataSourceStreamReader):
                 
         api_client = APIClient(
             authenticator=auth,
-            max_retries=1,
-            retry_delay=1
+            max_retries=4,
+            retry_delay=5
         )        
         
         try:
@@ -720,6 +697,14 @@ class RESTAPIStreamReaderSimple(DataSourceStreamReader):
 
         start = self._parse_dt_utc(start["offset"])
         end = self._parse_dt_utc(end["offset"])
+
+        if self.lookback > 0:
+            lookback_start = end - timedelta(seconds=self.lookback * self._seconds_for_code(self.lookback_code))
+            if lookback_start < start:
+                logger.info(f"Applying lookback of {self.lookback} {self.lookback_code}: start moved from {start} to {lookback_start}")
+                start = lookback_start
+            else:
+                logger.info(f"Lookback of {self.lookback} {self.lookback_code} not applied: committed start {start} is already earlier than {lookback_start}")
 
         logger.info(f"start: {start}")
         logger.info(f"end: {end}")
@@ -788,20 +773,24 @@ class RESTAPIStreamReaderSimple(DataSourceStreamReader):
         return timestamp_format
     
     def _extrapolate_seconds_per_partition(self) -> int:
-        if self.max_pr_partition_code == "years":
+        return self._seconds_for_code(self.max_pr_partition_code)
+
+    @staticmethod
+    def _seconds_for_code(code: str) -> int:
+        if code == "years":
             return 365 * 24 * 60 * 60
-        elif self.max_pr_partition_code == "months":
+        elif code == "months":
             return 30 * 24 * 60 * 60
-        elif self.max_pr_partition_code == "days":
+        elif code == "days":
             return 24 * 60 * 60
-        elif self.max_pr_partition_code == "hours":
+        elif code == "hours":
             return 60 * 60
-        elif self.max_pr_partition_code == "minutes":
+        elif code == "minutes":
             return 60
-        elif self.max_pr_partition_code == "seconds":
+        elif code == "seconds":
             return 1
         else:
-            raise ValueError(f"Unsupported max_pr_partition_code: {self.max_pr_partition_code}")    
+            raise ValueError(f"Unsupported time unit code: {code}")    
     
     def initialOffset(self) -> dict:
         """Return the initial offset (starting date)."""

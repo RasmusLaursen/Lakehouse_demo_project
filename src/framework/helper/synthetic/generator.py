@@ -6,8 +6,10 @@ from datetime import datetime, date, timedelta
 from typing import Dict, Any, List, Optional
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 from src.framework.helper.core import get_logger
 from src.framework.helper.contracts import load_data_contract
+from src.framework.helper.contracts.loader import load_yaml_file
 
 logger = get_logger(__name__)
 
@@ -26,6 +28,12 @@ class DynamicFakeDataGenerator:
         self.faker = Faker(locale)
         self.data_contract = load_data_contract(Path(data_contract_file))
         self.schemas = self._get_all_schemas(self.data_contract)
+        # ODCS models drop non-standard keys (type, enum, minimum, ...), so keep the raw property specs
+        self.raw_properties = {
+            (schema.get("name"), prop.get("name")): SimpleNamespace(**prop)
+            for schema in load_yaml_file(Path(data_contract_file)).get("schema", [])
+            for prop in schema.get("properties") or []
+        }
         logger.info(f"Loaded data contract with {len(self.schemas)} schemas")
         self.generated_ids = {}  # Track generated IDs for foreign keys
     
@@ -299,6 +307,7 @@ class DynamicFakeDataGenerator:
                 if not field_name or field_name in record:  # Skip if no name or already provided
                     continue
                     
+                field_spec = self.raw_properties.get((model_name, field_name), field_spec)
                 record[field_name] = self.generate_value_for_field(field_name, field_spec)
         
         # Post-process for business logic

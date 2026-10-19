@@ -135,29 +135,8 @@ class SecretResolver:
             ValueError: If secret cannot be accessed
         """
         try:
-            # Try direct dbutils access (works in Databricks notebooks)
-            try:
-                dbutils = globals().get('dbutils')
-                if dbutils:
-                    return dbutils.secrets.get(scope, key)
-            except:
-                pass
-            
-            # Try via PySpark context
-            from pyspark.sql import SparkSession
-            spark = SparkSession.getActiveSession()
-            if not spark:
-                spark = SparkSession.builder.getOrCreate()
-            
-            if spark:
-                try:
-                    # Access via Spark context
-                    sc = spark.sparkContext
-                    return sc.parallelize([1]).map(lambda x: __import__('dbutils').secrets.get(scope, key)).collect()[0]
-                except:
-                    pass
-            
-            raise ValueError(f"Could not access dbutils for secret resolution")
+            from databricks.sdk import WorkspaceClient
+            return WorkspaceClient().dbutils.secrets.get(scope, key)
         except Exception as e:
             logger.error(f"Failed to resolve secret {scope}/{key}: {e}")
             raise ValueError(f"Failed to resolve secret {scope}/{key}: {e}")

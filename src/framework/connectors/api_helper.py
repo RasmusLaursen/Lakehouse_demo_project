@@ -416,6 +416,10 @@ class APIClient:
                     
                     if attempt < max_retries:
                         delay = retry_delay * (backoff_factor ** attempt)
+                        try:
+                            delay = max(delay, float(response.headers.get("Retry-After", 0)))
+                        except ValueError:
+                            pass
                         logger.warning(
                             f"Received status {response.status_code}, retrying in {delay:.2f}s "
                             f"(attempt {attempt + 1}/{max_retries})"

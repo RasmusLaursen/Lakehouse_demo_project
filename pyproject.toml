@@ -7,7 +7,7 @@ build-backend = "hatchling.build"
 ###################################
 [project]
 name = "lakehouse_demo_project"
-version = "0.1.0"
+version = "0.1.4"
 description = "A Databricks Asset Bundle using Hatch"
 authors = [{ name = "Rasmus Holm Laursen", email = "rasmus.h.laursen@twoday.com" }]
 dependencies = [
@@ -17,14 +17,16 @@ dependencies = [
     "databricks.labs.dqx == 0.11.1",
     "pydantic",
     "pyyaml",
-    "datacontract-cli",
+    "datacontract-cli==0.10.35",
+    # ODCS 3.2 changed `enum` to EnumValue objects, which breaks our contracts
+    "open-data-contract-standard>=3.0.4,<3.2",
     "python-dotenv"
 ]
 
 [project.scripts]
 source = "src.main:main"
 synthetic_data_contracts = "src.synthetic_data_contracts:main"
-metric_view = "src.curated.metrics.lakehouse_metric:create_lakehouse_metric_view"
+metric_view = "src.solution.curated.metrics.lakehouse_metric:create_lakehouse_metric_view"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/"]

@@ -28,7 +28,8 @@ class BaseConfigBuilder(ABC):
         "provides_dependencies", "url_params_template", "body_params_template",
         "method", "dependency_mapping","dependency_table", "static_url_params", "static_body_params",
         "data_path", "field_mapping", "include_parent_context", "array_field_mapping",
-        "max_pr_partition", "max_pr_partition_code","timestamp_format_code"
+        "max_pr_partition", "max_pr_partition_code","timestamp_format_code",
+        "lookback", "lookback_code"
     }
     
     def __init__(self, 

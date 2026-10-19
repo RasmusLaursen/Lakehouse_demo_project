@@ -36,19 +36,18 @@ def parse_arguments(variable_name: str, default: Any = None) -> Any:
     return default
 
 
-def list_yml_files(catalog: str) -> Generator[Path, None, None]:
+def list_yml_files(base_path: str, catalog: str) -> Generator[Path, None, None]:
     """
     List all YAML files in a catalog directory.
     
     Args:
+        base_path: Root folder of the data contracts (e.g. ${workspace.file_path}/data_contracts)
         catalog: The catalog name
         
     Yields:
         Path objects for each .yml file found
     """
-    yml_dir = f"/Workspace/Users/rasmuslaursen@live.dk/.bundle/lakehouse_demo_project/developer/files/data_contracts/{catalog}/"
-    yml_files = Path(yml_dir).glob("*.yml")
-    return yml_files
+    return Path(base_path, catalog).glob("*.yml")
 
 
 def list_volumes_in_schema(

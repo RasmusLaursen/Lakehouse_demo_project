@@ -38,7 +38,7 @@ resources:
         schemas: | 
           {
             "eloverblik_raw_schema": "${resources.schemas.eloverblik_raw_schema.name}",
-            "eloverblik_base_schema": "${resources.schemas.eloverblik_base_schema.name}"
+            "eloverblik_base_schema": "${resources.schemas.eloverblik_base_schema.name}",
 
             "enriched_schema": "${resources.schemas.enriched_schema.name}",
 
@@ -48,7 +48,4 @@ resources:
 
       serverless: true
       channel: CURRENT
-      photon: false
       continuous: false
-      
-      development: false

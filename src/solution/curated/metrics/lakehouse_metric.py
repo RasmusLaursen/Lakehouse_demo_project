@@ -1,19 +1,20 @@
-from src.framework.helper import get_spark, get_pipeline_configurations
+from src.framework.helper import get_spark, get_logger, parse_arguments
 
-spark = get_spark()
+logger = get_logger(__name__)
 
 
 def create_lakehouse_metric_view():
-    catalogs = get_pipeline_configurations(spark, "catalogs")
-    schemas = get_pipeline_configurations(spark, "schemas")
+    spark = get_spark()
 
-    logger.debug("Catalogs configuration: " + str(catalogs))
-    logger.debug("Schemas configuration: " + str(schemas))
+    curated_catalog = parse_arguments("curated_catalog")
+    curated_metrics_schema = parse_arguments("curated_metrics_schema")
+    dimensions_schema = parse_arguments("curated_dimensions_schema")
+    facts_schema = parse_arguments("curated_facts_schema")
 
-    curated_catalog = catalogs.get("curated_catalog")
-    curated_metrics_schema = schemas.get("curated_metrics_schema")
-    dimensions_schema = schemas.get("curated_dimensions_schema")
-    facts_schema = schemas.get("curated_facts_schema")
+    logger.info(
+        f"Creating metric view in {curated_catalog}.{curated_metrics_schema} "
+        f"(dimensions={dimensions_schema}, facts={facts_schema})"
+    )
 
     spark.sql(
         f"""

@@ -27,10 +27,10 @@ resources:
         # #     include: ../../src/solution/curated/dimensions/dim_customer_cdc_scd2.py
         # # - glob:
         # #     include: ../../src/solution/curated/dimensions/dim_customer_cdc_scd1.py
-        - glob:
-            include: ../../src/solution/curated/dimensions/dim_seller.py
-        - glob:
-            include: ../../src/solution/curated/dimensions/dim_lakehouse.py 
+        # - glob:
+        #     include: ../../src/solution/curated/dimensions/dim_seller.py
+        # - glob:
+        #     include: ../../src/solution/curated/dimensions/dim_lakehouse.py 
         # - glob:
         #     include: ../../src/solution/curated/facts/fact_lakehouse_rentals.py
         # - glob:

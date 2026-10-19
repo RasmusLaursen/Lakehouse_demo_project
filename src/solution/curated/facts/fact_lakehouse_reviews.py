@@ -3,18 +3,22 @@
 This module uses the factory pattern to create DLT fact tables.
 All logic has been consolidated into the CuratedFactFactory.
 """
-from src.framework.factory.fact_factory import CuratedFactFactory
-from src.framework.helper import get_spark, get_pipeline_configurations
+from pyspark.sql import DataFrame
+from pyspark.sql.functions import col
+from src.framework.factory.fact_factory import FactFactory
+from src.framework.helper import get_spark
 
 # Create the fact table for lakehouse reviews
 spark = get_spark()
-factory = CuratedFactFactory(spark, source_system='review')
+factory = FactFactory(spark, source_system='review')
+
+
+def _transform_fact_lakehouse_reviews() -> DataFrame:
+    df = spark.readStream.table(factory.catalog_manager.get_base_table_path('reviews'))
+    return df.withColumn('calendar_review_key', col('review_date').cast('date'))
+
 
 factory.create_fact(
     fact_name='fact_lakehouse_reviews',
-    source_table='reviews',
-    source_schema='review_base_schema',  # Different base schema
-    dimension_mappings={
-        'review_date': 'calendar_review_key'
-    }
+    transform_fn=_transform_fact_lakehouse_reviews,
 )

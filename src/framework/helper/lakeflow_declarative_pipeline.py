@@ -72,9 +72,9 @@ def ldp_table(
     }
     
     merged_properties = {
-        **(table_properties or {}),
-        **(DefaultTblProperties().as_dict() or {}),
+        **DefaultTblProperties().as_dict(),
         **connector_metadata,
+        **(table_properties or {}),
     }
     
     logger.info(f"Creating DLT table {name} using {type(connector).__name__}")

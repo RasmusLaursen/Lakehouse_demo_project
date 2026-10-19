@@ -14,9 +14,18 @@ Features:
 from typing import Dict, Optional
 import requests
 import hashlib
+import threading
+import time
 from src.framework.helper import get_logger
 
 logger = get_logger(__name__)
+
+
+def _retry_after_seconds(response: requests.Response) -> Optional[float]:
+    try:
+        return float(response.headers.get("Retry-After", ""))
+    except ValueError:
+        return None
 
 
 class OAuth2TokenManager:
@@ -36,6 +45,8 @@ class OAuth2TokenManager:
     # Global token cache: refresh_token_hash -> access_token
     # Shared across all datasources, readers, and workflows
     _token_cache: Dict[str, str] = {}
+    # Serializes exchanges so parallel tables don't all hit the token endpoint at once
+    _lock = threading.Lock()
     
     @staticmethod
     def exchange_token(
@@ -44,7 +55,9 @@ class OAuth2TokenManager:
         source_system: str = "default",
         token_method: str = "GET",
         token_response_path: str = "result",
-        timeout: int = 30
+        timeout: int = 30,
+        max_retries: int = 5,
+        retry_delay: float = 5.0
     ) -> str:
         """
         Exchange a refresh token for an access token via OAuth2 flow.
@@ -81,7 +94,24 @@ class OAuth2TokenManager:
         # Generate cache key from refresh token hash and source system
         cache_key = OAuth2TokenManager.get_cache_key(refresh_token, source_system)
         
-        # Check if token already cached
+        with OAuth2TokenManager._lock:
+            return OAuth2TokenManager._exchange_locked(
+                cache_key, refresh_token, token_endpoint, source_system,
+                token_method, token_response_path, timeout, max_retries, retry_delay
+            )
+
+    @staticmethod
+    def _exchange_locked(
+        cache_key: str,
+        refresh_token: str,
+        token_endpoint: str,
+        source_system: str,
+        token_method: str,
+        token_response_path: str,
+        timeout: int,
+        max_retries: int,
+        retry_delay: float
+    ) -> str:
         if cache_key in OAuth2TokenManager._token_cache:
             logger.info(f"OAuth2 token already cached for {source_system}, returning existing token")
             return OAuth2TokenManager._token_cache[cache_key]
@@ -89,13 +119,20 @@ class OAuth2TokenManager:
         logger.info(f"Exchanging OAuth2 refresh token at: {token_endpoint}")
         
         try:
-            # Make token exchange request
-            response = requests.request(
-                method=token_method.upper(),
-                url=token_endpoint,
-                headers={"Authorization": f"Bearer {refresh_token}"},
-                timeout=timeout
-            )
+            for attempt in range(max_retries + 1):
+                response = requests.request(
+                    method=token_method.upper(),
+                    url=token_endpoint,
+                    headers={"Authorization": f"Bearer {refresh_token}"},
+                    timeout=timeout
+                )
+                if response.status_code == 429 and attempt < max_retries:
+                    delay = _retry_after_seconds(response) or retry_delay * (2 ** attempt)
+                    logger.warning(f"Token endpoint rate limited (429), retrying in {delay:.0f}s "
+                                   f"(attempt {attempt + 1}/{max_retries})")
+                    time.sleep(delay)
+                    continue
+                break
             response.raise_for_status()
             
             # Parse response

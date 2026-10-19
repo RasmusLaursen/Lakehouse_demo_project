@@ -340,6 +340,10 @@ schema:
         value: "months"
       - property: max_pr_partition
         value: 36
+      - property: lookback
+        value: 5  # Re-fetch the last 5 days each run to catch late-arriving meter data
+      - property: lookback_code
+        value: "days"
       - property: table_name
         value: "meterdata/gettimeseries/{dateFrom}/{dateTo}/{aggregation}"
       - property: dependency_table

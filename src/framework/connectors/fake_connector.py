@@ -1,4 +1,3 @@
-from pyspark import pipelines as dp
 from pyspark.sql.functions import col
 
 from pyspark.sql import Row, SparkSession, DataFrame
@@ -8,9 +7,6 @@ from pyspark.sql.types import StructType
 from pyspark.sql.datasource import DataSourceStreamReader, InputPartition
 from typing import Iterator, Tuple
 import time
-import os
-os.environ["DATABRICKS_ENABLE_EXPERIMENTAL_FILES_API_CLIENT"] = "True" # set to true to enable new file features in sdk 
-from databricks import sdk
 
 class FakeStreamDataSource(DataSource):
     """
@@ -108,26 +104,6 @@ class FakeStreamReader(DataSourceStreamReader):
         
         return {"offset": latest}
 
-    def _save_logs_to_volume2(self) -> None:
-        """Save executor logs to Databricks volume using Files API."""      
-        import json
-        import io
-        
-        # Construct full file path
-        file_path = f"/Volumes/raw_dev/dev_rasmuslaursen_eloverblik/eloverblik_log/logs/test_dabs.json"
-        
-        # Prepare log payload
-        log_payload = {"test": "data", "timestamp": "2025-02-17"}
-
-        f = io.BytesIO(json.dumps(log_payload).encode('utf-8'))
-        
-        # Create workspace client lazily to avoid module-import serialization issues
-        workspace_client = sdk.WorkspaceClient(
-            host = 'https://dbc-e3d11267-f1e6.cloud.databricks.com/',
-            token = '<redacted-databricks-token>'
-        )
-        workspace_client.files.upload(file_path=file_path, contents=f, overwrite=True)     
-    
     def partitions(self, start: dict, end: dict):
         """
         Spark passes the correct start offset from checkpoint.
@@ -141,8 +117,6 @@ class FakeStreamReader(DataSourceStreamReader):
         Spark automatically persists this offset to checkpoint directory.
         You can optionally clean up resources here.
         """
-        # Optional: Log or cleanup
-        self._save_logs_to_volume2()
         print(f"Committed offset: {end['offset']}")
         pass
     

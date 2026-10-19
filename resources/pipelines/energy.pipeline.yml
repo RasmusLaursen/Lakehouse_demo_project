@@ -9,7 +9,7 @@ resources:
         - glob:
             include: ../../src/solution/curated/dimensions/dim_meteringpoint.py
         - glob:
-            include: ../../src/solution/curated/dimensions/dim_time.py            
+            include: ../../src/solution/curated/dimensions/dim_time.py
         - glob:
             include: ../../src/solution/curated/facts/fact_energy_consumptions.py
 
@@ -35,6 +35,7 @@ resources:
           {
             "eloverblik_raw_schema": "${resources.schemas.eloverblik_raw_schema.name}",
             "eloverblik_base_schema": "${resources.schemas.eloverblik_base_schema.name}",
+            "energidataservice_base_schema": "${resources.schemas.energidataservice_base_schema.name}",
 
             "enriched_schema": "${resources.schemas.enriched_schema.name}",
 
@@ -44,7 +45,4 @@ resources:
 
       serverless: true
       channel: CURRENT
-      photon: false
       continuous: false
-      
-      development: true

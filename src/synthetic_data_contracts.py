@@ -39,7 +39,9 @@ def main(spark=None, logger=None):
     
     logger.info("Starting synthetic data generation based on data contracts...")
     landing_catalog = parse_arguments("landing_catalog")
-    data_contracts = list_yml_files(catalog="source_system")
+    data_contracts = list_yml_files(
+        base_path=parse_arguments("data_contracts_path"), catalog="source_system"
+    )
 
     for contract in data_contracts:
         if contract.name in ("lakehouse.yml", "review.yml"):

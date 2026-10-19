@@ -11,5 +11,3 @@ targets:
     workspace:
      host: https://dbc-e3d11267-f1e6.cloud.databricks.com
      artifact_path: /Volumes/shared/shared_resources/wheel_location
-
-    #  artifact_path: /Volumes/${resources.schemas.shared_schema.catalog_name}/${resources.schemas.shared_schema.name}/${resources.volumes.shared_wheel_location_volume.name}

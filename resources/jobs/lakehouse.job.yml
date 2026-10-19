@@ -32,7 +32,9 @@ resources:
         - name: curated_facts_schema
           default: ${resources.schemas.facts_schema.name} 
         - name: random_number_of_records
-          default: "false"          
+          default: "false"
+        - name: data_contracts_path
+          default: ${workspace.file_path}/data_contracts
 
       environments:
         - environment_key: default
@@ -63,13 +65,13 @@ resources:
           pipeline_task:
             pipeline_id: ${resources.pipelines.lakehouse_demo_project_pipeline.id}
           max_retries: 0
-        # - task_key: lakehouse_metric
-        #   depends_on: 
-        #     - task_key: lakehouse_model_pipelines
-        #   python_wheel_task:
-        #     package_name: lakehouse_demo_project
-        #     entry_point: metric_view
-        #   environment_key: default
+        - task_key: lakehouse_metric
+          depends_on: 
+            - task_key: lakehouse_model_pipelines
+          python_wheel_task:
+            package_name: lakehouse_demo_project
+            entry_point: metric_view
+          environment_key: default
         # - task_key: Refresh_Lakhouse_Dashboard
         #   retry_on_timeout: false
         #   max_retries: 0
