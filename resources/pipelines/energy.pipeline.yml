@@ -11,6 +11,10 @@ resources:
         - glob:
             include: ../../src/solution/curated/dimensions/dim_time.py
         - glob:
+            include: ../../src/solution/enriched/enriched_calendar.py
+        - glob:
+            include: ../../src/solution/curated/dimensions/dim_calendar.py
+        - glob:
             include: ../../src/solution/curated/facts/fact_energy_consumptions.py
 
       environment:
@@ -23,13 +27,7 @@ resources:
         environment: ${var.environment}
         spark.eloverblik-api-token: "{{secrets/scope-demo-dev/eloverblik-api-token}}"        
 
-        catalogs: | 
-          {
-            "raw_catalog": "${resources.schemas.eloverblik_raw_schema.catalog_name}",
-            "base_catalog": "${resources.schemas.eloverblik_base_schema.catalog_name}",
-            "enriched_catalog": "${resources.schemas.enriched_schema.catalog_name}",
-            "curated_catalog": "${resources.schemas.dimensions_schema.catalog_name}"
-          }
+        catalogs: ${var.catalogs}
         
         schemas: | 
           {
@@ -45,4 +43,3 @@ resources:
 
       serverless: true
       channel: CURRENT
-      continuous: false

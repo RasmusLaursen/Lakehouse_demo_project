@@ -6,7 +6,7 @@ All logic has been consolidated into the CuratedFactFactory.
 from pyspark.sql import DataFrame
 from src.framework.factory.fact_factory import FactFactory
 from src.framework.helper import get_spark, get_pipeline_configurations
-from pyspark.sql.functions import col, lpad, lit, concat
+from pyspark.sql.functions import col, avg, date_trunc, date_format, expr, from_utc_timestamp, to_date
 
 # Create the fact table for lakehouse rentals
 spark = get_spark()
@@ -21,23 +21,28 @@ prices_table = f"{catalogs['base_catalog']}.{schemas['energidataservice_base_sch
 def _tranform_fact_energy_consumptions() -> DataFrame:
     df = spark.readStream.table(timeseries_table)
 
-    df = df.join(
-        spark.read.table(prices_table)
-        .select("TimeDK", "PriceArea", "DayAheadPriceDKK"),
-        (col("TimeDK").cast("timestamp") == col("period_start").cast("timestamp")) & (col("PriceArea") == "DK2"),
-        "left"
+    # position is the 1-based hour within the period; period_start is UTC
+    df = df.withColumn(
+        "hour_utc",
+        col("period_start").cast("timestamp") + expr("make_interval(0, 0, 0, 0, cast(position as int) - 1, 0, 0)"),
     )
+    df = df.withColumn("hour_dk", from_utc_timestamp(col("hour_utc"), "Europe/Copenhagen"))
 
-    df = df.withColumn("kwh_cost", (col("quantity").cast("float") * col("DayAheadPriceDKK").cast("float")) / 1000)
+    # Day-ahead prices are quarter-hourly (DKK/MWh); average them to hourly
+    hourly_prices = (
+        spark.read.table(prices_table)
+        .where(col("PriceArea") == "DK2")
+        .groupBy(date_trunc("hour", col("TimeUTC").cast("timestamp")).alias("price_hour_utc"))
+        .agg(avg(col("DayAheadPriceDKK").cast("double")).alias("price_dkk_per_mwh"))
+    )
+    df = df.join(hourly_prices, col("hour_utc") == col("price_hour_utc"), "left")
 
-    df = df.withColumnsRenamed({
-        'period_end': 'calendar_key',
-        'meteringPointId': 'meteringpoint_key'
-    })
+    df = df.withColumn("quantity", col("quantity").cast("double"))
+    df = df.withColumn("kwh_cost", col("quantity") * col("price_dkk_per_mwh") / 1000)
 
-    df = df.withColumn("time_key", lpad(col("position").cast("int"), 2, "0").cast("string").substr(1, 2))
-    df = df.withColumn("time_key", concat(col("time_key"), lit("00")))
-
+    df = df.withColumn("calendar_key", to_date(col("hour_dk")))
+    df = df.withColumn("time_key", date_format(col("hour_dk"), "HHmm").cast("int"))
+    df = df.withColumnRenamed("meteringPointId", "meteringpoint_key")
 
     df = df.select(
         "calendar_key",

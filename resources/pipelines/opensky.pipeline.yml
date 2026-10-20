@@ -6,6 +6,12 @@ resources:
   pipelines:
     opensky_pipeline:
       name: opensky_pipeline_${var.environment}
+      # Origin values mirror data_contracts/source_system/opensky.yml
+      tags:
+        source_system: opensky
+        data_contract: "urn:datacontract:opensky:aircraft-states"
+        source_type: rest_api
+        source_origin: "https://opensky-network.org/api/"
       catalog: ${resources.schemas.opensky_raw_schema.catalog_name}
       schema: ${resources.schemas.opensky_raw_schema.name}
       
@@ -23,11 +29,7 @@ resources:
         bundle.sourcePath: ${workspace.file_path}/src
         environment: ${var.environment}
 
-        catalogs: | 
-          {
-            "raw_catalog": "${resources.schemas.opensky_raw_schema.catalog_name}",
-            "base_catalog": "${resources.schemas.opensky_base_schema.catalog_name}"
-          }
+        catalogs: ${var.catalogs}
         
         schemas: | 
           {

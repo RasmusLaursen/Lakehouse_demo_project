@@ -1,0 +1,24 @@
+resources:
+  jobs:
+    energy_daily_summary_job:
+      name: energy_daily_summary_job_${var.environment}
+
+      tags:
+        environment: ${var.environment}
+
+      # Runs an hour after energy_job (08:00) so the dashboard reflects the latest load
+      schedule:
+        quartz_cron_expression: "0 0 9 * * ?"
+        timezone_id: Europe/Copenhagen
+        pause_status: UNPAUSED
+
+      tasks:
+        - task_key: send_energy_summary
+          dashboard_task:
+            dashboard_id: ${resources.dashboards.energy_dashboard.id}
+            warehouse_id: ${var.warehouse_id}
+            subscription:
+              custom_subject: "Daily energy summary - consumption and cost"
+              subscribers:
+                - user_name: rasmuslaursen@live.dk
+          max_retries: 1

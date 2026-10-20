@@ -7,7 +7,7 @@ build-backend = "hatchling.build"
 ###################################
 [project]
 name = "lakehouse_demo_project"
-version = "0.1.4"
+version = "0.1.5"
 description = "A Databricks Asset Bundle using Hatch"
 authors = [{ name = "Rasmus Holm Laursen", email = "rasmus.h.laursen@twoday.com" }]
 dependencies = [
@@ -27,6 +27,7 @@ dependencies = [
 source = "src.main:main"
 synthetic_data_contracts = "src.synthetic_data_contracts:main"
 metric_view = "src.solution.curated.metrics.lakehouse_metric:create_lakehouse_metric_view"
+energy_metric_view = "src.solution.curated.metrics.energy_metric:create_energy_metric_view"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/"]

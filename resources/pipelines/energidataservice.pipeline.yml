@@ -6,6 +6,12 @@ resources:
   pipelines:
     energidataservice_pipeline:
       name: energidataservice_pipeline_${var.environment}
+      # Origin values mirror data_contracts/source_system/energidataservice.yml
+      tags:
+        source_system: energidataservice
+        data_contract: "urn:datacontract:energidataservice:declaration-production"
+        source_type: rest_api
+        source_origin: "https://api.energidataservice.dk/"
       catalog: ${resources.schemas.energidataservice_raw_schema.catalog_name}
       schema: ${resources.schemas.energidataservice_raw_schema.name}
       
@@ -23,11 +29,7 @@ resources:
         bundle.sourcePath: ${workspace.file_path}/src
         environment: ${var.environment}
 
-        catalogs: | 
-          {
-            "raw_catalog": "${resources.schemas.energidataservice_raw_schema.catalog_name}",
-            "base_catalog": "${resources.schemas.energidataservice_base_schema.catalog_name}"
-          }
+        catalogs: ${var.catalogs}
         
         schemas: | 
           {

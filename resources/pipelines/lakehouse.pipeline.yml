@@ -2,6 +2,12 @@ resources:
   pipelines:
     lakehouse_demo_project_pipeline:
       name: lakehouse_demo_project_pipeline_${var.environment}
+      # Origin values mirror data_contracts/source_system/lakehouse.yml and review.yml (tag values can't contain commas)
+      tags:
+        source_system: lakehouse review
+        data_contract: "urn:datacontract:lakehouse:synthetic-rental-data urn:datacontract:lakehouse:review-data"
+        source_type: autoloader
+        source_origin: volume
       catalog: ${resources.schemas.lakehouse_landing_schema.catalog_name}
       schema: ${resources.schemas.lakehouse_landing_schema.name} 
       libraries:
@@ -45,14 +51,7 @@ resources:
         bundle.sourcePath: ${workspace.file_path}/src
         environment: ${var.environment}
 
-        catalogs: | 
-          {
-            "landing_catalog": "${resources.schemas.lakehouse_landing_schema.catalog_name}",
-            "raw_catalog": "${resources.schemas.lakehouse_raw_schema.catalog_name}",
-            "base_catalog": "${resources.schemas.lakehouse_base_schema.catalog_name}",
-            "enriched_catalog": "${resources.schemas.enriched_schema.catalog_name}",
-            "curated_catalog": "${resources.schemas.dimensions_schema.catalog_name}"
-          }
+        catalogs: ${var.catalogs}
         schemas: | 
           {
             "lakehouse_landing_schema": "${resources.schemas.lakehouse_landing_schema.name}",

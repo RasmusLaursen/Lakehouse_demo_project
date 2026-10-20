@@ -6,6 +6,12 @@ resources:
   pipelines:
     fake_pipeline:
       name: fake_pipeline_${var.environment}
+      # Origin values mirror data_contracts/source_system/fake.yml
+      tags:
+        source_system: fake
+        data_contract: "urn:datacontract:eloverblik:metering-points"
+        source_type: fake
+        source_origin: synthetic
       catalog: ${resources.schemas.eloverblik_raw_schema.catalog_name}
       schema: ${resources.schemas.eloverblik_raw_schema.name}
       
@@ -27,13 +33,7 @@ resources:
         spark.eloverblik-api-token: "{{secrets/scope-demo-dev/eloverblik-api-token}}"
         spark.databricks-token: "{{secrets/scope-demo-dev/databricks-token}}"
 
-        catalogs: | 
-          {
-            "raw_catalog": "${resources.schemas.eloverblik_raw_schema.catalog_name}",
-            "base_catalog": "${resources.schemas.eloverblik_base_schema.catalog_name}",
-            "enriched_catalog": "${resources.schemas.enriched_schema.catalog_name}",
-            "curated_catalog": "${resources.schemas.dimensions_schema.catalog_name}"
-          }
+        catalogs: ${var.catalogs}
         
         schemas: | 
           {

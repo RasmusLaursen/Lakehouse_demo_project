@@ -1,0 +1,11 @@
+variables:
+  catalogs:
+    description: Catalog per layer, passed to pipelines as the "catalogs" JSON configuration.
+    default: |
+      {
+        "landing_catalog": "${var.landing_catalog}",
+        "raw_catalog": "${var.raw_catalog}",
+        "base_catalog": "${var.base_catalog}",
+        "enriched_catalog": "${var.enriched_catalog}",
+        "curated_catalog": "${var.curated_catalog}"
+      }

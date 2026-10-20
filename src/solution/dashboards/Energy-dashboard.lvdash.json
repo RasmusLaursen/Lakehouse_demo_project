@@ -1,0 +1,978 @@
+{
+  "datasets": [
+    {
+      "name": "e7a1c001",
+      "displayName": "mv_energy_consumption",
+      "asset_name": "mv_energy_consumption"
+    },
+    {
+      "name": "e7a1c002",
+      "displayName": "daily_summary",
+      "queryLines": [
+        "WITH daily AS (\n",
+        "  SELECT `date`, MEASURE(total_consumption_kwh) AS kwh, MEASURE(total_cost_dkk) AS cost\n",
+        "  FROM mv_energy_consumption\n",
+        "  WHERE `date` >= date_sub(current_date(), 30)\n",
+        "  GROUP BY `date`\n",
+        "),\n",
+        "latest AS (SELECT max(`date`) AS latest_date FROM daily WHERE kwh > 0)\n",
+        "SELECT concat('Latest day (', date_format(l.latest_date, 'dd-MM-yyyy'), ')') AS period,\n",
+        "  SUM(d.kwh) AS consumption_kwh, SUM(d.cost) AS cost_dkk, SUM(d.cost) / NULLIF(SUM(d.kwh), 0) AS avg_price_dkk_per_kwh\n",
+        "FROM daily d CROSS JOIN latest l WHERE d.`date` = l.latest_date GROUP BY l.latest_date\n",
+        "UNION ALL\n",
+        "SELECT concat('Last 7 days (to ', date_format(l.latest_date, 'dd-MM-yyyy'), ')'),\n",
+        "  SUM(d.kwh), SUM(d.cost), SUM(d.cost) / NULLIF(SUM(d.kwh), 0)\n",
+        "FROM daily d CROSS JOIN latest l WHERE d.`date` BETWEEN date_sub(l.latest_date, 6) AND l.latest_date GROUP BY l.latest_date\n"
+      ]
+    },
+    {
+      "name": "e7a1c003",
+      "displayName": "last_7_days_daily",
+      "queryLines": [
+        "WITH daily AS (\n",
+        "  SELECT `date`, MEASURE(total_consumption_kwh) AS consumption_kwh, MEASURE(total_cost_dkk) AS cost_dkk\n",
+        "  FROM mv_energy_consumption\n",
+        "  WHERE `date` >= date_sub(current_date(), 30)\n",
+        "  GROUP BY `date`\n",
+        "),\n",
+        "latest AS (SELECT max(`date`) AS latest_date FROM daily WHERE consumption_kwh > 0)\n",
+        "SELECT d.`date`, d.consumption_kwh, d.cost_dkk\n",
+        "FROM daily d CROSS JOIN latest l\n",
+        "WHERE d.`date` BETWEEN date_sub(l.latest_date, 6) AND l.latest_date\n"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "e7a1d003",
+      "displayName": "Daily Summary",
+      "layout": [
+        {
+          "widget": {
+            "name": "e7a1t001",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## Daily energy summary\n",
+                "Latest day with meter data and the 7 days up to it. Eloverblik data arrives 2-3 days late. Spot cost excludes tariffs, fees and VAT."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "e7a1w101",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e7a1c002",
+                  "fields": [
+                    {
+                      "name": "period",
+                      "expression": "`period`"
+                    },
+                    {
+                      "name": "sum(consumption_kwh)",
+                      "expression": "SUM(`consumption_kwh`)"
+                    },
+                    {
+                      "name": "sum(cost_dkk)",
+                      "expression": "SUM(`cost_dkk`)"
+                    },
+                    {
+                      "name": "sum(avg_price_dkk_per_kwh)",
+                      "expression": "SUM(`avg_price_dkk_per_kwh`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pivot",
+              "encodings": {
+                "rows": [
+                  {
+                    "fieldName": "period",
+                    "displayName": "Period"
+                  }
+                ],
+                "cell": {
+                  "type": "multi-cell",
+                  "fields": [
+                    {
+                      "fieldName": "sum(consumption_kwh)",
+                      "cellType": "text",
+                      "displayName": "Consumption (kWh)"
+                    },
+                    {
+                      "fieldName": "sum(cost_dkk)",
+                      "cellType": "text",
+                      "displayName": "Spot Cost (DKK)"
+                    },
+                    {
+                      "fieldName": "sum(avg_price_dkk_per_kwh)",
+                      "cellType": "text",
+                      "displayName": "Avg Spot Price (DKK/kWh)"
+                    }
+                  ]
+                }
+              },
+              "frame": {
+                "title": "Consumption and Cost",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 6,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "e7a1w102",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e7a1c003",
+                  "fields": [
+                    {
+                      "name": "date",
+                      "expression": "`date`"
+                    },
+                    {
+                      "name": "sum(consumption_kwh)",
+                      "expression": "SUM(`consumption_kwh`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "date",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Date"
+                },
+                "y": {
+                  "fieldName": "sum(consumption_kwh)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Consumption (kWh)"
+                }
+              },
+              "frame": {
+                "title": "Daily Consumption - Last 7 Days (kWh)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "e7a1w103",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e7a1c003",
+                  "fields": [
+                    {
+                      "name": "date",
+                      "expression": "`date`"
+                    },
+                    {
+                      "name": "sum(cost_dkk)",
+                      "expression": "SUM(`cost_dkk`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "date",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Date"
+                },
+                "y": {
+                  "fieldName": "sum(cost_dkk)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Spot Cost (DKK)"
+                }
+              },
+              "frame": {
+                "title": "Daily Spot Cost - Last 7 Days (DKK)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 5,
+            "width": 3,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "name": "e7a1d001",
+      "displayName": "Energy Overview",
+      "layout": [
+        {
+          "widget": {
+            "name": "e7a1w001",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e7a1c001",
+                  "fields": [
+                    {
+                      "name": "measure(total_consumption_kwh)",
+                      "expression": "MEASURE(`total_consumption_kwh`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(total_consumption_kwh)",
+                  "displayName": "Total Consumption (kWh)"
+                }
+              },
+              "frame": {
+                "title": "Total Consumption (kWh)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "e7a1w002",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e7a1c001",
+                  "fields": [
+                    {
+                      "name": "measure(total_cost_dkk)",
+                      "expression": "MEASURE(`total_cost_dkk`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(total_cost_dkk)",
+                  "displayName": "Total Spot Cost (DKK)"
+                }
+              },
+              "frame": {
+                "title": "Total Spot Cost (DKK)",
+                "showTitle": true,
+                "description": "Excl. tariffs, fees and VAT",
+                "showDescription": true
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 0,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "e7a1w003",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e7a1c001",
+                  "fields": [
+                    {
+                      "name": "measure(avg_price_dkk_per_kwh)",
+                      "expression": "MEASURE(`avg_price_dkk_per_kwh`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(avg_price_dkk_per_kwh)",
+                  "displayName": "Avg Spot Price (DKK/kWh)"
+                }
+              },
+              "frame": {
+                "title": "Avg Spot Price (DKK/kWh)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 0,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "e7a1w004",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e7a1c001",
+                  "fields": [
+                    {
+                      "name": "date",
+                      "expression": "`date`"
+                    },
+                    {
+                      "name": "measure(total_consumption_kwh)",
+                      "expression": "MEASURE(`total_consumption_kwh`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "date",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Date"
+                },
+                "y": {
+                  "fieldName": "measure(total_consumption_kwh)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Consumption (kWh)"
+                }
+              },
+              "frame": {
+                "title": "Daily Consumption",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "e7a1w005",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e7a1c001",
+                  "fields": [
+                    {
+                      "name": "month",
+                      "expression": "`month`"
+                    },
+                    {
+                      "name": "measure(total_consumption_kwh)",
+                      "expression": "MEASURE(`total_consumption_kwh`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "month",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Month"
+                },
+                "y": {
+                  "fieldName": "measure(total_consumption_kwh)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Consumption (kWh)"
+                }
+              },
+              "frame": {
+                "title": "Monthly Consumption (kWh)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "e7a1w006",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e7a1c001",
+                  "fields": [
+                    {
+                      "name": "month",
+                      "expression": "`month`"
+                    },
+                    {
+                      "name": "measure(total_cost_dkk)",
+                      "expression": "MEASURE(`total_cost_dkk`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "month",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Month"
+                },
+                "y": {
+                  "fieldName": "measure(total_cost_dkk)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Spot Cost (DKK)"
+                }
+              },
+              "frame": {
+                "title": "Monthly Spot Cost (DKK)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 9,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "e7a1w007",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e7a1c001",
+                  "fields": [
+                    {
+                      "name": "hour_of_day",
+                      "expression": "`hour_of_day`"
+                    },
+                    {
+                      "name": "measure(avg_hourly_consumption_kwh)",
+                      "expression": "MEASURE(`avg_hourly_consumption_kwh`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "hour_of_day",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Hour of Day"
+                },
+                "y": {
+                  "fieldName": "measure(avg_hourly_consumption_kwh)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Avg Consumption (kWh)"
+                }
+              },
+              "frame": {
+                "title": "Average Consumption by Hour of Day",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 15,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "e7a1w008",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e7a1c001",
+                  "fields": [
+                    {
+                      "name": "month",
+                      "expression": "`month`"
+                    },
+                    {
+                      "name": "measure(avg_price_dkk_per_kwh)",
+                      "expression": "MEASURE(`avg_price_dkk_per_kwh`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "month",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Month"
+                },
+                "y": {
+                  "fieldName": "measure(avg_price_dkk_per_kwh)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Avg Spot Price (DKK/kWh)"
+                }
+              },
+              "frame": {
+                "title": "Avg Spot Price per Month (DKK/kWh)",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 15,
+            "width": 3,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "e7a1w009",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e7a1c001",
+                  "fields": [
+                    {
+                      "name": "is_peak_hours",
+                      "expression": "`is_peak_hours`"
+                    },
+                    {
+                      "name": "measure(total_consumption_kwh)",
+                      "expression": "MEASURE(`total_consumption_kwh`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "angle": {
+                  "fieldName": "measure(total_consumption_kwh)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Consumption (kWh)"
+                },
+                "color": {
+                  "fieldName": "is_peak_hours",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Peak Hours (17-20)"
+                }
+              },
+              "frame": {
+                "title": "Peak vs Off-peak Consumption",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 21,
+            "width": 2,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "e7a1w010",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "e7a1c001",
+                  "fields": [
+                    {
+                      "name": "metering_point",
+                      "expression": "`metering_point`"
+                    },
+                    {
+                      "name": "city",
+                      "expression": "`city`"
+                    },
+                    {
+                      "name": "balance_supplier",
+                      "expression": "`balance_supplier`"
+                    },
+                    {
+                      "name": "measure(total_consumption_kwh)",
+                      "expression": "MEASURE(`total_consumption_kwh`)"
+                    },
+                    {
+                      "name": "measure(total_cost_dkk)",
+                      "expression": "MEASURE(`total_cost_dkk`)"
+                    },
+                    {
+                      "name": "measure(peak_share)",
+                      "expression": "MEASURE(`peak_share`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pivot",
+              "encodings": {
+                "rows": [
+                  {
+                    "fieldName": "metering_point",
+                    "displayName": "Metering Point"
+                  },
+                  {
+                    "fieldName": "city",
+                    "displayName": "City"
+                  },
+                  {
+                    "fieldName": "balance_supplier",
+                    "displayName": "Balance Supplier"
+                  }
+                ],
+                "cell": {
+                  "type": "multi-cell",
+                  "fields": [
+                    {
+                      "fieldName": "measure(total_consumption_kwh)",
+                      "cellType": "text",
+                      "displayName": "Consumption (kWh)"
+                    },
+                    {
+                      "fieldName": "measure(total_cost_dkk)",
+                      "cellType": "text",
+                      "displayName": "Spot Cost (DKK)"
+                    },
+                    {
+                      "fieldName": "measure(peak_share)",
+                      "cellType": "text",
+                      "displayName": "Peak Share"
+                    }
+                  ]
+                }
+              },
+              "frame": {
+                "title": "Consumption per Metering Point",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 21,
+            "width": 4,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "name": "e7a1d002",
+      "displayName": "Global Filters",
+      "layout": [
+        {
+          "widget": {
+            "name": "e7a1f001",
+            "queries": [
+              {
+                "name": "filter_date",
+                "query": {
+                  "datasetName": "e7a1c001",
+                  "fields": [
+                    {
+                      "name": "date",
+                      "expression": "`date`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-date-range-picker",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "date",
+                    "displayName": "Date",
+                    "queryName": "filter_date"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Date",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "e7a1f002",
+            "queries": [
+              {
+                "name": "filter_metering_point",
+                "query": {
+                  "datasetName": "e7a1c001",
+                  "fields": [
+                    {
+                      "name": "metering_point",
+                      "expression": "`metering_point`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "metering_point",
+                    "displayName": "Metering Point",
+                    "queryName": "filter_metering_point"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Metering Point",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "e7a1f003",
+            "queries": [
+              {
+                "name": "filter_is_weekend",
+                "query": {
+                  "datasetName": "e7a1c001",
+                  "fields": [
+                    {
+                      "name": "is_weekend",
+                      "expression": "`is_weekend`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "is_weekend",
+                    "displayName": "Weekend",
+                    "queryName": "filter_is_weekend"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Weekend",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 1,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "e7a1f004",
+            "queries": [
+              {
+                "name": "filter_is_peak_hours",
+                "query": {
+                  "datasetName": "e7a1c001",
+                  "fields": [
+                    {
+                      "name": "is_peak_hours",
+                      "expression": "`is_peak_hours`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "is_peak_hours",
+                    "displayName": "Peak Hours (17-20)",
+                    "queryName": "filter_is_peak_hours"
+                  }
+                ]
+              },
+              "frame": {
+                "title": "Peak Hours",
+                "showTitle": true
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 6,
+            "width": 1,
+            "height": 2
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS"
+    }
+  ],
+  "uiSettings": {
+    "locale": "da-DK"
+  }
+}

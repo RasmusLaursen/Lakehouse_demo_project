@@ -33,262 +33,262 @@ servers:
           rate_limit_delay: 0.5  # 500ms delay between requests to avoid overwhelming API
 
 schema:
-  - name: DeclarationProduction
-    description: "Hourly electricity production declarations by fuel type and delivery method"
-    type: table
-    customProperties:
-      - property: scd_type
-        value: 1  # Append-only for time series data
-      - property: keys
-        value: ["HourUTC", "PriceArea", "ProductionType", "ReportGrpCode"]
-      - property: sequence_column
-        value: "HourUTC"
-      - property: loadtype
-        value: "eloverblik_api"
-      - property: mode
-        value: "streaming"
-      - property: timestamp_field
-        value: "HourUTC"
-      - property: initial_timestamp
-        value: "2026-01-01"
-      - property: days_per_batch
-        value: 1
-      - property: table_name
-        value: "dataset/DeclarationProduction"
-      - property: method
-        value: "GET"
-      - property: url_params_template
-        value:
-          start: "2026-01-01"
-          end: "2026-12-31"
-          limit: 0
-      - property: data_path
-        value: "records"
-    properties:
-      - name: HourUTC
-        description: "Timestamp in UTC"
-        type: timestamp
-        required: true
-        tags:
-          - "temporal"
-          - "primary_key"
-        classification: "public"
-        example: "2026-02-10T06:00:00"
+  # - name: DeclarationProduction
+  #   description: "Hourly electricity production declarations by fuel type and delivery method"
+  #   type: table
+  #   customProperties:
+  #     - property: scd_type
+  #       value: 1  # Append-only for time series data
+  #     - property: keys
+  #       value: ["HourUTC", "PriceArea", "ProductionType", "ReportGrpCode"]
+  #     - property: sequence_column
+  #       value: "HourUTC"
+  #     - property: loadtype
+  #       value: "eloverblik_api"
+  #     - property: mode
+  #       value: "streaming"
+  #     - property: timestamp_field
+  #       value: "HourUTC"
+  #     - property: initial_timestamp
+  #       value: "2026-01-01"
+  #     - property: days_per_batch
+  #       value: 1
+  #     - property: table_name
+  #       value: "dataset/DeclarationProduction"
+  #     - property: method
+  #       value: "GET"
+  #     - property: url_params_template
+  #       value:
+  #         start: "2026-01-01"
+  #         end: "2026-12-31"
+  #         limit: 0
+  #     - property: data_path
+  #       value: "records"
+  #   properties:
+  #     - name: HourUTC
+  #       description: "Timestamp in UTC"
+  #       type: timestamp
+  #       required: true
+  #       tags:
+  #         - "temporal"
+  #         - "primary_key"
+  #       classification: "public"
+  #       example: "2026-02-10T06:00:00"
       
-      - name: HourDK
-        description: "Timestamp in Danish time"
-        type: timestamp
-        required: false
-        tags:
-          - "temporal"
-        classification: "public"
-        example: "2026-02-10T07:00:00"
+  #     - name: HourDK
+  #       description: "Timestamp in Danish time"
+  #       type: timestamp
+  #       required: false
+  #       tags:
+  #         - "temporal"
+  #       classification: "public"
+  #       example: "2026-02-10T07:00:00"
       
-      - name: PriceArea
-        description: "Price area (DK1 or DK2)"
-        type: string
-        required: true
-        tags:
-          - "geographic"
-          - "primary_key"
-        classification: "public"
-        example: "DK1"
+  #     - name: PriceArea
+  #       description: "Price area (DK1 or DK2)"
+  #       type: string
+  #       required: true
+  #       tags:
+  #         - "geographic"
+  #         - "primary_key"
+  #       classification: "public"
+  #       example: "DK1"
       
-      - name: Version
-        description: "Data version (Initial, Revised, etc.)"
-        type: string
-        required: false
-        tags:
-          - "metadata"
-        classification: "public"
-        example: "Initial"
+  #     - name: Version
+  #       description: "Data version (Initial, Revised, etc.)"
+  #       type: string
+  #       required: false
+  #       tags:
+  #         - "metadata"
+  #       classification: "public"
+  #       example: "Initial"
       
-      - name: FuelAllocationMethod
-        description: "Fuel allocation method percentage"
-        type: string
-        required: false
-        tags:
-          - "metadata"
-        classification: "public"
-        example: "125%"
+  #     - name: FuelAllocationMethod
+  #       description: "Fuel allocation method percentage"
+  #       type: string
+  #       required: false
+  #       tags:
+  #         - "metadata"
+  #       classification: "public"
+  #       example: "125%"
       
-      - name: ReportGrpCode
-        description: "Reporting group code"
-        type: string
-        required: true
-        tags:
-          - "identifier"
-          - "primary_key"
-        classification: "public"
-        example: "R01-1"
+  #     - name: ReportGrpCode
+  #       description: "Reporting group code"
+  #       type: string
+  #       required: true
+  #       tags:
+  #         - "identifier"
+  #         - "primary_key"
+  #       classification: "public"
+  #       example: "R01-1"
       
-      - name: ProductionType
-        description: "Type of energy production (BioGas, Straw, Wind, etc.)"
-        type: string
-        required: true
-        tags:
-          - "classification"
-          - "primary_key"
-        classification: "public"
-        example: "BioGas"
+  #     - name: ProductionType
+  #       description: "Type of energy production (BioGas, Straw, Wind, etc.)"
+  #       type: string
+  #       required: true
+  #       tags:
+  #         - "classification"
+  #         - "primary_key"
+  #       classification: "public"
+  #       example: "BioGas"
       
-      - name: DeliveryType
-        description: "Delivery type (Grid, etc.)"
-        type: string
-        required: false
-        tags:
-          - "classification"
-        classification: "public"
-        example: "Grid"
+  #     - name: DeliveryType
+  #       description: "Delivery type (Grid, etc.)"
+  #       type: string
+  #       required: false
+  #       tags:
+  #         - "classification"
+  #       classification: "public"
+  #       example: "Grid"
       
-      - name: Production_MWh
-        description: "Production in MWh"
-        type: double
-        required: false
-        tags:
-          - "measure"
-          - "production"
-        classification: "public"
+  #     - name: Production_MWh
+  #       description: "Production in MWh"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "measure"
+  #         - "production"
+  #       classification: "public"
       
-      - name: ShareTotal
-        description: "Share of total production percentage"
-        type: double
-        required: false
-        tags:
-          - "measure"
-        classification: "public"
+  #     - name: ShareTotal
+  #       description: "Share of total production percentage"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "measure"
+  #       classification: "public"
       
-      - name: ShareGrid
-        description: "Share of grid production percentage"
-        type: double
-        required: false
-        tags:
-          - "measure"
-        classification: "public"
+  #     - name: ShareGrid
+  #       description: "Share of grid production percentage"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "measure"
+  #       classification: "public"
       
-      - name: FuelConsumptionGJ
-        description: "Fuel consumption in GJ"
-        type: double
-        required: false
-        tags:
-          - "measure"
-        classification: "public"
+  #     - name: FuelConsumptionGJ
+  #       description: "Fuel consumption in GJ"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "measure"
+  #       classification: "public"
       
-      - name: CO2PerkWh
-        description: "CO2 emissions per kWh"
-        type: double
-        required: false
-        tags:
-          - "measure"
-          - "emissions"
-        classification: "public"
+  #     - name: CO2PerkWh
+  #       description: "CO2 emissions per kWh"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "measure"
+  #         - "emissions"
+  #       classification: "public"
       
-      - name: CO2originPerkWh
-        description: "CO2 origin emissions per kWh"
-        type: double
-        required: false
-        tags:
-          - "measure"
-          - "emissions"
-        classification: "public"
+  #     - name: CO2originPerkWh
+  #       description: "CO2 origin emissions per kWh"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "measure"
+  #         - "emissions"
+  #       classification: "public"
       
-      - name: SO2PerkWh
-        description: "SO2 emissions per kWh"
-        type: double
-        required: false
-        tags:
-          - "measure"
-          - "emissions"
-        classification: "public"
+  #     - name: SO2PerkWh
+  #       description: "SO2 emissions per kWh"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "measure"
+  #         - "emissions"
+  #       classification: "public"
       
-      - name: NOxPerkWh
-        description: "NOx emissions per kWh"
-        type: double
-        required: false
-        tags:
-          - "measure"
-          - "emissions"
-        classification: "public"
+  #     - name: NOxPerkWh
+  #       description: "NOx emissions per kWh"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "measure"
+  #         - "emissions"
+  #       classification: "public"
       
-      - name: NMvocPerkWh
-        description: "NMVOC emissions per kWh"
-        type: double
-        required: false
-        tags:
-          - "measure"
-          - "emissions"
-        classification: "public"
+  #     - name: NMvocPerkWh
+  #       description: "NMVOC emissions per kWh"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "measure"
+  #         - "emissions"
+  #       classification: "public"
       
-      - name: CH4PerkWh
-        description: "CH4 emissions per kWh"
-        type: double
-        required: false
-        tags:
-          - "measure"
-          - "emissions"
-        classification: "public"
+  #     - name: CH4PerkWh
+  #       description: "CH4 emissions per kWh"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "measure"
+  #         - "emissions"
+  #       classification: "public"
       
-      - name: COPerkWh
-        description: "CO emissions per kWh"
-        type: double
-        required: false
-        tags:
-          - "measure"
-          - "emissions"
-        classification: "public"
+  #     - name: COPerkWh
+  #       description: "CO emissions per kWh"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "measure"
+  #         - "emissions"
+  #       classification: "public"
       
-      - name: N2OPerkWh
-        description: "N2O emissions per kWh"
-        type: double
-        required: false
-        tags:
-          - "measure"
-          - "emissions"
-        classification: "public"
+  #     - name: N2OPerkWh
+  #       description: "N2O emissions per kWh"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "measure"
+  #         - "emissions"
+  #       classification: "public"
       
-      - name: SlagPerkWh
-        description: "Slag per kWh"
-        type: double
-        required: false
-        tags:
-          - "measure"
-          - "waste"
-        classification: "public"
+  #     - name: SlagPerkWh
+  #       description: "Slag per kWh"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "measure"
+  #         - "waste"
+  #       classification: "public"
       
-      - name: FlyAshPerkWh
-        description: "Fly ash per kWh"
-        type: double
-        required: false
-        tags:
-          - "measure"
-          - "waste"
-        classification: "public"
+  #     - name: FlyAshPerkWh
+  #       description: "Fly ash per kWh"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "measure"
+  #         - "waste"
+  #       classification: "public"
       
-      - name: ParticlesPerkWh
-        description: "Particles per kWh"
-        type: double
-        required: false
-        tags:
-          - "measure"
-          - "emissions"
-        classification: "public"
+  #     - name: ParticlesPerkWh
+  #       description: "Particles per kWh"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "measure"
+  #         - "emissions"
+  #       classification: "public"
       
-      - name: WastePerkWh
-        description: "Waste per kWh"
-        type: double
-        required: false
-        tags:
-          - "measure"
-          - "waste"
-        classification: "public"
+  #     - name: WastePerkWh
+  #       description: "Waste per kWh"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "measure"
+  #         - "waste"
+  #       classification: "public"
       
-      - name: DesulpPerkWh
-        description: "Desulphurisation per kWh"
-        type: double
-        required: false
-        tags:
-          - "measure"
-        classification: "public"
+  #     - name: DesulpPerkWh
+  #       description: "Desulphurisation per kWh"
+  #       type: double
+  #       required: false
+  #       tags:
+  #         - "measure"
+  #       classification: "public"
 
   - name: DatahubPricelist
     description: "Datahub price list for electricity charges and tariffs by grid operator"
