@@ -1,0 +1,39 @@
+resources:
+  pipelines:
+    energy_pipeline:
+      name: energy_pipeline_${var.environment}
+      catalog: ${resources.schemas.eloverblik_raw_schema.catalog_name}
+      schema: ${resources.schemas.eloverblik_raw_schema.name}
+      
+      libraries:
+        - glob:
+            include: ../../src/solution/curated/dimensions/dim_meteringpoint.py
+        - glob:
+            include: ../../src/solution/curated/facts/fact_energy_consumptions.py
+
+      environment:
+        dependencies:
+          - ../../dist/*.whl
+
+      configuration:
+        DATABRICKS_ENABLE_EXPERIMENTAL_FILES_API_CLIENT: 'true'
+        bundle.sourcePath: ${workspace.file_path}/src
+        environment: ${var.environment}
+        spark.eloverblik-api-token: "{{secrets/scope-demo-dev/eloverblik-api-token}}"        
+
+        catalogs: ${var.catalogs}
+        
+        schemas: | 
+          {
+            "eloverblik_raw_schema": "${resources.schemas.eloverblik_raw_schema.name}",
+            "eloverblik_base_schema": "${resources.schemas.eloverblik_base_schema.name}",
+            "energidataservice_base_schema": "${resources.schemas.energidataservice_base_schema.name}",
+
+            "enriched_schema": "${resources.schemas.enriched_schema.name}",
+
+            "dimensions_schema": "${resources.schemas.dimensions_schema.name}",
+            "facts_schema": "${resources.schemas.facts_schema.name}"
+          }
+
+      serverless: true
+      channel: CURRENT

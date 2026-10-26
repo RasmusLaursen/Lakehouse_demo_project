@@ -1,0 +1,16 @@
+variables:
+  shared_catalog:
+    default: shared
+
+resources:
+  schemas:
+    shared_schema:
+      name: shared_resources
+      catalog_name: ${var.shared_catalog}
+      comment: This schema was created by Databricks Asset Bundles and is ment to store shared resources.   
+
+  volumes:
+    shared_wheel_location_volume:
+      catalog_name: ${resources.schemas.shared_schema.catalog_name}
+      name: wheel_location
+      schema_name: ${resources.schemas.shared_schema.name}

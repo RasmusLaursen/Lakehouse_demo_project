@@ -1,0 +1,55 @@
+kind: DataContract
+apiVersion: v3.0.0
+id: "urn:datacontract:s3:customer-data"
+status: active
+
+name: "S3 Customer Data Contract"
+version: "1.0.0"
+description:
+  purpose: "Data contract for ingesting customer data from S3"
+  usage: "Example showing S3 ingestion using AutoLoaderConnector"
+
+servers:
+  - server: dev
+    type: "s3"
+    environment: "development"
+    format: "json"
+    customProperties:
+      - property: loadtype
+        value: "volume_autoloader"
+      - property: connector_type
+        value: "autoloader"
+      - property: connector_config
+        value:
+          source_type: "s3"
+          path: "s3://my-company-datalake/raw/customers/"
+          format: "json"
+          add_audit_columns: true
+          options:
+            cloudFiles.schemaLocation: "s3://my-company-datalake/schemas/customers/"
+            cloudFiles.inferColumnTypes: "true"
+            cloudFiles.schemaEvolutionMode: "rescue"
+
+schema:
+  - name: customers
+    description: "Customer master data from S3"
+    type: table
+    customProperties:
+      - property: scd_type
+        value: 1
+      - property: keys
+        value: ["customer_id"]
+      - property: sequence_column
+        value: "_metadata_ldp.ingest_timestamp"
+    properties:
+      - name: customer_id
+        type: integer
+        required: true
+        primaryKey: true
+      - name: customer_name
+        type: string
+        required: true
+      - name: email
+        type: string
+      - name: created_at
+        type: timestamp

@@ -1,0 +1,36 @@
+dataContractSpecification: 1.2.0
+id: "dimensions-data-v1"
+info:
+  title: "Synthetic Lakehouse Rental Data Contract"
+  version: "1.0.0"
+  description: "Data contract for synthetic data generation in lakehouse rental system"
+  owner: "Data Engineering Team"
+  created: "2024-10-17"
+
+servers:
+  dev:
+    type: "local"
+    environment: "dev"
+    format: delta
+    config:
+      loadtype: "bulk"
+
+models:
+  customer:
+    description: "Lakehouse name reference data"
+    fields:
+      customer_id: { type: "integer", required: true, primaryKey: true}
+      customer_key: {type: "string", required: true, maxLength: 100 }
+      validfrom: {type: "timestamp", required: true}
+      name: {type: "string", required: true, maxLength: 100 }
+      email: {type: "string", required: true, maxLength: 100 }
+      phone_number: {type: "string", required: true, maxLength: 15 }
+      birth_date: {type: "date", required: true}
+      loyalty_tier: {type: "string", required: true, maxLength: 50 }
+      payment_method: {type: "string", required: true, maxLength: 50 }
+
+    config:
+      keys:
+        - customer_key
+      sequence_column: validfrom
+      stored_as_scd_type: 2

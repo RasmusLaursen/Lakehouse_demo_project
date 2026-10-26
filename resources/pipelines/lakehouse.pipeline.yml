@@ -1,0 +1,68 @@
+resources:
+  pipelines:
+    lakehouse_demo_project_pipeline:
+      name: lakehouse_demo_project_pipeline_${var.environment}
+      # Origin values mirror data_contracts/source_system/lakehouse.yml and review.yml (tag values can't contain commas)
+      tags:
+        source_system: lakehouse review
+        data_contract: "urn:datacontract:lakehouse:synthetic-rental-data urn:datacontract:lakehouse:review-data"
+        source_type: autoloader
+        source_origin: volume
+      catalog: ${resources.schemas.lakehouse_landing_schema.catalog_name}
+      schema: ${resources.schemas.lakehouse_landing_schema.name} 
+      libraries:
+        - glob:
+            include: ../../src/solution/raw/raw_ingest_lakehouse.py
+        - glob:
+            include: ../../src/solution/raw/raw_ingest_review.py
+        - glob:
+            include: ../../src/solution/base/base_ingest_lakehouse.py
+        - glob:
+            include: ../../src/solution/base/base_ingest_review.py
+        - glob:
+            include: ../../src/solution/curated/dimensions/dim_customer.py 
+        # # - glob:
+        # #     include: ../../src/solution/curated/dimensions/dim_customer_mv_scd1.py
+        # # - glob:
+        # #     include: ../../src/solution/curated/dimensions/dim_customer_mv_scd2.py
+        # # - glob:
+        # #     include: ../../src/solution/curated/dimensions/dim_customer_cdc_scd2.py
+        # # - glob:
+        # #     include: ../../src/solution/curated/dimensions/dim_customer_cdc_scd1.py
+        # - glob:
+        #     include: ../../src/solution/curated/dimensions/dim_seller.py
+        # - glob:
+        #     include: ../../src/solution/curated/dimensions/dim_lakehouse.py 
+        # - glob:
+        #     include: ../../src/solution/curated/facts/fact_lakehouse_rentals.py
+        # - glob:
+        #     include: ../../src/solution/curated/facts/fact_lakehouse_reviews.py
+
+
+      environment:
+        dependencies:
+          - ../../dist/*.whl
+
+      configuration:
+        bundle.sourcePath: ${workspace.file_path}/src
+        environment: ${var.environment}
+
+        catalogs: ${var.catalogs}
+        schemas: | 
+          {
+            "lakehouse_landing_schema": "${resources.schemas.lakehouse_landing_schema.name}",
+            "lakehouse_raw_schema": "${resources.schemas.lakehouse_raw_schema.name}",
+            "lakehouse_base_schema": "${resources.schemas.lakehouse_base_schema.name}",
+
+            "review_landing_schema": "${resources.schemas.review_landing_schema.name}",
+            "review_raw_schema": "${resources.schemas.review_raw_schema.name}",
+            "review_base_schema": "${resources.schemas.review_base_schema.name}",
+
+            "enriched_schema": "${resources.schemas.enriched_schema.name}",
+
+            "dimensions_schema": "${resources.schemas.dimensions_schema.name}",
+            "facts_schema": "${resources.schemas.facts_schema.name}"
+          }
+          
+
+      serverless: True

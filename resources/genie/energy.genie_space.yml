@@ -1,0 +1,129 @@
+resources:
+  genie_spaces:
+    energy_genie:
+      title: "Energy Consumption Genie"
+      description: "Ask questions about hourly electricity consumption (Eloverblik) and DK2 day-ahead spot cost (Energi Data Service)."
+      warehouse_id: ${var.warehouse_id}
+      # IDs must be 32-char lowercase hex and every list must be sorted by id/identifier/column_name
+      serialized_space:
+        version: 2
+        config:
+          sample_questions:
+            - id: "01f0e7a1000000000000000000000a01"
+              question: ["What was my total electricity consumption last month?"]
+            - id: "01f0e7a1000000000000000000000a02"
+              question: ["How much did my electricity cost per month this year?"]
+            - id: "01f0e7a1000000000000000000000a03"
+              question: ["Which hours of the day do I use the most electricity?"]
+            - id: "01f0e7a1000000000000000000000a04"
+              question: ["What share of my consumption is in peak hours?"]
+            - id: "01f0e7a1000000000000000000000a05"
+              question: ["What was the average spot price per kWh last week?"]
+        data_sources:
+          metric_views:
+            - identifier: ${resources.schemas.metrics_schema.catalog_name}.${resources.schemas.metrics_schema.name}.mv_energy_consumption
+              description:
+                - "Hourly electricity consumption per metering point, priced with DK2 day-ahead spot prices. Query measures with MEASURE()."
+              column_configs:
+                - column_name: balance_supplier
+                  enable_entity_matching: true
+                - column_name: city
+                  enable_entity_matching: true
+                - column_name: date
+                  enable_format_assistance: true
+                - column_name: metering_point
+                  enable_entity_matching: true
+                - column_name: month
+                  enable_format_assistance: true
+        instructions:
+          text_instructions:
+            - id: "01f0e7a1000000000000000000000b01"
+              content:
+                - "Always query the metric view and wrap measures in MEASURE(), e.g. MEASURE(total_consumption_kwh). "
+                - "Consumption is in kWh. Cost is the DK2 day-ahead spot cost in DKK, excluding grid tariffs, fees, taxes and VAT; say so when reporting cost. "
+                - "Prices only exist from October 2025, so cost and price are NULL before that. "
+                - "All dates and hours are Danish local time (Europe/Copenhagen). Peak hours are 17:00-20:00. "
+                - "Use the month dimension for monthly questions and date for daily questions. 'Last month' means the previous full calendar month. "
+                - "Round kWh to 1 decimal, DKK to 2 decimals and prices (DKK/kWh) to 3 decimals."
+          example_question_sqls:
+            - id: "01f0e7a1000000000000000000000c01"
+              question: ["Monthly consumption and spot cost"]
+              sql:
+                - "SELECT month,\n"
+                - "  ROUND(MEASURE(total_consumption_kwh), 1) AS consumption_kwh,\n"
+                - "  ROUND(MEASURE(total_cost_dkk), 2) AS spot_cost_dkk\n"
+                - "FROM ${resources.schemas.metrics_schema.catalog_name}.${resources.schemas.metrics_schema.name}.mv_energy_consumption\n"
+                - "GROUP BY month\n"
+                - "ORDER BY month"
+            - id: "01f0e7a1000000000000000000000c02"
+              question: ["Average consumption by hour of day"]
+              sql:
+                - "SELECT hour_of_day,\n"
+                - "  ROUND(MEASURE(avg_hourly_consumption_kwh), 3) AS avg_kwh\n"
+                - "FROM ${resources.schemas.metrics_schema.catalog_name}.${resources.schemas.metrics_schema.name}.mv_energy_consumption\n"
+                - "GROUP BY hour_of_day\n"
+                - "ORDER BY hour_of_day"
+            - id: "01f0e7a1000000000000000000000c03"
+              question: ["Total consumption last month"]
+              sql:
+                - "SELECT ROUND(MEASURE(total_consumption_kwh), 1) AS consumption_kwh\n"
+                - "FROM ${resources.schemas.metrics_schema.catalog_name}.${resources.schemas.metrics_schema.name}.mv_energy_consumption\n"
+                - "WHERE month = DATE_TRUNC('MONTH', ADD_MONTHS(CURRENT_DATE(), -1))"
+            - id: "01f0e7a1000000000000000000000c04"
+              question: ["Peak share of consumption per month"]
+              sql:
+                - "SELECT month,\n"
+                - "  ROUND(MEASURE(peak_share) * 100, 1) AS peak_share_pct\n"
+                - "FROM ${resources.schemas.metrics_schema.catalog_name}.${resources.schemas.metrics_schema.name}.mv_energy_consumption\n"
+                - "GROUP BY month\n"
+                - "ORDER BY month"
+            - id: "01f0e7a1000000000000000000000c05"
+              question: ["Daily average spot price per kWh in the last 7 days"]
+              sql:
+                - "SELECT date,\n"
+                - "  ROUND(MEASURE(avg_price_dkk_per_kwh), 3) AS avg_price_dkk_per_kwh\n"
+                - "FROM ${resources.schemas.metrics_schema.catalog_name}.${resources.schemas.metrics_schema.name}.mv_energy_consumption\n"
+                - "WHERE date >= DATE_SUB(CURRENT_DATE(), 7)\n"
+                - "GROUP BY date\n"
+                - "ORDER BY date"
+        benchmarks:
+          questions:
+            - id: "01f0e7a1000000000000000000000d01"
+              question: ["What is the total consumption per year?"]
+              answer:
+                - format: SQL
+                  content:
+                    - "SELECT year, MEASURE(total_consumption_kwh) AS consumption_kwh\n"
+                    - "FROM ${resources.schemas.metrics_schema.catalog_name}.${resources.schemas.metrics_schema.name}.mv_energy_consumption\n"
+                    - "GROUP BY year ORDER BY year"
+            - id: "01f0e7a1000000000000000000000d02"
+              question: ["What did electricity cost in total in 2026?"]
+              answer:
+                - format: SQL
+                  content:
+                    - "SELECT MEASURE(total_cost_dkk) AS spot_cost_dkk\n"
+                    - "FROM ${resources.schemas.metrics_schema.catalog_name}.${resources.schemas.metrics_schema.name}.mv_energy_consumption\n"
+                    - "WHERE year = 2026"
+            - id: "01f0e7a1000000000000000000000d03"
+              question: ["Is consumption higher on weekends than on weekdays?"]
+              answer:
+                - format: SQL
+                  content:
+                    - "SELECT is_weekend, MEASURE(avg_hourly_consumption_kwh) AS avg_kwh\n"
+                    - "FROM ${resources.schemas.metrics_schema.catalog_name}.${resources.schemas.metrics_schema.name}.mv_energy_consumption\n"
+                    - "GROUP BY is_weekend"
+            - id: "01f0e7a1000000000000000000000d04"
+              question: ["Which month had the highest average spot price?"]
+              answer:
+                - format: SQL
+                  content:
+                    - "SELECT month, MEASURE(avg_price_dkk_per_kwh) AS avg_price_dkk_per_kwh\n"
+                    - "FROM ${resources.schemas.metrics_schema.catalog_name}.${resources.schemas.metrics_schema.name}.mv_energy_consumption\n"
+                    - "GROUP BY month ORDER BY avg_price_dkk_per_kwh DESC NULLS LAST LIMIT 1"
+            - id: "01f0e7a1000000000000000000000d05"
+              question: ["How many metering points do we have data for?"]
+              answer:
+                - format: SQL
+                  content:
+                    - "SELECT MEASURE(metering_point_count) AS metering_points\n"
+                    - "FROM ${resources.schemas.metrics_schema.catalog_name}.${resources.schemas.metrics_schema.name}.mv_energy_consumption"

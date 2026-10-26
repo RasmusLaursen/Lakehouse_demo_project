@@ -1,0 +1,14 @@
+variables:
+  source_system_energidataservice:
+    default: energidataservice
+
+resources:
+  schemas:
+    energidataservice_raw_schema:
+      name: ${var.source_system_energidataservice}
+      catalog_name: ${var.raw_catalog}
+      comment: Raw schema for Danish Energy Data Service API data
+    energidataservice_base_schema:
+      name: ${var.source_system_energidataservice}
+      catalog_name: ${var.base_catalog}
+      comment: Base schema for Danish Energy Data Service API data with CDC

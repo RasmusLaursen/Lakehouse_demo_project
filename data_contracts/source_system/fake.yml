@@ -1,0 +1,75 @@
+kind: DataContract
+apiVersion: v3.0.0
+id: "urn:datacontract:eloverblik:metering-points"
+status: active
+
+name: "Eloverblik - Danish Electricity Consumption Data"
+version: "1.0.0"
+description:
+  purpose: "Data contract for Danish electricity consumption data from Eloverblik Customer API"
+  limitations: "Requires authentication token. Data availability depends on user's metering points. Rate limits apply."
+  usage: "Extract electricity consumption time series data for energy analytics, billing, and consumption monitoring"
+
+servers:
+  - server: dev
+    type: "fake"
+    environment: "development"
+    format: "json"
+    customProperties:
+      - property: loadtype
+        value: "fake"
+      - property: connector_type
+        value: "fake"
+
+schema:
+  - name: fake
+    description: "List of metering points (electricity meters) associated with the customer"
+    type: table
+    customProperties:
+      - property: scd_type
+        value: 2  # Track changes to metering point metadata
+      - property: keys
+        value: ["meteringPointId"]
+      - property: sequence_column
+        value: "meteringPointId"
+      - property: loadtype
+        value: "eloverblik_api"
+      - property: mode
+        value: "streaming"
+      - property: timestamp_field
+        value: "consumerStartDate"
+      - property: initial_timestamp
+        value: "2025-01-01"
+      - property: table_name
+        value: "meteringpoints/meteringpoints"
+      - property: provides_dependencies
+        value: ["meteringPointId"]  # Fields available for dependent calls
+      - property: data_path
+        value: "result"
+      - property: method
+        value: "GET"        
+    properties:
+      - name: name
+        description: "Unique identifier for the metering point (18-digit number)"
+        logicalType: string
+        required: false
+      
+      - name: state
+        description: "Type of metering point (e.g., E17 for electricity consumption)"
+        logicalType: string
+        required: false
+      
+      - name: t
+        description: "Settlement method (D01=Profiled, E02=Non-profiled)"
+        logicalType: string
+        required: false
+
+tags:
+  - "electricity"
+  - "consumption"
+  - "metering"
+  - "energy"
+  - "denmark"
+  - "eloverblik"
+  - "time-series"
+  - "iot"

@@ -2,6 +2,7 @@
 # See https://docs.databricks.com/dev-tools/bundles/index.html for documentation.
 bundle:
   name: lakehouse_demo_project
+  databricks_cli_version: ">= 1.21.0"
 
 variables:
   project_name:
@@ -20,9 +21,14 @@ variables:
     default: curated
   warehouse_id:
     lookup:
-      # Replace this with the name of your SQL warehouse.
       warehouse: "Serverless Starter Warehouse"
+  volumepath:
+    default: test
 
+# Applied to every resource that supports tags (jobs and pipelines)
+presets:
+  tags:
+    bundle_target: ${bundle.target}
 
 artifacts:
   default:
@@ -35,11 +41,16 @@ include:
   # - resources/unity_catalog/app/*.yml # excluding apps for now as there is a limit of 1 app pr workspace
   # - resources/app/*.yml # excluding apps for now as there is a limit of 1 app pr workspace
   - resources/environments/*.yml
+  - resources/dashboards/*.yml
+  - resources/genie/*.yml
   - resources/jobs/*.yml
   - resources/pipelines/*.yml
   - resources/unity_catalog/source_systems/*.yml
   - resources/unity_catalog/*.yml
 
+
 sync:
   exclude:
-    - src/dashboards/*.lvdash.json
+    - src/solution/dashboards/*.lvdash.json
+  include:
+    - src/**

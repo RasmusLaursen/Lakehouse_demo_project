@@ -17,13 +17,13 @@ resources:
       schema: ${resources.schemas.bookings_landing_schema.name} 
       libraries:
         - glob:
-            include: ../src/raw/raw_ingest_bookings.py
+            include: ../src/solution/raw/raw_ingest_bookings.py
         - glob:
-            include: ../src/base/base_ingest_bookings.py
+            include: ../src/solution/base/base_ingest_bookings.py
             
       environment:
         dependencies:
-          - ../dist/*.whl
+          - ../../dist/*.whl
 
       configuration:
         bundle.sourcePath: ${workspace.file_path}/src
@@ -42,9 +42,9 @@ resources:
         review_raw_schema: ${resources.schemas.review_raw_schema.name}
         review_base_schema: ${resources.schemas.review_base_schema.name}
 
-        bookings_landing_schema: ${resources.schemas.bookings_landing_schema.name}
-        bookings_raw_schema: ${resources.schemas.bookings_raw_schema.name}
-        bookings_base_schema: ${resources.schemas.bookings_base_schema.name}
+        # bookings_landing_schema: ${resources.schemas.bookings_landing_schema.name}
+        # bookings_raw_schema: ${resources.schemas.bookings_raw_schema.name}
+        # bookings_base_schema: ${resources.schemas.bookings_base_schema.name}
 
         enriched_schema: ${resources.schemas.enriched_schema.name}
 

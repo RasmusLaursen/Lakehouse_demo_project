@@ -1,0 +1,496 @@
+kind: DataContract
+apiVersion: v3.0.0
+id: "urn:datacontract:lakehouse:synthetic-rental-data"
+status: active
+
+name: "Synthetic Lakehouse Rental Data Contract"
+version: "1.0.0"
+description:
+  purpose: "Data contract for synthetic data generation in lakehouse rental system"
+  limitations: "PII must be handled according to GDPR requirements"
+  usage: "Data can be used for analytics and reporting purposes"
+
+servers:
+  - server: dev
+    type: "databricks"
+    environment: "development"
+    format: "parquet"
+    customProperties:
+      - property: loadtype
+        value: "volume_autoloader"
+      - property: connector_type
+        value: "autoloader"
+      - property: connector_config
+        value:
+          source_type: "volume"  # Can also be: s3, adls, gcs, kafka, eventhub
+          add_audit_columns: true
+
+schema:
+  - name: meta_lakehouses
+    description: "Lakehouse name reference data"
+    type: table
+    customProperties:
+      - property: mode
+        value: streaming
+      - property: scd_type
+        value: 1
+      - property: keys
+        value: ["lakehouse_name_id"]
+      - property: sequence_column
+        value: "_metadata_ldp.ingest_timestamp"
+      - property: loadtype
+        value: "volume_autoloader"
+    properties:
+      - name: lakehouse_name_id
+        type: integer
+        required: true
+        primaryKey: true
+      - name: lakehouse_name
+        type: string
+        required: true
+        maxLength: 100
+
+  - name: meta_region
+    description: "Regional location reference data"
+    type: table
+    customProperties:
+      - property: mode
+        value: streaming
+      - property: scd_type
+        value: 1
+      - property: keys
+        value: ["region_name_id"]
+      - property: sequence_column
+        value: "_metadata_ldp.ingest_timestamp"
+      - property: loadtype
+        value: "volume_autoloader"
+    properties:
+      - name: region_name_id
+        type: integer
+        required: true
+        primaryKey: true
+      - name: region_name
+        type: string
+        required: true
+        maxLength: 50
+  - name: loyalty_tier
+    description: "Customer loyalty tier levels"
+    type: table
+    customProperties:
+      - property: mode
+        value: streaming
+      - property: scd_type
+        value: 1
+      - property: keys
+        value: ["loyalty_tier_id"]
+      - property: sequence_column
+        value: "_metadata_ldp.ingest_timestamp"
+      - property: loadtype
+        value: "volume_autoloader"
+    properties:
+      - name: loyalty_tier_id
+        type: integer
+        required: true
+        primaryKey: true
+      - name: loyalty_tier
+        type: string
+        required: true
+        maxLength: 30
+  - name: payment_method
+    description: "Available payment methods"
+    type: table
+    customProperties:
+      - property: mode
+        value: streaming
+      - property: scd_type
+        value: 1
+      - property: keys
+        value: ["payment_method_id"]
+      - property: sequence_column
+        value: "_metadata_ldp.ingest_timestamp"
+      - property: loadtype
+        value: "volume_autoloader"
+    properties:
+      - name: payment_method_id
+        type: integer
+        required: true
+        primaryKey: true
+      - name: payment_method
+        type: string
+        required: true
+        maxLength: 50
+  - name: customer
+    description: "Customer information and preferences"
+    type: table
+    customProperties:
+      - property: mode
+        value: streaming
+      - property: scd_type
+        value: 2
+      - property: keys
+        value: ["customer_id"]
+      - property: sequence_column
+        value: "_metadata_ldp.ingest_timestamp"
+      - property: track_history_except
+        value: ["_metadata"]
+      - property: loadtype
+        value: "volume_autoloader"
+    properties:
+      - name: customer_id
+        type: integer
+        required: true
+        primaryKey: true
+      - name: name
+        type: string
+        required: true
+        maxLength: 100
+      - name: email
+        type: string
+        required: true
+        format: email
+      - name: phone_number
+        type: string
+        required: true
+        maxLength: 20
+      - name: birth_date
+        type: date
+        required: true
+      - name: gender
+        type: string
+        required: true
+        enum: ["Male", "Female", "Other"]
+      - name: address
+        type: string
+        required: true
+        maxLength: 255
+      - name: city
+        type: string
+        required: true
+        maxLength: 100
+      - name: postal_code
+        type: string
+        required: true
+        maxLength: 20
+      - name: country
+        type: string
+        required: true
+        minLength: 2
+        maxLength: 2
+      - name: loyalty_tier_id
+        type: integer
+        required: true
+      - name: preferred_payment_method_id
+        type: integer
+        required: true
+      - name: account_manager
+        type: string
+        required: true
+        maxLength: 100
+      - name: is_subscribed_to_newsletter
+        type: boolean
+        required: true
+      - name: last_purchase_date
+        type: date
+        required: true
+      - name: total_spend
+        type: decimal
+        required: true
+        minimum: 0
+      - name: number_of_purchases
+        type: integer
+        required: true
+        minimum: 0
+  - name: lakehouse
+    description: "Lakehouse property details and amenities"
+    type: table
+    customProperties:
+      - property: mode
+        value: streaming
+      - property: scd_type
+        value: 1
+      - property: keys
+        value: ["lakehouse_id"]
+      - property: sequence_column
+        value: "_metadata_ldp.ingest_timestamp"
+      - property: loadtype
+        value: "volume_autoloader"
+    properties:
+      - name: lakehouse_id
+        type: integer
+        required: true
+        primaryKey: true
+      - name: lakehouse_name_id
+        type: integer
+        required: true
+      - name: location
+        type: string
+        required: true
+        maxLength: 100
+      - name: region_name_id
+        type: integer
+        required: true
+      - name: address
+        type: string
+        required: true
+        maxLength: 255
+      - name: postal_code
+        type: string
+        required: true
+        maxLength: 20
+      - name: country
+        type: string
+        required: true
+        minLength: 2
+        maxLength: 2
+      - name: bedrooms
+        type: integer
+        required: true
+        minimum: 1
+        maximum: 10
+      - name: bathrooms
+        type: integer
+        required: true
+        minimum: 1
+        maximum: 8
+      - name: max_guests
+        type: integer
+        required: true
+        minimum: 1
+        maximum: 20
+      - name: nightly_rate
+        type: decimal
+        required: true
+        minimum: 50
+        maximum: 2000
+      - name: is_pet_friendly
+        type: boolean
+        required: true
+      - name: has_sauna
+        type: boolean
+        required: true
+      - name: has_hot_tub
+        type: boolean
+        required: true
+      - name: has_lake_view
+        type: boolean
+        required: true
+      - name: amenities
+        type: array
+        required: true
+      - name: owner_name
+        type: string
+        required: true
+        maxLength: 100
+      - name: owner_email
+        type: string
+        required: true
+        format: email
+      - name: listing_date
+        type: date
+        required: true
+      - name: rating
+        type: decimal
+        required: true
+        minimum: 1.0
+        maximum: 5.0
+      - name: is_active
+        type: boolean
+        required: true
+  - name: seller
+    description: "Sales representative information and performance"
+    type: table
+    customProperties:
+      - property: mode
+        value: streaming
+      - property: scd_type
+        value: 1
+      - property: keys
+        value: ["seller_id"]
+      - property: sequence_column
+        value: "_metadata_ldp.ingest_timestamp"
+      - property: loadtype
+        value: "volume_autoloader"
+    properties:
+      - name: seller_id
+        type: integer
+        required: true
+        primaryKey: true
+      - name: name
+        type: string
+        required: true
+        maxLength: 100
+      - name: email
+        type: string
+        required: true
+        format: email
+      - name: phone_number
+        type: string
+        required: true
+        maxLength: 20
+      - name: hire_date
+        type: date
+        required: true
+      - name: region_name_id
+        type: integer
+        required: true
+      - name: assigned_lakehouses
+        type: array
+        required: true
+      - name: total_sales
+        type: decimal
+        required: true
+        minimum: 0
+      - name: number_of_bookings
+        type: integer
+        required: true
+        minimum: 0
+      - name: commission_rate
+        type: decimal
+        required: true
+        minimum: 0
+        maximum: 1
+      - name: monthly_target
+        type: decimal
+        required: true
+        minimum: 0
+      - name: is_active
+        type: boolean
+        required: true
+      - name: last_booking_date
+        type: date
+        required: true
+      - name: performance_rating
+        type: decimal
+        required: true
+        minimum: 1.0
+        maximum: 5.0
+      - name: manager_name
+        type: string
+        required: true
+        maxLength: 100
+      - name: preferred_contact_method
+        type: string
+        required: true
+        enum: ["Email", "Phone", "SMS"]
+
+  - name: lakehouse_rentals
+    description: "Complete rental transaction records"
+    type: table
+    customProperties:
+      - property: mode
+        value: streaming
+      - property: scd_type
+        value: 1
+      - property: keys
+        value: ["rental_id"]
+      - property: sequence_column
+        value: "_metadata_ldp.ingest_timestamp"
+      - property: loadtype
+        value: "volume_autoloader"
+      # - property: backfill
+      #   value: true
+    properties:
+      - name: rental_id
+        type: integer
+        required: true
+        primaryKey: true
+      - name: seller_id
+        type: integer
+        required: true
+      - name: customer_id
+        type: integer
+        required: true
+      - name: lakehouse_id
+        type: integer
+        required: true
+      - name: customer_name
+        type: string
+        required: true
+        maxLength: 100
+      - name: email
+        type: string
+        required: true
+        format: email
+      - name: check_in_date
+        type: date
+        required: true
+      - name: check_out_date
+        type: date
+        required: true
+      - name: lakehouse_name_id
+        type: integer
+        required: true
+      - name: location
+        type: string
+        required: true
+        maxLength: 100
+      - name: bedrooms
+        type: integer
+        required: true
+        minimum: 1
+      - name: nightly_rate
+        type: decimal
+        required: true
+        minimum: 0
+      - name: total_cost
+        type: decimal
+        required: true
+        minimum: 0
+      - name: is_pet_friendly
+        type: boolean
+        required: true
+      - name: rating
+        type: decimal
+        required: true
+        minimum: 1.0
+        maximum: 5.0
+      - name: order_date
+        type: date
+        required: true
+      - name: seller_name
+        type: string
+        required: true
+        maxLength: 100
+      - name: seller_email
+        type: string
+        required: true
+        format: email
+      - name: account_manager
+        type: string
+        required: true
+        maxLength: 100
+      - name: payment_method
+        type: string
+        required: true
+        maxLength: 50
+      - name: transaction_id
+        type: string
+        required: true
+        maxLength: 50
+      - name: discount_code
+        type: string
+        required: false
+        maxLength: 20
+      - name: booking_channel
+        type: string
+        required: true
+        maxLength: 50
+      - name: currency
+        type: string
+        required: true
+        minLength: 3
+        maxLength: 3
+      - name: tax_amount
+        type: decimal
+        required: true
+        minimum: 0
+      - name: total_cost_with_tax
+        type: decimal
+        required: true
+        minimum: 0
+
+# stakeholders:
+#   - name: "Data Engineering Team"
+#     role: "maintainer"
+#   - name: "Analytics Team" 
+#     role: "consumer"

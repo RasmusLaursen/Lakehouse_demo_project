@@ -1,0 +1,41 @@
+resources:
+  pipelines:
+    calendar_pipeline:
+      name: calendar_pipeline_${var.environment}
+      # Shared conformed dimensions; owned here so domain pipelines can read them without ownership conflicts
+      tags:
+        source_system: generated
+        source_type: generated
+        source_origin: synthetic
+      catalog: ${resources.schemas.enriched_schema.catalog_name}
+      schema: ${resources.schemas.enriched_schema.name}
+
+      libraries:
+        - glob:
+            include: ../../src/solution/enriched/enriched_calendar.py
+        - glob:
+            include: ../../src/solution/curated/dimensions/dim_calendar.py
+        - glob:
+            include: ../../src/solution/curated/dimensions/dim_time.py
+
+      environment:
+        dependencies:
+          - ../../dist/*.whl
+
+      configuration:
+        bundle.sourcePath: ${workspace.file_path}/src
+        environment: ${var.environment}
+
+        catalogs: ${var.catalogs}
+
+        schemas: |
+          {
+            "enriched_schema": "${resources.schemas.enriched_schema.name}",
+
+            "dimensions_schema": "${resources.schemas.dimensions_schema.name}",
+            "facts_schema": "${resources.schemas.facts_schema.name}"
+          }
+
+      serverless: true
+      channel: CURRENT
+      continuous: false

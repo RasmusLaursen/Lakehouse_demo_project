@@ -1,0 +1,123 @@
+kind: DataContract
+apiVersion: v3.0.0
+id: "urn:datacontract:lakehouse:review-data"
+status: active
+
+name: "Lakehouse Review Data Contract"
+version: "1.0.0"
+description:
+  purpose: "Data contract for customer reviews of lakehouse rental experiences"
+  limitations: "Customer review data must be handled according to privacy guidelines"
+  usage: "Data can be used for analytics, sentiment analysis, and customer feedback"
+
+servers:
+  - server: dev
+    type: "databricks"
+    environment: "development"
+    format: "parquet"
+    customProperties:
+      - property: loadtype
+        value: "volume_autoloader"
+      - property: connector_type
+        value: "autoloader"
+      - property: connector_config
+        value:
+          source_type: "volume"
+          add_audit_columns: true
+
+schema:
+  - name: reviews
+    description: "Customer reviews for lakehouse rental experiences"
+    type: table
+    customProperties:
+      - property: mode
+        value: streaming
+      - property: scd_type
+        value: 1
+      - property: keys
+        value: ["rental_id"]
+      - property: sequence_column
+        value: "_metadata_ldp.ingest_timestamp"
+      - property: loadtype
+        value: "volume_autoloader"
+    properties:
+      - name: rental_id
+        description: "Reference to the rental booking that was reviewed"
+        type: integer
+        required: true
+        minimum: 1
+        tags:
+          - "identifier"
+          - "foreign_key"
+          - "reference"
+        classification: "internal"
+      
+      - name: review_date
+        description: "Date when the review was submitted"
+        type: date
+        required: true
+        tags:
+          - "temporal"
+          - "submission"
+        classification: "internal"
+      
+      - name: rating
+        description: "Numerical rating given by customer (1-5 stars)"
+        type: integer
+        required: true
+        minimum: 1
+        maximum: 5
+        example: "4"
+        tags:
+          - "rating"
+          - "satisfaction"
+          - "metrics"
+        classification: "public"
+      
+      - name: review_text
+        description: "Detailed customer review text content"
+        type: string
+        required: true
+        minLength: 10
+        maxLength: 2000
+        example: "Had an amazing stay at this lakehouse. The view was spectacular and the amenities were top-notch."
+        tags:
+          - "content"
+          - "feedback"
+          - "text_analysis"
+        classification: "public"
+      
+      - name: review_title
+        description: "Short title or headline for the review"
+        type: string
+        required: true
+        minLength: 5
+        maxLength: 100
+        example: "Spectacular Lake View and Amazing Amenities"
+        tags:
+          - "title"
+          - "summary"
+          - "headline"
+        classification: "public"
+      
+      - name: helpful_votes
+        description: "Number of helpful votes received from other users"
+        type: integer
+        required: true
+        minimum: 0
+        maximum: 10000
+        default: 0
+        example: "15"
+        tags:
+          - "engagement"
+          - "community"
+          - "metrics"
+        classification: "internal"
+
+# stakeholders:
+#   - name: "Data Engineering Team"
+#     role: "maintainer"
+#   - name: "Analytics Team"
+#     role: "consumer"
+#   - name: "Customer Experience Team"
+#     role: "consumer"

@@ -1,0 +1,48 @@
+variables:
+  environment:
+    default: dev
+
+resources:
+  pipelines:
+    eloverblik_pipeline:
+      name: eloverblik_pipeline_${var.environment}
+      # Origin values mirror data_contracts/source_system/eloverblik.yml
+      tags:
+        source_system: eloverblik
+        data_contract: "urn:datacontract:eloverblik:metering-points"
+        source_type: rest_api
+        source_origin: "https://api.eloverblik.dk/customerapi/api/"
+      catalog: ${resources.schemas.eloverblik_raw_schema.catalog_name}
+      schema: ${resources.schemas.eloverblik_raw_schema.name}
+      
+      libraries:
+        - glob:
+            include: ../../src/solution/raw/raw_ingest_eloverblik.py
+        - glob:
+            include: ../../src/solution/base/base_ingest_eloverblik.py
+
+      environment:
+        dependencies:
+          - ../../dist/*.whl
+
+      configuration:
+        bundle.sourcePath: ${workspace.file_path}/src
+        environment: ${var.environment}
+        spark.eloverblik-api-token: "{{secrets/scope-demo-dev/eloverblik-api-token}}"
+
+        catalogs: ${var.catalogs}
+        
+        schemas: | 
+          {
+            "eloverblik_raw_schema": "${resources.schemas.eloverblik_raw_schema.name}",
+            "eloverblik_base_schema": "${resources.schemas.eloverblik_base_schema.name}",
+
+            "enriched_schema": "${resources.schemas.enriched_schema.name}",
+
+            "dimensions_schema": "${resources.schemas.dimensions_schema.name}",
+            "facts_schema": "${resources.schemas.facts_schema.name}"
+          }
+
+      serverless: true
+      channel: CURRENT
+      continuous: false

@@ -1,0 +1,42 @@
+variables:
+  environment:
+    default: dev
+
+resources:
+  pipelines:
+    energidataservice_pipeline:
+      name: energidataservice_pipeline_${var.environment}
+      # Origin values mirror data_contracts/source_system/energidataservice.yml
+      tags:
+        source_system: energidataservice
+        data_contract: "urn:datacontract:energidataservice:declaration-production"
+        source_type: rest_api
+        source_origin: "https://api.energidataservice.dk/"
+      catalog: ${resources.schemas.energidataservice_raw_schema.catalog_name}
+      schema: ${resources.schemas.energidataservice_raw_schema.name}
+      
+      libraries:
+        - glob:
+            include: ../../src/solution/raw/raw_ingest_energidataservice.py
+        - glob:
+            include: ../../src/solution/base/base_ingest_energidataservice.py
+
+      environment:
+        dependencies:
+          - ../../dist/*.whl
+
+      configuration:
+        bundle.sourcePath: ${workspace.file_path}/src
+        environment: ${var.environment}
+
+        catalogs: ${var.catalogs}
+        
+        schemas: | 
+          {
+            "energidataservice_raw_schema": "${resources.schemas.energidataservice_raw_schema.name}",
+            "energidataservice_base_schema": "${resources.schemas.energidataservice_base_schema.name}"
+          }
+
+      serverless: true
+      channel: CURRENT
+      continuous: false

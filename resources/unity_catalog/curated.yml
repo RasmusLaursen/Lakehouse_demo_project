@@ -19,4 +19,4 @@ resources:
     metrics_schema:
       name: ${var.metrics_schema}
       catalog_name: ${var.curated_catalog}
-      comment: This schema was created by Databricks Asset Bundles.      
+      comment: This schema was created by Databricks Asset Bundles.

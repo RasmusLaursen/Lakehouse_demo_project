@@ -1,0 +1,71 @@
+resources:
+  jobs:
+    energy_job:
+      name: energy_job_${var.environment}
+
+      tags:
+        environment: ${var.environment}
+
+      # Daily so the 5-day Eloverblik lookback picks up late meter data
+      schedule:
+        quartz_cron_expression: "0 0 8 * * ?"
+        timezone_id: Europe/Copenhagen
+        pause_status: UNPAUSED
+
+      parameters:
+        - name: curated_catalog
+          default: ${resources.schemas.dimensions_schema.catalog_name}
+        - name: curated_metrics_schema
+          default: ${resources.schemas.metrics_schema.name}
+        - name: curated_dimensions_schema
+          default: ${resources.schemas.dimensions_schema.name}
+        - name: curated_facts_schema
+          default: ${resources.schemas.facts_schema.name}
+
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "3"
+            dependencies:
+              - ../../dist/*.whl
+
+      tasks:
+        - task_key: eloverblik_ingest
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.eloverblik_pipeline.id}
+          max_retries: 0
+
+        - task_key: energidataservice_ingest
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.energidataservice_pipeline.id}
+          max_retries: 0
+
+        - task_key: calendar_model
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.calendar_pipeline.id}
+          max_retries: 0
+
+        - task_key: energy_model
+          depends_on:
+            - task_key: eloverblik_ingest
+            - task_key: energidataservice_ingest
+            - task_key: calendar_model
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.energy_pipeline.id}
+          max_retries: 0
+
+        - task_key: energy_metric_view
+          depends_on:
+            - task_key: energy_model
+          python_wheel_task:
+            package_name: lakehouse_demo_project
+            entry_point: energy_metric_view
+          environment_key: default
+
+        - task_key: refresh_energy_dashboard
+          depends_on:
+            - task_key: energy_metric_view
+          dashboard_task:
+            subscription: {}
+            warehouse_id: ${var.warehouse_id}
+            dashboard_id: ${resources.dashboards.energy_dashboard.id}
