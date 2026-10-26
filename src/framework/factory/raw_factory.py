@@ -69,26 +69,25 @@ class RawPipelineFactory:
         # Find server configuration for current environment
         server_config = self._get_server_config(data_contract, centralized_config.environment)
         
-        # Process schemas in two passes:
-        # Pass 1: Create all root call tables (independent)
-        # Pass 2: Create all dependent call tables (depends on root tables being materialized)
-        logger.info("=== PASS 1: Creating root call tables ===")
-        for schema in data_contract.schema_:  # type: ignore
-            try:
-                is_root_call = True
-                if hasattr(schema, 'customProperties') and schema.customProperties:
-                    for prop in schema.customProperties:
-                        prop_name = getattr(prop, 'property', getattr(prop, 'key', None))
-                        prop_value = getattr(prop, 'value', None)
-                        if prop_name == "is_root_call" and prop_value:
-                            is_root_call = (prop_value == "true" or prop_value is True)
-                
-                if is_root_call:
-                    logger.info(f"Processing root call schema: {schema.name if schema else 'unknown'}")
-                    self._process_schema(schema, server_config, centralized_config, catalog_manager)
-            except Exception as e:
-                logger.error(f"Error processing root schema {schema.name if schema else 'unknown'}: {e}")
-                continue
+        # Errors propagate so a broken schema can't silently drop its table from the pipeline graph
+        schemas = list(data_contract.schema_)  # type: ignore
+        root_schemas = [s for s in schemas if self._is_root_call(s)]
+        dependent_schemas = [s for s in schemas if not self._is_root_call(s)]
+
+        logger.info(f"=== PASS 1: Creating {len(root_schemas)} root call tables ===")
+        for schema in root_schemas:
+            self._process_schema(schema, server_config, centralized_config, catalog_manager)
+
+        logger.info(f"=== PASS 2: Creating {len(dependent_schemas)} dependent call tables ===")
+        for schema in dependent_schemas:
+            self._process_schema(schema, server_config, centralized_config, catalog_manager)
+
+    @staticmethod
+    def _is_root_call(schema: Any) -> bool:
+        for prop in getattr(schema, 'customProperties', None) or []:
+            if getattr(prop, 'property', getattr(prop, 'key', None)) == "is_root_call":
+                return str(getattr(prop, 'value', True)).lower() == "true"
+        return True
     
     def _get_server_config(self, data_contract: Any, environment: str) -> Any:
         """Find server configuration matching the current environment.

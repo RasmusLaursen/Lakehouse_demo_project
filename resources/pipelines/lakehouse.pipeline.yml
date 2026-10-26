@@ -20,10 +20,6 @@ resources:
         - glob:
             include: ../../src/solution/base/base_ingest_review.py
         - glob:
-            include: ../../src/solution/enriched/enriched_calendar.py
-        - glob:
-            include: ../../src/solution/curated/dimensions/dim_calendar.py
-        - glob:
             include: ../../src/solution/curated/dimensions/dim_customer.py 
         # # - glob:
         # #     include: ../../src/solution/curated/dimensions/dim_customer_mv_scd1.py

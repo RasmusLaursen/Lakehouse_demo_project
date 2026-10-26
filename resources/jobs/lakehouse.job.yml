@@ -58,10 +58,16 @@ resources:
         #     entry_point: source
         #   environment_key: default   
 
+        - task_key: calendar_model
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.calendar_pipeline.id}
+          max_retries: 0
+
         - task_key: lakehouse_model_pipelines
           depends_on: 
             # - task_key: generate_synthetic_landing_data
             - task_key: synthetic_data_contracts
+            - task_key: calendar_model
           pipeline_task:
             pipeline_id: ${resources.pipelines.lakehouse_demo_project_pipeline.id}
           max_retries: 0

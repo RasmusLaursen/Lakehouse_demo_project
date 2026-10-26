@@ -29,7 +29,6 @@ resources:
         bundle.sourcePath: ${workspace.file_path}/src
         environment: ${var.environment}
         spark.eloverblik-api-token: "{{secrets/scope-demo-dev/eloverblik-api-token}}"
-        spark.databricks-token: "{{secrets/scope-demo-dev/databricks-token}}"
 
         catalogs: ${var.catalogs}
         

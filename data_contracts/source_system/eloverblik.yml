@@ -23,7 +23,6 @@ servers:
       - property: secret_keys
         value:
           - "auth_token"
-          - "databricks_token"
       - property: connector_config
         value:
           endpoint: "https://api.eloverblik.dk/customerapi/api/"
@@ -32,7 +31,6 @@ servers:
           # OAuth2 refresh token authentication
           auth_type: "oauth2_refresh"
           auth_token: "{{spark.eloverblik-api-token}}"
-          databricks_token: "{{spark.databricks-token}}"          
           token_endpoint: "https://api.eloverblik.dk/customerapi/api/token"
           token_method: "GET"
           token_response_path: "result"

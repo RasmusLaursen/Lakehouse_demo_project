@@ -9,12 +9,6 @@ resources:
         - glob:
             include: ../../src/solution/curated/dimensions/dim_meteringpoint.py
         - glob:
-            include: ../../src/solution/curated/dimensions/dim_time.py
-        - glob:
-            include: ../../src/solution/enriched/enriched_calendar.py
-        - glob:
-            include: ../../src/solution/curated/dimensions/dim_calendar.py
-        - glob:
             include: ../../src/solution/curated/facts/fact_energy_consumptions.py
 
       environment:

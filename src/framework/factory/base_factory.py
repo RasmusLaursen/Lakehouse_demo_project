@@ -82,13 +82,9 @@ class BasePipelineFactory:
             else:
                 logger.warning(f"Data quality config is not a list: {type(validated_data_quality_raw)}")
         
-        # Process each schema in the data contract
+        # Errors propagate so a broken schema can't silently drop its table from the pipeline graph
         for schema in data_contract.schema_:  # type: ignore
-            try:
-                self._process_schema(schema, centralized_config, validated_data_quality)
-            except Exception as e:
-                logger.error(f"Error processing schema {schema.name if schema else 'unknown'}: {e}")
-                continue
+            self._process_schema(schema, centralized_config, validated_data_quality)
         
         logger.info(f"Completed base pipeline creation for {source_system_name}")
     

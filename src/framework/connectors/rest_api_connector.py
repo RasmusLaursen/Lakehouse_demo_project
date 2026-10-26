@@ -25,6 +25,8 @@ from src.framework.helper import logging_helper
 
 logger = logging_helper.get_logger(__name__)
 
+_FRAMEWORK_KEYS = {'catalog', 'volume', 'source_system', 'model_name', 'format', 'schema', '_secret_keys'}
+
 
 def _get_access_token(config: Dict[str, Any]) -> str:
     """Return a pre-exchanged access token from config, or exchange (cached per process)."""
@@ -131,6 +133,29 @@ class RESTAPIDataSource(DataSource):
         target_endpoint = self._get_base_url() + self._get_schema_url()
         logger.debug(f"Constructed target endpoint: {target_endpoint}")
         return target_endpoint   
+
+    def _build_datasource_options(self) -> Dict[str, str]:
+        """Serialize config into Spark options; resolved secrets stay on the driver."""
+        schema = self.config.get("schema")
+        if not schema:
+            raise ValueError("Schema must be provided in config")
+        schema_json = json.dumps(schema.jsonValue()) if isinstance(schema, StructType) else schema
+
+        options = {
+            "schema": schema_json,
+            "target_endpoint": self._get_target_endpoint(),
+        }
+        excluded_keys = _FRAMEWORK_KEYS | set(self.config.get("_secret_keys", []))
+        for k, v in self.config.items():
+            if k in excluded_keys or k.endswith('_catalog') or k.endswith('_schema') or isinstance(v, StructType):
+                continue
+            # Serialize dicts/lists as JSON so they survive Spark options
+            options[str(k)] = json.dumps(v) if isinstance(v, (dict, list)) else str(v)
+
+        # Exchange once on the driver so readers in Python workers don't each hit the token endpoint
+        if self.config.get("auth_type") == "oauth2_refresh":
+            options["access_token"] = _get_access_token(self.config)
+        return options
     
     def read_batch(self, spark: "SparkSession") -> "DataFrame":
         """Convenience method for batch reading."""
@@ -144,40 +169,7 @@ class RESTAPIDataSource(DataSource):
         except Exception as e:
             logger.debug(f"DataSource may already be registered: {e}")
         
-        # Get schema from config and serialize to JSON
-        schema = self.config.get("schema")
-        if not schema:
-            raise ValueError("Schema must be provided in config for batch reading")
-        
-        if isinstance(schema, StructType):
-            schema_json = json.dumps(schema.jsonValue())
-        else:
-            schema_json = schema  # Already a JSON string
-        
-        # Build datasource_config with required fields
-        datasource_config = {
-            "schema": schema_json,
-            "target_endpoint": self._get_target_endpoint()
-        }
-        
-        # Add any additional options from config (excluding framework-specific keys)
-        excluded_keys = {
-            'catalog', 'volume', 'source_system', 'model_name', 'format', 'schema'
-        }
-        for k, v in self.config.items():
-            if k not in excluded_keys and not k.endswith('_catalog') and not k.endswith('_schema') and not isinstance(v, StructType):
-                # Serialize dicts/lists as JSON so they survive Spark options
-                if isinstance(v, (dict, list)):
-                    datasource_config[str(k)] = json.dumps(v)
-                else:
-                    datasource_config[str(k)] = str(v)
-
-        # Exchange once on the driver so readers in Python workers don't each hit the token endpoint
-        if self.config.get("auth_type") == "oauth2_refresh":
-            datasource_config["access_token"] = _get_access_token(self.config)
-
-        # Use Spark's read API
-        logger.info(f"running with self.config {self.config}")
+        datasource_config = self._build_datasource_options()
         df = spark.read.format(self.name()).options(**datasource_config).load()
         logger.info(f"Created batch DataFrame for {self.name()}")
         
@@ -203,39 +195,7 @@ class RESTAPIDataSource(DataSource):
         except Exception as e:
             logger.debug(f"DataSource may already be registered: {e}")
         
-        # Get schema from config and serialize to JSON
-        schema = self.config.get("schema")
-        if not schema:
-            raise ValueError("Schema must be provided in config for streaming")
-        
-        if isinstance(schema, StructType):
-            schema_json = json.dumps(schema.jsonValue())
-        else:
-            schema_json = schema  # Already a JSON string
-
-        logger.info(f"utilizing the following config  {self.config}")
-
-        # Build datasource_config with required fields
-        datasource_config = {
-            "schema": schema_json,
-            "target_endpoint": self._get_target_endpoint()
-        }
-        
-        # Add any additional options from config (excluding framework-specific keys)
-        excluded_keys = {
-            'catalog', 'volume', 'source_system', 'model_name', 'format'
-        }
-        for k, v in self.config.items():
-            if k not in excluded_keys and not k.endswith('_catalog') and not k.endswith('_schema') and not isinstance(v, StructType):
-                # Serialize dicts/lists as JSON so they survive Spark options
-                if isinstance(v, (dict, list)):
-                    datasource_config[str(k)] = json.dumps(v)
-                else:
-                    datasource_config[str(k)] = str(v)
-
-        # Exchange once on the driver so readers in Python workers don't each hit the token endpoint
-        if self.config.get("auth_type") == "oauth2_refresh":
-            datasource_config["access_token"] = _get_access_token(self.config)
+        datasource_config = self._build_datasource_options()
 
         logger.info(f"Using datasource_config for streaming: {self.config.get('endpoint')}, {self.config.get('table_name')}, {self.config.get('url_params_template')} ")
         logger.info(f"DataSource config keys for streaming: {list(datasource_config.keys())}")
@@ -364,9 +324,9 @@ class RESTAPIBatchReader(DataSourceReader):
             raise
 
 class TimeRangePartition(InputPartition):
-    def __init__(self, pid, url):
+    def __init__(self, pid, urls):
         self.pid = pid
-        self.url = url
+        self.urls = urls
 
 class RESTAPIStreamReaderSimple(DataSourceStreamReader):
     """
@@ -690,7 +650,9 @@ class RESTAPIStreamReaderSimple(DataSourceStreamReader):
             return records
             
         except Exception as e:
-            logger.error(f"Error fetching time series data: {e}")
+            # Re-raise so the micro-batch fails instead of committing an offset with missing data
+            logger.error(f"Error fetching {url}: {e}")
+            raise
 
     def partitions(self, start: dict, end: dict):
         logger.info("*****Partitions start*****")
@@ -711,37 +673,40 @@ class RESTAPIStreamReaderSimple(DataSourceStreamReader):
 
         total_seconds = (end - start).total_seconds()
 
-        seconds_per_partition = self._extrapolate_seconds_per_partition()
+        seconds_per_window = self._extrapolate_seconds_per_partition()
 
         import math
 
-        num_partitions = math.ceil(total_seconds / seconds_per_partition)
-        num_partitions = min(num_partitions, self.max_pr_partition)
-        logger.info(f"Calculated num_partitions: {num_partitions} with seconds_per_partition: {seconds_per_partition} and total_seconds: {total_seconds}")
-        if num_partitions <= 0:
-            logger.info(f"No partitions to read with start: {start}, end: {end}, num_partitions: {num_partitions}, max_pr_partition: {self.max_pr_partition}, seconds_per_partition: {seconds_per_partition}")
+        num_windows = math.ceil(total_seconds / seconds_per_window)
+        logger.info(f"Calculated num_windows: {num_windows} with seconds_per_window: {seconds_per_window} and total_seconds: {total_seconds}")
+        if num_windows <= 0:
+            logger.info(f"No partitions to read with start: {start}, end: {end}, max_pr_partition: {self.max_pr_partition}")
             return []
 
-        parts = []
-        for i in range(num_partitions):
-            partition_start = start + timedelta(seconds=seconds_per_partition * i)
-            partition_end = start + timedelta(seconds=seconds_per_partition * (i + 1))
-            if partition_end > end:
-                partition_end = end
-            logger.info(f"Adding Partition {i}: {self._to_usgs_iso(partition_start)} to {self._to_usgs_iso(partition_end)}")
+        urls = []
+        for i in range(num_windows):
+            window_start = start + timedelta(seconds=seconds_per_window * i)
+            window_end = min(start + timedelta(seconds=seconds_per_window * (i + 1)), end)
+            urls.append(self._build_url(dateFrom=self._to_usgs_iso(window_start), dateTo=self._to_usgs_iso(window_end)))
 
-            url = self._build_url(dateFrom=self._to_usgs_iso(partition_start), dateTo=self._to_usgs_iso(partition_end))
-            logger.info(f"Built URL for partition {i}: {url}")
-            parts.append(
-                TimeRangePartition(
-                    # start=self._to_usgs_iso(partition_start),
-                    # end=self._to_usgs_iso(partition_end),
-                    pid=i,
-                    url=url
-                )
-            )
+        if self._is_windowed_endpoint():
+            # Every window must be fetched because the whole start..end range gets committed
+            num_partitions = min(len(urls), self.max_pr_partition)
+            chunk_size = math.ceil(len(urls) / num_partitions)
+            url_groups = [urls[i:i + chunk_size] for i in range(0, len(urls), chunk_size)]
+        else:
+            # Snapshot endpoint: the URL ignores the window, so extra windows would only duplicate rows
+            url_groups = [[url] for url in urls[:self.max_pr_partition]]
+
+        parts = []
+        for pid, group in enumerate(url_groups):
+            logger.info(f"Adding Partition {pid} with {len(group)} request(s): {group[0]} .. {group[-1]}")
+            parts.append(TimeRangePartition(pid=pid, urls=group))
         logger.info("*****Partitions end*****")
         return parts
+
+    def _is_windowed_endpoint(self) -> bool:
+        return "{dateFrom}" in self.target_endpoint or "{dateTo}" in self.target_endpoint
 
     def _parse_dt_utc(self, s: str) -> datetime:
         # Accept 'YYYY-MM-DD' (UTC midnight) or ISO8601.
@@ -800,18 +765,12 @@ class RESTAPIStreamReaderSimple(DataSourceStreamReader):
         return {"offset": initial_offset}
         
     def read(self, partition: TimeRangePartition) -> Iterator[Row]:
-        """Fetch data for the partition's offset range."""
-        records = self._get_url_data(partition.url)
-        
-        if not records:
-            return iter([])
-
-        #Update _load_timestamp in each record
-        for r in records:
-            r['_load_timestamp'] = datetime.now()
-            r['_partition_id'] = partition.pid
-        
-        return iter([Row(**r) for r in records])
+        """Fetch data for every request in the partition's offset range."""
+        for url in partition.urls:
+            for r in self._get_url_data(url) or []:
+                r['_load_timestamp'] = datetime.now()
+                r['_partition_id'] = partition.pid
+                yield Row(**r)
 
     def latestOffset(self) -> dict:
         """

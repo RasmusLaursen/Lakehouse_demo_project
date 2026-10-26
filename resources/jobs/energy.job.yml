@@ -40,10 +40,16 @@ resources:
             pipeline_id: ${resources.pipelines.energidataservice_pipeline.id}
           max_retries: 0
 
+        - task_key: calendar_model
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.calendar_pipeline.id}
+          max_retries: 0
+
         - task_key: energy_model
           depends_on:
             - task_key: eloverblik_ingest
             - task_key: energidataservice_ingest
+            - task_key: calendar_model
           pipeline_task:
             pipeline_id: ${resources.pipelines.energy_pipeline.id}
           max_retries: 0

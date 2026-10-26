@@ -130,6 +130,8 @@ class BaseConfigBuilder(ABC):
         if not secret_keys:
             return self
         
+        # Connectors use this to keep resolved secrets out of logs and Spark options
+        self.config.set("_secret_keys", list(secret_keys))
         config_dict = self.config.to_dict()
         logger.info(f"Resolving {len(secret_keys)} secrets")
         
