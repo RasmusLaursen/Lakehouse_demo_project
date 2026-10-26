@@ -9,7 +9,10 @@ from src.framework.helper import (
 
 from src.framework.helper.core import get_logger
 
-def save_list_to_volume(landing_catalog, landing_schema, entity_name, entity_records, spark, logger):
+
+def save_list_to_volume(
+    landing_catalog, landing_schema, entity_name, entity_records, spark, logger
+):
     logger.info(
         f"Creating volume for {landing_catalog}.{landing_schema}.{entity_name}..."
     )
@@ -27,7 +30,7 @@ def save_list_to_volume(landing_catalog, landing_schema, entity_name, entity_rec
 
 def main(spark=None, logger=None):
     """Main function for synthetic data generation.
-    
+
     Can be called with explicit spark and logger arguments, or will initialize them
     if not provided (for entry point compatibility).
     """
@@ -36,7 +39,7 @@ def main(spark=None, logger=None):
         logger = get_logger(__name__)
     if spark is None:
         spark = get_spark()
-    
+
     logger.info("Starting synthetic data generation based on data contracts...")
     landing_catalog = parse_arguments("landing_catalog")
     data_contracts = list_yml_files(
@@ -48,11 +51,11 @@ def main(spark=None, logger=None):
             contract_name = contract.name
             logger.info(f"Processing data contract: {contract_name}")
             contract_name = contract_name.split("/")[-1].replace(".yml", "")
-            landing_schema = parse_arguments(f"{contract_name}_landing_schema")        
+            landing_schema = parse_arguments(f"{contract_name}_landing_schema")
             generator = DynamicFakeDataGenerator(str(contract))
 
             all_data = generator.generate_all_models()
-            
+
             # Save to parquet files
             for model_name, records in all_data.items():
                 logger.info("Saving data for model: " + model_name)
@@ -62,7 +65,7 @@ def main(spark=None, logger=None):
                     entity_name=model_name,
                     entity_records=records,
                     spark=spark,
-                    logger=logger
+                    logger=logger,
                 )
                 logger.info(f"{model_name.capitalize()} data written successfully.")
             logger.info("Completed processing for data contract: " + contract_name)
@@ -73,6 +76,6 @@ if __name__ == "__main__":
     logger = get_logger(__name__)
     spark = get_spark()
     dbutils = get_dbutils(spark)
-    
+
     logger.info("Starting synthetic data generation...")
     main(spark, logger)

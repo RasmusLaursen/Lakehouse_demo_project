@@ -6,7 +6,6 @@ from src.framework.helper import get_logger
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service import jobs
 
-
 # Initialize logger
 logger = get_logger(__name__)
 workspace_client = WorkspaceClient()

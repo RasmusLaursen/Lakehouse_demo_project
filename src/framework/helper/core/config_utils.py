@@ -1,4 +1,5 @@
 """Common configuration and data utilities."""
+
 from pathlib import Path
 from typing import Dict, Any, Optional
 from pydantic import ValidationError
@@ -34,7 +35,7 @@ def get_validate_data_configuration_contract(config: Dict[str, Any]) -> TableCon
 
     Returns:
         The validated TableConfig instance
-        
+
     Raises:
         ValidationError if validation fails
     """
@@ -42,7 +43,7 @@ def get_validate_data_configuration_contract(config: Dict[str, Any]) -> TableCon
         validated_data_config = TableConfig(**config)
     except ValidationError as e:
         logger.error(f"TableConfig validation error: {e}")
-        raise   
+        raise
     return validated_data_config
 
 
@@ -64,6 +65,7 @@ def try_load_ingest_config(base_path: Path) -> Any:
         empty dictionary if loading fails
     """
     from src.framework.helper.contracts import load_yaml_file
+
     try:
         config = load_yaml_file(base_path)
         logger.info(f"Loaded base configuration from {base_path}")
@@ -83,7 +85,7 @@ def get_data_configuration(catalog: str, object: str) -> LayerConfig:
 
     Returns:
         The validated LayerConfig instance
-        
+
     Raises:
         FileNotFoundError if configuration file not found
         ValidationError if validation fails

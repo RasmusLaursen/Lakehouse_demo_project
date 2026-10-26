@@ -12,23 +12,24 @@ New Locations:
 Migration Guide:
   OLD: from src.framework.helper.common import find_data_contract_path
   NEW: from src.framework.helper.contracts import find_data_contract_path
-  
+
   OLD: from src.framework.helper.common import parse_arguments
   NEW: from src.framework.helper.utils import parse_arguments
-  
+
   OLD: from src.framework.helper.common import get_data_configuration
   NEW: from src.framework.helper.core.config_utils import get_data_configuration
-  
+
   OLD: from src.framework.helper.common import add_audit_columns
   NEW: from src.framework.helper.dataframe.audit import add_audit_columns
 """
+
 import warnings
 
 warnings.warn(
     "common module is deprecated. Import from specific submodules instead: "
     "contracts, utils, core.config_utils, or dataframe.audit",
     DeprecationWarning,
-    stacklevel=2
+    stacklevel=2,
 )
 
 # Re-export from new locations for backward compatibility

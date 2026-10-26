@@ -1,4 +1,5 @@
 """Delta Live Tables (DLT) builder utilities."""
+
 from typing import Any, Callable, Dict, List, Optional
 from pyspark.sql import DataFrame
 
@@ -24,10 +25,10 @@ def ldp_table(
 ) -> None:
     """
     Creates a Delta Live Table (DLT) using a connector for data ingestion.
-    
+
     This is the new, preferred API for creating DLT tables with extensible
     data source support via the connector framework.
-    
+
     Args:
         name (str): Fully qualified table name (catalog.schema.table)
         connector (BaseConnector): Connector instance that handles data reading
@@ -41,7 +42,7 @@ def ldp_table(
         schema (str, optional): Explicit schema definition
         row_filter (str, optional): Row-level filter
         private (bool, optional): Whether table is private to pipeline (default: False)
-        
+
     Returns:
         None: Registers DLT table in pipeline
     """
@@ -50,15 +51,15 @@ def ldp_table(
         "metadata.connector-type": type(connector).__name__,
         "metadata.connector-version": "2.0",
     }
-    
+
     merged_properties: Dict[str, Any] = {
         **(table_properties or {}),
         **(DefaultTblProperties().as_dict() or {}),
         **connector_metadata,
     }
-    
+
     logger.info(f"Creating DLT table {name} using {type(connector).__name__}")
-    
+
     # Use factory function pattern to properly capture variables in closures
     # This avoids Python's late-binding closure issue when called in loops
     def create_table_with_params(
@@ -77,7 +78,7 @@ def ldp_table(
     ) -> None:
         # Import dlt inside function - only when actually creating tables in DLT context
         import dlt  # type: ignore
-        
+
         @dlt.table(
             name=table_name,
             comment=table_comment,
@@ -98,30 +99,34 @@ def ldp_table(
             """Inner function that reads data via connector."""
             logger.info(f"Reading data using {type(table_connector).__name__}")
             spark = get_spark()
-            
+
             # Check for explicit mode configuration in connector config
-            connector_mode = getattr(table_connector, 'config', {}).get('mode', 'batch')
-            
+            connector_mode = getattr(table_connector, "config", {}).get("mode", "batch")
+
             # Check if connector has a preference for batch vs streaming
             # Explicit mode config overrides connector preference
-            if connector_mode == 'streaming':
+            if connector_mode == "streaming":
                 logger.info(f"Using streaming read for {table_name} (mode=streaming)")
                 df = table_connector.read_stream(spark)
-            elif connector_mode == 'batch':
+            elif connector_mode == "batch":
                 logger.info(f"Using batch read for {table_name} (mode=batch)")
                 df = table_connector.read_batch(spark)
             else:
                 # Fallback to connector preference
-                use_batch = getattr(table_connector, 'prefer_batch', False)
-                
+                use_batch = getattr(table_connector, "prefer_batch", False)
+
                 if use_batch:
-                    logger.info(f"Using batch read for {type(table_connector).__name__} (prefer_batch=True)")
+                    logger.info(
+                        f"Using batch read for {type(table_connector).__name__} (prefer_batch=True)"
+                    )
                     df = table_connector.read_batch(spark)
                 else:
-                    logger.info(f"Using streaming read for {type(table_connector).__name__} (prefer_batch=False)")
+                    logger.info(
+                        f"Using streaming read for {type(table_connector).__name__} (prefer_batch=False)"
+                    )
                     df = table_connector.read_stream(spark)
             return df
-    
+
     # Invoke the factory function to register the table with properly captured variables
     create_table_with_params(
         table_name=name,
@@ -208,7 +213,7 @@ def ldp_create_streaming_table(
     """
     # Import dlt inside function - only when actually creating tables in DLT context
     import dlt  # type: ignore
-    
+
     dlt.create_streaming_table(
         name=name,
         comment=comment,
@@ -247,12 +252,12 @@ def ldp_change_data_capture(
 ) -> None:
     """
     Creates a change data capture (CDC) flow for a specified source and target object.
-    
+
     This function leverages Delta Live Tables' built-in CDC capabilities with automatic
     Slowly Changing Dimension (SCD) Type 1 or 2 handling. For SCD Type 2, the function
     automatically manages effective dating columns (__START_AT and __END_AT) to track
     the validity period of each record version.
-    
+
     SCD Type 1: Updates existing records in place (overwrites history)
     SCD Type 2: Maintains full history with effective date ranges, automatically adding:
         - __START_AT: Timestamp when the record version became effective
@@ -279,7 +284,7 @@ def ldp_change_data_capture(
 
     Raises:
         ValueError: If stored_as_scd_type is not 1 or 2.
-        
+
     Example:
         ldp_change_data_capture(
             source="catalog.source_schema.orders_changes",
@@ -294,7 +299,7 @@ def ldp_change_data_capture(
         # Creates a SCD Type 2 table with automatic __START_AT and __END_AT columns
     """
     import dlt  # type: ignore
-    
+
     # Validate required parameters
     if not source or not isinstance(source, str):
         raise ValueError("Parameter 'source' must be a non-empty string")
@@ -309,7 +314,11 @@ def ldp_change_data_capture(
     if not sequence_column or not isinstance(sequence_column, str):
         raise ValueError("Parameter 'sequence_column' must be a non-empty string")
     if stored_as_scd_type not in (1, 2):
-        raise ValueError("stored_as_scd_type must be either 1 or 2, got: {}".format(stored_as_scd_type))
+        raise ValueError(
+            "stored_as_scd_type must be either 1 or 2, got: {}".format(
+                stored_as_scd_type
+            )
+        )
 
     # Merge table_properties with additional metadata
     merged_table_properties: Dict[str, Any] = {
@@ -339,6 +348,7 @@ def ldp_change_data_capture(
         name=name,
         once=once,
     )
-    
-    logger.info(f"Created CDC flow: {target_catalog}.{target_schema}.{target_object} with SCD type {stored_as_scd_type}")
 
+    logger.info(
+        f"Created CDC flow: {target_catalog}.{target_schema}.{target_object} with SCD type {stored_as_scd_type}"
+    )

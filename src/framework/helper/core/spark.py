@@ -1,4 +1,5 @@
 """Spark session and Databricks utilities."""
+
 from pyspark.sql import SparkSession
 import json
 from typing import Any
@@ -16,6 +17,7 @@ def get_spark() -> SparkSession:
     """
     try:
         from databricks.connect import DatabricksSession
+
         return DatabricksSession.builder.getOrCreate()
     except ImportError:
         return SparkSession.builder.getOrCreate()
@@ -37,12 +39,13 @@ def get_dbutils(spark: SparkSession = None):
     """
     try:
         # Try to get dbutils from globals (Databricks runtime)
-        return globals()['dbutils']
+        return globals()["dbutils"]
     except KeyError:
         # Fall back to creating DBUtils if not in Databricks runtime
         if spark is None:
             spark = get_spark()
         from pyspark.dbutils import DBUtils
+
         return DBUtils(spark)
 
 
@@ -62,7 +65,9 @@ def get_pipeline_configurations(spark, configuration_name: str) -> Any:
         parsed = json.loads(configuration)
         return parsed
     except (TypeError, json.JSONDecodeError):
-        raise ValueError(f"Failed to parse configuration '{configuration_name}' as JSON. Returning raw string. {configuration}")
+        raise ValueError(
+            f"Failed to parse configuration '{configuration_name}' as JSON. Returning raw string. {configuration}"
+        )
 
 
 def get_pipeline_configurations_from_spark(
@@ -87,11 +92,13 @@ def get_pipeline_configurations_from_spark(
     ]
 
     if source_system_name:
-        config_keys.extend([
-            f"{source_system_name}_landing_schema",
-            f"{source_system_name}_raw_schema",
-            f"{source_system_name}_base_schema",
-        ])
+        config_keys.extend(
+            [
+                f"{source_system_name}_landing_schema",
+                f"{source_system_name}_raw_schema",
+                f"{source_system_name}_base_schema",
+            ]
+        )
 
     configs = {}
     for key in config_keys:

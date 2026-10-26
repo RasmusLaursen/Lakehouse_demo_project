@@ -1,4 +1,5 @@
 """Data contract schema parsing and custom property utilities."""
+
 from typing import Any, List, Optional
 from open_data_contract_standard.model import OpenDataContractStandard
 from open_data_contract_standard.model import SchemaObject, CustomProperty
@@ -9,15 +10,14 @@ logger = get_logger(__name__)
 
 
 def get_schema_from_contract(
-    data_contract: OpenDataContractStandard,
-    schema_name: Optional[str] = None
+    data_contract: OpenDataContractStandard, schema_name: Optional[str] = None
 ) -> SchemaObject:
     """
     Retrieves a specific schema from the data contract.
 
     Args:
         data_contract (OpenDataContractStandard): The data contract object.
-        schema_name (str, optional): The name of the schema to retrieve. 
+        schema_name (str, optional): The name of the schema to retrieve.
                                      If None, returns the first schema.
 
     Returns:
@@ -40,9 +40,7 @@ def get_schema_from_contract(
 
 
 def get_custom_property(
-    schema: SchemaObject,
-    property_name: str,
-    default: Any = None
+    schema: SchemaObject, property_name: str, default: Any = None
 ) -> Any:
     """
     Retrieves a custom property value from a schema object.
@@ -115,9 +113,12 @@ def get_primary_keys(schema: SchemaObject) -> Optional[List[str]]:
 
     # Try to extract from fields marked as primary key
     if schema.fields:
-        pk_fields = [field.name for field in schema.fields if getattr(field, 'isPrimaryKey', False)]
+        pk_fields = [
+            field.name
+            for field in schema.fields
+            if getattr(field, "isPrimaryKey", False)
+        ]
         if pk_fields:
             return pk_fields
 
     return None
-

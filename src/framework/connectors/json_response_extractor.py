@@ -75,12 +75,16 @@ class JSONResponseExtractor:
         array_to_object_mapping: Optional[List[str]] = None,
     ) -> None:
         segments = data_path.split(".")
-        self.root_key = segments[0]              # e.g. "result"
-        self.explode_segments = segments[1:]      # e.g. ["Doc","TimeSeries","Period","Point"]
+        self.root_key = segments[0]  # e.g. "result"
+        self.explode_segments = segments[
+            1:
+        ]  # e.g. ["Doc","TimeSeries","Period","Point"]
         self.field_mapping = field_mapping or {}
         self.store_raw = store_raw
         self.parent_context_fields = parent_context_fields
-        self.schema_fields: Optional[set] = set(schema_fields) if schema_fields else None
+        self.schema_fields: Optional[set] = (
+            set(schema_fields) if schema_fields else None
+        )
         self.array_to_object_mapping = array_to_object_mapping
 
         logger.debug(
@@ -112,7 +116,7 @@ class JSONResponseExtractor:
             for key, value in response_data.items():
                 if key != self.root_key and not isinstance(value, (dict, list)):
                     root_context[key] = value
-        
+
         root_items = self._navigate_to_root(response_data)
 
         if not root_items:
@@ -174,7 +178,7 @@ class JSONResponseExtractor:
         Nested dicts and lists are stored as JSON strings so that the
         record can always be turned into a ``Row`` without requiring
         a complex schema.
-        
+
         If item is a list and array_to_object_mapping is provided,
         converts the array to an object using the mapping.
         """
@@ -194,7 +198,7 @@ class JSONResponseExtractor:
                 else:
                     record[field_name] = None
             return record
-        
+
         # Original dict handling
         if isinstance(item, dict):
             record: Dict[str, Any] = {}
@@ -205,7 +209,7 @@ class JSONResponseExtractor:
                 else:
                     record[key] = value
             return record
-        
+
         # Unexpected type
         logger.warning(f"_extract_first_layer received unexpected type: {type(item)}")
         return {}
@@ -265,7 +269,9 @@ class JSONResponseExtractor:
             return []
 
         if child is None:
-            logger.debug("Segment '%s' not found in data, returning empty.", current_segment)
+            logger.debug(
+                "Segment '%s' not found in data, returning empty.", current_segment
+            )
             return []
 
         # Normalise to list for uniform handling
@@ -278,7 +284,9 @@ class JSONResponseExtractor:
 
         return results
 
-    def _collect_context(self, data: dict, skip_key: str, prefix: str = "") -> Dict[str, Any]:
+    def _collect_context(
+        self, data: dict, skip_key: str, prefix: str = ""
+    ) -> Dict[str, Any]:
         """Collect scalar fields from *data* to use as parent context.
 
         *skip_key* is the segment we're about to descend into and is
@@ -298,11 +306,17 @@ class JSONResponseExtractor:
                 if full_key not in self.parent_context_fields:
                     # Still recurse into dicts to find nested matches
                     if isinstance(value, dict):
-                        context.update(self._collect_context(value, skip_key="", prefix=f"{full_key}."))
+                        context.update(
+                            self._collect_context(
+                                value, skip_key="", prefix=f"{full_key}."
+                            )
+                        )
                     continue
             if isinstance(value, dict):
                 # Flatten nested dicts with dot-separated keys
-                context.update(self._collect_context(value, skip_key="", prefix=f"{full_key}."))
+                context.update(
+                    self._collect_context(value, skip_key="", prefix=f"{full_key}.")
+                )
             elif isinstance(value, list):
                 context[full_key] = json.dumps(value, default=str)
             else:
@@ -341,6 +355,8 @@ class JSONResponseExtractor:
 
         missing = self.schema_fields - set(record.keys())
         if missing:
-            logger.debug("Schema columns not found in record (set to None): %s", missing)
+            logger.debug(
+                "Schema columns not found in record (set to None): %s", missing
+            )
 
         return filtered

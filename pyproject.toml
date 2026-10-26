@@ -44,6 +44,7 @@ reportCallIssue = "none"
 
 ## LINTING ##
 [tool.hatch.envs.lint]
+skip-install = true
 dependencies = ["black"]
 
 [tool.hatch.envs.lint.scripts]

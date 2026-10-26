@@ -30,7 +30,9 @@ def enable_fallback_compute():
         return
 
     url = "https://docs.databricks.com/dev-tools/databricks-connect/cluster-config"
-    print("☁️ no compute specified, falling back to serverless compute", file=sys.stderr)
+    print(
+        "☁️ no compute specified, falling back to serverless compute", file=sys.stderr
+    )
     print(f"  see {url} for manual configuration", file=sys.stderr)
 
     os.environ["DATABRICKS_SERVERLESS_COMPUTE_ID"] = "auto"

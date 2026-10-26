@@ -39,4 +39,3 @@ __all__ = [
     "validate_data_contract",
     "schema_properties_to_spark_schema",
 ]
-

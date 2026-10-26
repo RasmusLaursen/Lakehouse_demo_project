@@ -1,4 +1,5 @@
 """Data contract loading and parsing utilities."""
+
 from pathlib import Path
 from typing import Any, Dict, Optional
 from open_data_contract_standard.model import OpenDataContractStandard
@@ -45,17 +46,17 @@ def get_data_contract_path(catalog: str, object_name: str) -> Path:
 
     Returns:
         Path: The constructed path to the data contract file.
-        
+
     Raises:
         FileNotFoundError: If the contract file cannot be found.
     """
     data_contract_path = find_data_contract_path(catalog, object_name)
-    
+
     if data_contract_path is None:
         raise FileNotFoundError(
             f"Data contract file not found: {object_name}.yml in catalog '{catalog}'."
         )
-    
+
     return data_contract_path
 
 
@@ -74,9 +75,7 @@ def load_data_contract(contract_path: Path) -> OpenDataContractStandard:
         ValueError: If the contract fails validation.
     """
     if not contract_path.is_file():
-        raise FileNotFoundError(
-            f"Data contract file not found: {contract_path}"
-        )
+        raise FileNotFoundError(f"Data contract file not found: {contract_path}")
 
     try:
         contract_data = load_yaml_file(contract_path)

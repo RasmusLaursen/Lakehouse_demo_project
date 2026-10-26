@@ -1,4 +1,5 @@
 """DataFrame reading utilities."""
+
 from pyspark.sql import SparkSession, DataFrame
 from src.framework.helper.core import get_spark, get_logger
 
@@ -29,6 +30,7 @@ def read_stream_table(
     df = spark.readStream.table(f"{source_catalog}.{source_schema}.{objectname}")
     if add_audit_column:
         from src.framework.helper.dataframe.audit import add_audit_columns
+
         df = add_audit_columns(df=df, source_system=source_system)
     return df
 
@@ -74,5 +76,6 @@ def read_dataframe(
     df = spark.read.table(f"{source_catalog}.{source_schema}.{objectname}")
     if add_audit_columns_flag:
         from src.framework.helper.dataframe.audit import add_audit_columns
+
         df = add_audit_columns(df=df, source_system=source_system)
     return df

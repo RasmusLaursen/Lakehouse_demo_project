@@ -1,4 +1,5 @@
 """Synthetic data generation configuration classes."""
+
 from dataclasses import dataclass
 from datetime import date
 from typing import Optional

@@ -31,23 +31,23 @@ def _retry_after_seconds(response: requests.Response) -> Optional[float]:
 class OAuth2TokenManager:
     """
     Centralized manager for OAuth2 token exchange and caching.
-    
+
     This singleton-like class manages:
     - Token exchange from refresh tokens to access tokens
     - Global token cache shared across all connectors
     - Consistent cache key generation
     - Error handling and validation
-    
+
     Can be used at factory/pipeline level to pre-load tokens
     before DataSource/Reader initialization.
     """
-    
+
     # Global token cache: refresh_token_hash -> access_token
     # Shared across all datasources, readers, and workflows
     _token_cache: Dict[str, str] = {}
     # Serializes exchanges so parallel tables don't all hit the token endpoint at once
     _lock = threading.Lock()
-    
+
     @staticmethod
     def exchange_token(
         refresh_token: str,
@@ -57,14 +57,14 @@ class OAuth2TokenManager:
         token_response_path: str = "result",
         timeout: int = 30,
         max_retries: int = 5,
-        retry_delay: float = 5.0
+        retry_delay: float = 5.0,
     ) -> str:
         """
         Exchange a refresh token for an access token via OAuth2 flow.
-        
+
         Caches the access token globally for reuse across all readers
         and data sources in this process/session.
-        
+
         Args:
             refresh_token: The OAuth2 refresh token
             token_endpoint: URL to token endpoint that exchanges refresh token
@@ -72,14 +72,14 @@ class OAuth2TokenManager:
             token_method: HTTP method for token endpoint (GET or POST)
             token_response_path: Dot-separated path to access token in response
             timeout: Request timeout in seconds
-            
+
         Returns:
             Access token string
-            
+
         Raises:
             ValueError: If token endpoint is missing or response invalid
             requests.HTTPError: If token endpoint returns error
-            
+
         Example:
             >>> token = OAuth2TokenManager.exchange_token(
             ...     refresh_token="abc123",
@@ -89,15 +89,24 @@ class OAuth2TokenManager:
             ... )
         """
         if not token_endpoint:
-            raise ValueError("token_endpoint must be provided for OAuth2 token exchange")
-        
+            raise ValueError(
+                "token_endpoint must be provided for OAuth2 token exchange"
+            )
+
         # Generate cache key from refresh token hash and source system
         cache_key = OAuth2TokenManager.get_cache_key(refresh_token, source_system)
-        
+
         with OAuth2TokenManager._lock:
             return OAuth2TokenManager._exchange_locked(
-                cache_key, refresh_token, token_endpoint, source_system,
-                token_method, token_response_path, timeout, max_retries, retry_delay
+                cache_key,
+                refresh_token,
+                token_endpoint,
+                source_system,
+                token_method,
+                token_response_path,
+                timeout,
+                max_retries,
+                retry_delay,
             )
 
     @staticmethod
@@ -110,35 +119,39 @@ class OAuth2TokenManager:
         token_response_path: str,
         timeout: int,
         max_retries: int,
-        retry_delay: float
+        retry_delay: float,
     ) -> str:
         if cache_key in OAuth2TokenManager._token_cache:
-            logger.info(f"OAuth2 token already cached for {source_system}, returning existing token")
+            logger.info(
+                f"OAuth2 token already cached for {source_system}, returning existing token"
+            )
             return OAuth2TokenManager._token_cache[cache_key]
-        
+
         logger.info(f"Exchanging OAuth2 refresh token at: {token_endpoint}")
-        
+
         try:
             for attempt in range(max_retries + 1):
                 response = requests.request(
                     method=token_method.upper(),
                     url=token_endpoint,
                     headers={"Authorization": f"Bearer {refresh_token}"},
-                    timeout=timeout
+                    timeout=timeout,
                 )
                 if response.status_code == 429 and attempt < max_retries:
-                    delay = _retry_after_seconds(response) or retry_delay * (2 ** attempt)
-                    logger.warning(f"Token endpoint rate limited (429), retrying in {delay:.0f}s "
-                                   f"(attempt {attempt + 1}/{max_retries})")
+                    delay = _retry_after_seconds(response) or retry_delay * (2**attempt)
+                    logger.warning(
+                        f"Token endpoint rate limited (429), retrying in {delay:.0f}s "
+                        f"(attempt {attempt + 1}/{max_retries})"
+                    )
                     time.sleep(delay)
                     continue
                 break
             response.raise_for_status()
-            
+
             # Parse response
             data = response.json()
             logger.debug(f"Token exchange response received from {token_endpoint}")
-            
+
             # Extract access token using response path
             access_token = data
             for key in token_response_path.split("."):
@@ -148,40 +161,44 @@ class OAuth2TokenManager:
                         f"got {type(access_token).__name__}"
                     )
                 access_token = access_token.get(key)
-            
+
             if not access_token:
                 raise ValueError(
                     f"Could not extract access token from response using path: {token_response_path}. "
                     f"Response keys: {list(data.keys()) if isinstance(data, dict) else 'not a dict'}"
                 )
-            
+
             # Cache the token
             OAuth2TokenManager._token_cache[cache_key] = access_token
-            logger.info(f"Successfully obtained and cached OAuth2 access token for {source_system}")
-            
+            logger.info(
+                f"Successfully obtained and cached OAuth2 access token for {source_system}"
+            )
+
             return access_token
-            
+
         except requests.HTTPError as e:
             logger.error(f"Token endpoint returned error: {e.response.status_code}")
             raise
         except Exception as e:
             logger.error(f"Failed to exchange OAuth2 refresh token: {e}")
             raise
-    
+
     @staticmethod
-    def get_cached_token(refresh_token: str, source_system: str = "default") -> Optional[str]:
+    def get_cached_token(
+        refresh_token: str, source_system: str = "default"
+    ) -> Optional[str]:
         """
         Retrieve cached access token for a refresh token and source system.
-        
+
         Returns None if token not in cache (indicating token exchange needed).
-        
+
         Args:
             refresh_token: The OAuth2 refresh token
             source_system: Source system identifier for token isolation (e.g., 'eloverblik', 'energidataservice')
-            
+
         Returns:
             Cached access token, or None if not cached
-            
+
         Example:
             >>> token = OAuth2TokenManager.get_cached_token("abc123", "eloverblik")
             >>> if token is None:
@@ -189,51 +206,53 @@ class OAuth2TokenManager:
         """
         cache_key = OAuth2TokenManager.get_cache_key(refresh_token, source_system)
         token = OAuth2TokenManager._token_cache.get(cache_key)
-        
+
         if token:
             logger.debug(f"Retrieved cached OAuth2 access token for {source_system}")
         else:
             logger.debug(f"OAuth2 access token not in cache for {source_system}")
-        
+
         return token
-    
+
     @staticmethod
-    def cache_token(refresh_token: str, access_token: str, source_system: str = "default") -> None:
+    def cache_token(
+        refresh_token: str, access_token: str, source_system: str = "default"
+    ) -> None:
         """
         Manually cache an access token.
-        
+
         Useful for externally obtained tokens or testing.
-        
+
         Args:
             refresh_token: The OAuth2 refresh token
             access_token: The access token to cache
             source_system: Source system identifier for token isolation (e.g., 'eloverblik', 'energidataservice')
-            
+
         Example:
             >>> OAuth2TokenManager.cache_token("abc123", "token_xyz", "eloverblik")
         """
         cache_key = OAuth2TokenManager.get_cache_key(refresh_token, source_system)
         OAuth2TokenManager._token_cache[cache_key] = access_token
         logger.info(f"Manually cached OAuth2 access token for {source_system}")
-    
+
     @staticmethod
     def get_cache_key(refresh_token: str, source_system: str = "default") -> str:
         """
         Generate consistent cache key from refresh token and source system.
-        
+
         Uses SHA256 hash to:
         - Prevent token exposure in logs
         - Provide consistent key for same token and source system
         - Support different tokens with different keys
         - Isolate tokens between different source systems
-        
+
         Args:
             refresh_token: The OAuth2 refresh token
             source_system: Source system identifier for token isolation
-            
+
         Returns:
             Hexadecimal string hash of token and source system
-            
+
         Example:
             >>> key = OAuth2TokenManager.get_cache_key("my_refresh_token", "eloverblik")
             >>> len(key)
@@ -241,34 +260,34 @@ class OAuth2TokenManager:
         """
         combined = f"{source_system}:{refresh_token}"
         return hashlib.sha256(combined.encode()).hexdigest()
-    
+
     @staticmethod
     def clear_cache() -> None:
         """
         Clear all cached tokens.
-        
+
         Useful for testing or between runs.
-        
+
         Example:
             >>> OAuth2TokenManager.clear_cache()
         """
         count = len(OAuth2TokenManager._token_cache)
         OAuth2TokenManager._token_cache.clear()
         logger.info(f"Cleared OAuth2 token cache ({count} tokens removed)")
-    
+
     @staticmethod
     def get_cache_stats() -> Dict[str, int]:
         """
         Get statistics about the token cache.
-        
+
         Returns:
             Dictionary with cache metrics
-            
+
         Example:
             >>> stats = OAuth2TokenManager.get_cache_stats()
             >>> print(f"Cached tokens: {stats['count']}")
         """
         return {
             "count": len(OAuth2TokenManager._token_cache),
-            "keys": list(OAuth2TokenManager._token_cache.keys())
+            "keys": list(OAuth2TokenManager._token_cache.keys()),
         }
