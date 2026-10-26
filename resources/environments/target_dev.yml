@@ -10,6 +10,6 @@ targets:
 
     workspace:
      host: https://dbc-e3d11267-f1e6.cloud.databricks.com
-     # Shared state so CI (sp-deployment) and local deploys don't diverge
-     root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+     # Deploy state lives in sp-deployment's home so CI and local deploys share it
+     root_path: /Workspace/Users/1a36c03b-cbf2-4a65-8095-26f591696099/.bundle/${bundle.name}/${bundle.target}
      artifact_path: /Volumes/shared/shared_resources/wheel_location
