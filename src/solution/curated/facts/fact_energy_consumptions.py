@@ -19,7 +19,8 @@ prices_table = f"{catalogs['base_catalog']}.{schemas['energidataservice_base_sch
 
 
 def _tranform_fact_energy_consumptions() -> DataFrame:
-    df = spark.readStream.table(timeseries_table)
+    # Batch read (materialized view): source is an AUTO CDC target and prices may arrive later
+    df = spark.read.table(timeseries_table)
 
     # position is the 1-based hour within the period; period_start is UTC
     df = df.withColumn(

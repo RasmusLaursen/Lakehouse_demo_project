@@ -47,7 +47,8 @@ class DimensionFactory:
         keys: List[str],
         sequence_column: str,
         transform_fn: Callable[[], DataFrame],
-        scd_type: int = 1
+        scd_type: int = 1,
+        except_column_list: Optional[List[str]] = None
     ) -> None:
         """Create a dimension table using auto_cdc pattern with transformation function.
         
@@ -64,6 +65,7 @@ class DimensionFactory:
             transform_fn: Transformation function that returns source DataFrame
                          Function signature: def transform() -> DataFrame
             scd_type: SCD type - 1 (overwrite) or 2 (history). Default: 1
+            except_column_list: Source columns to exclude from the dimension table
         
         Example:
             def get_customer_data() -> DataFrame:
@@ -129,6 +131,7 @@ class DimensionFactory:
             keys=keys,
             sequence_column=sequence_column,
             stored_as_scd_type=scd_type,
+            except_column_list=except_column_list,
             name=f"dimension_cdc_{dimension_name}",
         )
         
@@ -154,7 +157,8 @@ def create_dimension(
     sequence_column: str,
     transform_fn: Callable[[], DataFrame],
     scd_type: int = 1,
-    source_system: str = "lakehouse"
+    source_system: str = "lakehouse",
+    except_column_list: Optional[List[str]] = None
 ) -> None:
     """Convenience function to create a dimension table.
     
@@ -175,5 +179,6 @@ def create_dimension(
         keys=keys,
         sequence_column=sequence_column,
         transform_fn=transform_fn,
-        scd_type=scd_type
+        scd_type=scd_type,
+        except_column_list=except_column_list
     )

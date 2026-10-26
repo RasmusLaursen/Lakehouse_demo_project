@@ -30,13 +30,22 @@ def transform_metering_points() -> DataFrame:
     
     # Read from base layer
     base_table_path = catalog_manager.get_base_table_path("meteringpoints")
-    df = spark.readStream.table(base_table_path)
+    # Base table is an AUTO CDC (MERGE) target, so stream its change feed instead of the table
+    df = (
+        spark.readStream
+        .option("readChangeFeed", "true")
+        .table(base_table_path)
+        .filter(col("_change_type").isin("insert", "update_postimage"))
+    )
     
     # Filter for active records
     df = df.filter(col("__END_AT").isNull())
     
-    # Columns to exclude
-    exclude_columns = ["_errors", "_warning", "__START_AT", "__END_AT"]
+    # Columns to exclude (_commit_version is kept as the CDC sequence column)
+    exclude_columns = [
+        "_errors", "_warning", "__START_AT", "__END_AT",
+        "_change_type", "_commit_timestamp",
+    ]
     
     # Select all columns except excluded ones
     selected_columns = [c for c in df.columns if c not in exclude_columns]
@@ -73,8 +82,9 @@ def transform_metering_points() -> DataFrame:
 create_dimension(
     dimension_name='dim_meteringpoint',
     keys=['meteringpoint_key'],  # Business key from data contract
-    sequence_column='created_at',  # Use CDC sequence column
+    sequence_column='commit_version',  # Base table commit version (snake_cased _commit_version)
     transform_fn=transform_metering_points,
     scd_type=1,  # Track history of changes
-    source_system='eloverblik'
+    source_system='eloverblik',
+    except_column_list=['commit_version'],
 )
