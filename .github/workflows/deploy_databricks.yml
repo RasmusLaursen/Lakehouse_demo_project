@@ -53,8 +53,9 @@ jobs:
       - name: Databrikcs bundle deploy - ${{ inputs.enviroment }}
         env:
           DATABRICKS_HOST: ${{ fromJson(vars.workspace_setup)[inputs.enviroment].host }}
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+          DATABRICKS_CLIENT_ID: ${{ fromJson(vars.workspace_setup)[inputs.enviroment]['service-principal'] }}
+          DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
           BUNDLE_VAR_environment: ${{ inputs.enviroment }}
-          BUNDLE_VAR_run_as: ${{ fromJson(vars.workspace_setup)[inputs.enviroment].service_principal }}
+          BUNDLE_VAR_run_as: ${{ fromJson(vars.workspace_setup)[inputs.enviroment]['service-principal'] }}
         run: databricks bundle deploy --target ${{ inputs.enviroment }}
         shell: bash
