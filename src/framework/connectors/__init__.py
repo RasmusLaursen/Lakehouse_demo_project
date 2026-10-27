@@ -27,6 +27,7 @@ from src.framework.connectors.partition_strategies import (
     TablePartition,
     HashInputPartition,
 )
+
 # PySpark DataSource implementations (Spark 4.0+) for non-Databricks sources
 from src.framework.connectors.rest_api_connector import RESTAPIDataSource
 from src.framework.connectors.fake_connector import FakeStreamDataSource
@@ -34,7 +35,9 @@ from src.framework.connectors.fake_connector import FakeStreamDataSource
 # Auto-register all connectors
 ConnectorFactory.register("autoloader", AutoLoaderConnector)
 ConnectorFactory.register("volume", AutoLoaderConnector)  # Backward compatibility
-ConnectorFactory.register("volume_autoloader", AutoLoaderConnector)  # Backward compatibility
+ConnectorFactory.register(
+    "volume_autoloader", AutoLoaderConnector
+)  # Backward compatibility
 ConnectorFactory.register("s3", AutoLoaderConnector)
 ConnectorFactory.register("adls", AutoLoaderConnector)
 ConnectorFactory.register("gcs", AutoLoaderConnector)
@@ -43,7 +46,7 @@ ConnectorFactory.register("eventhub", AutoLoaderConnector)
 ConnectorFactory.register("rest_api", RESTAPIDataSource)
 ConnectorFactory.register("http", RESTAPIDataSource)  # Alias
 ConnectorFactory.register("https", RESTAPIDataSource)  # Alias
-ConnectorFactory.register('fake', FakeStreamDataSource)
+ConnectorFactory.register("fake", FakeStreamDataSource)
 
 ConnectorFactory.register("jdbc", JdbcConnector)
 ConnectorFactory.register("database", JdbcConnector)  # Alias
@@ -75,5 +78,5 @@ __all__ = [
     "TablePartition",
     "HashInputPartition",
     # PySpark DataSource implementations (non-Databricks native)
-    "RESTAPIDataSource"
+    "RESTAPIDataSource",
 ]

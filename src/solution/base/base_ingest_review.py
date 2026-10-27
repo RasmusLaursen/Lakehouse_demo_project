@@ -10,6 +10,7 @@ The factory properly handles:
 - Change Data Capture (CDC) processing
 - Proper closure variable capture for DLT decorators
 """
+
 from src.framework.factory.base_factory import create_base_pipeline
 
 # Create the base pipeline for review source system

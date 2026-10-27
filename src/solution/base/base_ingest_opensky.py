@@ -13,6 +13,7 @@ The factory properly handles:
 OpenSky Network tracking data from Danish airspace is processed here
 with CDC to track changes in aircraft states over time.
 """
+
 from src.framework.factory.base_factory import create_base_pipeline
 
 # Create the base pipeline for opensky source system

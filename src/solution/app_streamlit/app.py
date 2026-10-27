@@ -40,7 +40,6 @@ def table_exists(table_name: str) -> bool:
         return False
 
 
-
 def create_table_if_not_exists(table_name: str, conn):
     create_table_query = f"""
     CREATE TABLE IF NOT EXISTS {table_name} (
@@ -185,8 +184,8 @@ with tab2:
                 return warehouse.id
         return None
 
-    base_catalog = base_catalog 
-    base_schema = base_schema 
+    base_catalog = base_catalog
+    base_schema = base_schema
 
     table_name = f"{base_catalog}.{base_schema}.bookings"
     table_name_confirmations = f"{base_catalog}.{base_schema}.bookings_confirmed"

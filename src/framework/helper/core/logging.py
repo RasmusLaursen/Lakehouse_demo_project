@@ -1,4 +1,5 @@
 """Core logging utilities for framework."""
+
 import logging
 
 
@@ -18,12 +19,14 @@ def get_logger(name: str) -> logging.Logger:
         logging.Logger: A logger instance configured with the specified name.
     """
     logger = logging.getLogger(name)
-    
+
     # Always set the logger level to INFO to ensure INFO messages are captured
     logger.setLevel(logging.INFO)
-    
+
     # Only add console handler if it doesn't already exist
-    if not any(isinstance(handler, logging.StreamHandler) for handler in logger.handlers):
+    if not any(
+        isinstance(handler, logging.StreamHandler) for handler in logger.handlers
+    ):
         # Create a console handler
         console_handler = logging.StreamHandler()
         console_handler.setLevel(logging.INFO)

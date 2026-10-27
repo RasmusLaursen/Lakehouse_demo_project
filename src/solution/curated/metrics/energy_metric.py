@@ -131,5 +131,11 @@ def create_energy_metric_view():
     dimensions_schema = parse_arguments("curated_dimensions_schema")
     facts_schema = parse_arguments("curated_facts_schema")
 
-    logger.info(f"Creating metric view {curated_catalog}.{metrics_schema}.{METRIC_VIEW_NAME}")
-    spark.sql(build_energy_metric_view_sql(curated_catalog, metrics_schema, dimensions_schema, facts_schema))
+    logger.info(
+        f"Creating metric view {curated_catalog}.{metrics_schema}.{METRIC_VIEW_NAME}"
+    )
+    spark.sql(
+        build_energy_metric_view_sql(
+            curated_catalog, metrics_schema, dimensions_schema, facts_schema
+        )
+    )

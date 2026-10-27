@@ -1,4 +1,5 @@
 """Data quality utilities using Databricks DQX."""
+
 from src.framework.helper.core import get_spark
 from src.framework.helper.core import get_logger
 from src.framework.helper.contracts import load_data_contract, find_data_contract_path
@@ -29,14 +30,16 @@ def get_dqx_generator(ws: WorkspaceClient, spark: SparkSession) -> DQGenerator:
     return generator
 
 
-def get_data_quality_configuration(catalog: str, object: str, spark: SparkSession) -> Optional[List[Dict[str, Any]]]:
+def get_data_quality_configuration(
+    catalog: str, object: str, spark: SparkSession
+) -> Optional[List[Dict[str, Any]]]:
     """Get data quality configuration from data contract.
-    
+
     Args:
         catalog: The catalog name (e.g., 'source_system', 'curated')
         object: The object/contract name
         spark: Active SparkSession
-        
+
     Returns:
         List of data quality checks if found and valid, None otherwise
     """
@@ -48,7 +51,9 @@ def get_data_quality_configuration(catalog: str, object: str, spark: SparkSessio
     data_quality_path = find_data_contract_path(catalog, object)
 
     if not data_quality_path:
-        logger.warning(f"Data quality configuration file not found: {object}.yml in catalog '{catalog}'")
+        logger.warning(
+            f"Data quality configuration file not found: {object}.yml in catalog '{catalog}'"
+        )
         return None
 
     checks = generator.generate_rules_from_contract(

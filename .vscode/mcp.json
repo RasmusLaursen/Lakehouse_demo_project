@@ -1,0 +1,13 @@
+{
+  "servers": {
+    "databricks-github": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "--quiet", "--script", "${workspaceFolder}/.vscode/databricks_mcp_proxy.py"],
+      "env": {
+        "DATABRICKS_CONFIG_PROFILE": "privat-free",
+        "DATABRICKS_MCP_URL": "https://dbc-e3d11267-f1e6.cloud.databricks.com/ai-gateway/mcp-services/system.ai.github"
+      }
+    }
+  }
+}

@@ -1,4 +1,5 @@
 """DataFrame audit column utilities."""
+
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import struct, current_timestamp, lit
 from src.framework.helper.core import get_logger

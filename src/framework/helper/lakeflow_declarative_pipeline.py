@@ -28,10 +28,10 @@ def ldp_table(
 ):
     """
     Creates a Delta Live Table (DLT) using a connector for data ingestion.
-    
+
     This is the new, preferred API for creating DLT tables with extensible
     data source support via the connector framework.
-    
+
     Args:
         name (str): Fully qualified table name (catalog.schema.table)
         connector (BaseConnector): Connector instance that handles data reading
@@ -46,10 +46,10 @@ def ldp_table(
         row_filter (str, optional): Row-level filter
         exceptions (list[dict], optional): Data quality expectations
         private (bool, optional): Whether table is private to pipeline (default: False)
-        
+
     Returns:
         None: Registers DLT table in pipeline
-        
+
     Example:
         >>> from src.framework.connectors import AutoLoaderConnector
         >>> connector = AutoLoaderConnector({
@@ -70,15 +70,15 @@ def ldp_table(
         "metadata.connector-type": type(connector).__name__,
         "metadata.connector-version": "2.0",
     }
-    
+
     merged_properties = {
         **DefaultTblProperties().as_dict(),
         **connector_metadata,
         **(table_properties or {}),
     }
-    
+
     logger.info(f"Creating DLT table {name} using {type(connector).__name__}")
-    
+
     # Use factory function pattern to properly capture variables in closures
     # This avoids Python's late-binding closure issue when called in loops
     def create_table_with_params(
@@ -97,7 +97,7 @@ def ldp_table(
     ):
         # Import dlt inside function - only when actually creating tables in DLT context
         import dlt  # type: ignore
-        
+
         @dlt.table(
             name=table_name,
             comment=table_comment,
@@ -112,37 +112,40 @@ def ldp_table(
             private=table_private,
         )
         def table_creation(
-            table_connector = table_connector,
-            table_name = table_name,
-
+            table_connector=table_connector,
+            table_name=table_name,
         ) -> DataFrame:
             """Inner function that reads data via connector."""
             logger.info(f"Reading data using {type(table_connector).__name__}")
             spark = databricks_helper.get_spark()
-            
+
             # Check for explicit mode configuration in connector config
-            connector_mode = getattr(table_connector, 'config', {}).get('mode', 'batch')
-            
+            connector_mode = getattr(table_connector, "config", {}).get("mode", "batch")
+
             # Check if connector has a preference for batch vs streaming
             # Explicit mode config overrides connector preference
-            if connector_mode == 'streaming':
+            if connector_mode == "streaming":
                 logger.info(f"Using streaming read for {table_name} (mode=streaming)")
                 df = table_connector.read_stream(spark)
-            elif connector_mode == 'batch':
+            elif connector_mode == "batch":
                 logger.info(f"Using batch read for {table_name} (mode=batch)")
                 df = table_connector.read_batch(spark)
             else:
                 # Fallback to connector preference
-                use_batch = getattr(table_connector, 'prefer_batch', False)
-                
+                use_batch = getattr(table_connector, "prefer_batch", False)
+
                 if use_batch:
-                    logger.info(f"Using batch read for {type(table_connector).__name__} (prefer_batch=True)")
+                    logger.info(
+                        f"Using batch read for {type(table_connector).__name__} (prefer_batch=True)"
+                    )
                     df = table_connector.read_batch(spark)
                 else:
-                    logger.info(f"Using streaming read for {type(table_connector).__name__} (prefer_batch=False)")
+                    logger.info(
+                        f"Using streaming read for {type(table_connector).__name__} (prefer_batch=False)"
+                    )
                     df = table_connector.read_stream(spark)
             return df
-    
+
     # Invoke the factory function to register the table with properly captured variables
     create_table_with_params(
         table_name=name,
@@ -158,6 +161,7 @@ def ldp_table(
         table_row_filter=row_filter,
         table_private=private,
     )
+
 
 def ldp_view(
     source_catalog: str,
@@ -179,7 +183,7 @@ def ldp_view(
     Returns:
         None: This function does not return a value. It registers a view in the pipeline.
     """
-    
+
     # Import dlt inside function - only when actually creating views in DLT context
     import dlt  # type: ignore
 
@@ -250,7 +254,7 @@ def ldp_change_data_capture(
         name=f"{target_catalog}.{target_schema}.{target_object}",
         table_properties=table_properties,
     )
-    
+
     # Import dlt inside function - only when actually creating CDC in DLT context
     import dlt  # type: ignore
 
@@ -310,7 +314,7 @@ def ldp_create_streaming_table(
     """
     # Import dlt inside function - only when actually creating streaming tables in DLT context
     import dlt  # type: ignore
-    
+
     dlt.create_streaming_table(
         name=name,
         comment=comment,

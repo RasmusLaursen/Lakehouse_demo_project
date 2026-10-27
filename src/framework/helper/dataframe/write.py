@@ -1,4 +1,5 @@
 """DataFrame writing utilities."""
+
 from pyspark.sql import DataFrame
 from src.framework.helper.core import get_logger
 
@@ -27,7 +28,9 @@ def write_volume(
     Returns:
         None
     """
-    logger.info(f"Writing to {target_catalog}.{target_schema}.{target_name} with mode {mode}")
+    logger.info(
+        f"Writing to {target_catalog}.{target_schema}.{target_name} with mode {mode}"
+    )
     source_dataframe.write.mode(mode).format(file_format).save(
         f"dbfs:/Volumes/{target_catalog}/{target_schema}/{target_name}"
     )

@@ -27,11 +27,15 @@ def schema_to_table_config(schema: SchemaObject) -> Dict[str, Any]:
         keys = get_primary_keys(schema)
 
     # Get sequence column (default to common patterns)
-    sequence_column = get_custom_property(schema, "sequence_column", "_metadata_ldp.ingest_timestamp")
+    sequence_column = get_custom_property(
+        schema, "sequence_column", "_metadata_ldp.ingest_timestamp"
+    )
 
     # Get track history configuration
     track_history_column_list = get_custom_property(schema, "track_history_columns")
-    track_history_except_column_list = get_custom_property(schema, "track_history_except")
+    track_history_except_column_list = get_custom_property(
+        schema, "track_history_except"
+    )
 
     # Get column lists
     column_list = get_custom_property(schema, "column_list")
@@ -44,7 +48,7 @@ def schema_to_table_config(schema: SchemaObject) -> Dict[str, Any]:
     ignore_null_updates = get_custom_property(schema, "ignore_null_updates", False)
     data_quality = get_custom_property(schema, "data_quality", False)
 
-    #Rest api sepcific properties
+    # Rest api sepcific properties
     dependency_table = get_custom_property(schema, "dependency_table")
 
     config = {
@@ -72,9 +76,6 @@ def schema_to_table_config(schema: SchemaObject) -> Dict[str, Any]:
         config["apply_as_truncates"] = apply_as_truncates
     if dependency_table:
         config["dependency_table"] = dependency_table
-
-
-
 
     return config
 
@@ -114,6 +115,7 @@ def validate_data_contract(contract_path: str) -> bool:
     """
     try:
         from src.framework.helper.contracts.loader import load_data_contract
+
         load_data_contract(contract_path)
         return True
     except Exception:
@@ -130,17 +132,18 @@ def schema_properties_to_spark_schema(schema: SchemaObject):
         StructType: Spark schema
     """
     from pyspark.sql.types import StructType, StructField, StringType
-    
+
     # Create basic Spark schema from properties
     fields = []
     if schema.properties:
         # schema.properties is a list of property objects with 'name' and 'type' attributes
         for prop in schema.properties:
             # Get property name - handle both object attributes and dict access
-            prop_name = getattr(prop, 'name', prop.get('name') if isinstance(prop, dict) else None)
+            prop_name = getattr(
+                prop, "name", prop.get("name") if isinstance(prop, dict) else None
+            )
             if prop_name:
                 # Default to StringType for simplicity - real implementation would map types
                 fields.append(StructField(prop_name, StringType(), True))
-    
-    return StructType(fields) if fields else None
 
+    return StructType(fields) if fields else None

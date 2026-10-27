@@ -44,7 +44,9 @@ def save_list_to_volume(landing_catalog, landing_schema, entity_name, entity_rec
 
 def main():
     landing_catalog = parse_arguments("landing_catalog", default="landing_dev")
-    lakehouse_landing_schema = parse_arguments("lakehouse_landing_schema", default="lakehouse")
+    lakehouse_landing_schema = parse_arguments(
+        "lakehouse_landing_schema", default="lakehouse"
+    )
     review_landing_schema = parse_arguments("review_landing_schema", default="review")
 
     random_number_of_records = parse_arguments("random_number_of_records")

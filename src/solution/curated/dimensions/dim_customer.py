@@ -17,4 +17,3 @@
 #     filter_active=True,
 #     scd_type=2  # Use SCD Type 2 with automatic start/end time columns
 # )
-

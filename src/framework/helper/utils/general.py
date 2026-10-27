@@ -1,4 +1,5 @@
 """Utility functions for common operations."""
+
 import sys
 from pathlib import Path
 from typing import Any, Generator, List, Optional
@@ -31,19 +32,21 @@ def parse_arguments(variable_name: str, default: Any = None) -> Any:
             varvalue = variable.split("=")[1]
             logger.debug(f"{varname} value: {varvalue}")
             return varvalue
-    
-    logger.debug(f"{variable_name} not found in command line arguments. Using default: {default}")
+
+    logger.debug(
+        f"{variable_name} not found in command line arguments. Using default: {default}"
+    )
     return default
 
 
 def list_yml_files(base_path: str, catalog: str) -> Generator[Path, None, None]:
     """
     List all YAML files in a catalog directory.
-    
+
     Args:
         base_path: Root folder of the data contracts (e.g. ${workspace.file_path}/data_contracts)
         catalog: The catalog name
-        
+
     Yields:
         Path objects for each .yml file found
     """
@@ -100,15 +103,13 @@ def list_tables_in_schema(spark, source_catalog: str, source_schema: str) -> lis
         Returns an empty list if an error occurs during the fetch operation.
     """
     try:
-        table_list = spark.sql(
-            f"""
+        table_list = spark.sql(f"""
         SELECT DISTINCT table_name
         FROM {source_catalog}.information_schema.tables
         WHERE table_catalog = '{source_catalog}'
         AND table_schema = '{source_schema}'
         AND table_type != 'MANAGED'
-        """
-        ).collect()
+        """).collect()
         return table_list
     except Exception as e:
         logger.error(f"Error fetching table list: {e}")

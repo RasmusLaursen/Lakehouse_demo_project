@@ -16,8 +16,7 @@ def create_lakehouse_metric_view():
         f"(dimensions={dimensions_schema}, facts={facts_schema})"
     )
 
-    spark.sql(
-        f"""
+    spark.sql(f"""
           CREATE OR REPLACE VIEW {curated_catalog}.{curated_metrics_schema}.mv_lakehouse_rentals
             WITH METRICS
             LANGUAGE YAML
@@ -105,5 +104,4 @@ def create_lakehouse_metric_view():
               - name: Total Reviews
                 expr: COUNT(calendar_order_id)
             $$;
-            """
-    )
+            """)

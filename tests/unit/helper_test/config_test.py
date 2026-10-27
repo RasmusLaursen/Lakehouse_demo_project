@@ -427,8 +427,7 @@ class TestTableConfig:
             "apply_as_deletes": None,
             "apply_as_truncates": None,
             "ignore_null_updates": False,
-            "data_quality": False
-
+            "data_quality": False,
         }
 
         assert json_data == expected

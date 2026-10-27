@@ -1,18 +1,21 @@
 """Catalog and data warehouse utilities for dimension lookups and table metadata."""
+
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import col
 from typing import Optional
 
 
-def dimension_keys_lookup(curated_catalog: str, curated_dimension_schema: str, fact_df: DataFrame) -> DataFrame:
+def dimension_keys_lookup(
+    curated_catalog: str, curated_dimension_schema: str, fact_df: DataFrame
+) -> DataFrame:
     """
     Enrich fact table with dimension keys by joining with dimension tables.
-    
+
     Args:
         curated_catalog: Catalog containing dimension tables
         curated_dimension_schema: Schema containing dimension tables
         fact_df: DataFrame with dimension key columns (ending in _key)
-        
+
     Returns:
         DataFrame with dimensions joined and _key columns removed
     """
@@ -73,8 +76,9 @@ def get_table_properties(catalog: str, schema: str, table: str) -> dict:
         Dictionary of table properties
     """
     from src.framework.helper.core import get_spark
+
     spark = get_spark()
-    
+
     table_identifier = f"{catalog}.{schema}.{table}"
     desc_df = spark.sql(f"DESCRIBE TABLE EXTENDED {table_identifier}")
     properties_row = desc_df.filter(col("col_name") == "Table Properties").collect()
